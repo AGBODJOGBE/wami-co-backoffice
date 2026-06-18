@@ -14,6 +14,10 @@ export interface PassengerRow {
   isSuspended: boolean;
   registeredAgo: string;
   lastActivity: string;
+  /** Added for live API data — false when account is suspended/inactive. */
+  isActive: boolean;
+  /** ISO 8601 date-time string from the API. */
+  createdAt: string;
 }
 
 const seed: PassengerRow[] = [
@@ -27,8 +31,10 @@ const seed: PassengerRow[] = [
     totalRides: 47,
     rating: 4.9,
     isSuspended: false,
+    isActive: true,
     registeredAgo: "il y a 8 mois",
     lastActivity: "il y a 4 min",
+    createdAt: "",
   },
   {
     passengerId: "18cc4020-0002",
@@ -40,8 +46,10 @@ const seed: PassengerRow[] = [
     totalRides: 112,
     rating: 4.8,
     isSuspended: false,
+    isActive: true,
     registeredAgo: "il y a 14 mois",
     lastActivity: "il y a 7 min",
+    createdAt: "",
   },
   {
     passengerId: "18cc4020-0003",
@@ -53,8 +61,10 @@ const seed: PassengerRow[] = [
     totalRides: 4,
     rating: 5,
     isSuspended: false,
+    isActive: true,
     registeredAgo: "il y a 3 j",
     lastActivity: "il y a 9 min",
+    createdAt: "",
   },
   {
     passengerId: "18cc4020-0004",
@@ -66,8 +76,10 @@ const seed: PassengerRow[] = [
     totalRides: 254,
     rating: 4.7,
     isSuspended: false,
+    isActive: true,
     registeredAgo: "il y a 2 ans",
     lastActivity: "il y a 12 min",
+    createdAt: "",
   },
   {
     passengerId: "18cc4020-0005",
@@ -79,8 +91,10 @@ const seed: PassengerRow[] = [
     totalRides: 23,
     rating: 3.4,
     isSuspended: true,
+    isActive: false,
     registeredAgo: "il y a 11 mois",
     lastActivity: "il y a 21 min",
+    createdAt: "",
   },
   {
     passengerId: "18cc4020-0006",
@@ -92,8 +106,10 @@ const seed: PassengerRow[] = [
     totalRides: 68,
     rating: 4.9,
     isSuspended: false,
+    isActive: true,
     registeredAgo: "il y a 6 mois",
     lastActivity: "il y a 32 min",
+    createdAt: "",
   },
   {
     passengerId: "18cc4020-0007",
@@ -105,8 +121,10 @@ const seed: PassengerRow[] = [
     totalRides: 91,
     rating: 4.6,
     isSuspended: false,
+    isActive: true,
     registeredAgo: "il y a 1 an",
     lastActivity: "il y a 4 min",
+    createdAt: "",
   },
   {
     passengerId: "18cc4020-0008",
@@ -118,8 +136,10 @@ const seed: PassengerRow[] = [
     totalRides: 34,
     rating: 4.8,
     isSuspended: false,
+    isActive: true,
     registeredAgo: "il y a 5 mois",
     lastActivity: "il y a 57 min",
+    createdAt: "",
   },
 ];
 
@@ -152,8 +172,10 @@ export const usePassengersStore = create<PassengersStore>((set) => ({
       totalRides: 0,
       rating: 0,
       isSuspended: false,
+      isActive: true,
       registeredAgo: "à l'instant",
       lastActivity: "à l'instant",
+      createdAt: new Date().toISOString(),
     };
     set((s) => ({ passengers: [newPassenger, ...s.passengers] }));
     return newPassenger.passengerId;

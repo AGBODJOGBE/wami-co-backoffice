@@ -215,6 +215,12 @@ export const API_ROUTES = {
     upload: () => "/api/documents/upload",
   },
 
+  // ─── Admin: users (passengers, drivers by role) ────────────────────────────
+  adminUsers: {
+    /** GET — list users filtered by role, search, isActive. */
+    list: () => "/api/admin/users",
+  },
+
   // ─── Notifications (admin can read) ────────────────────────────────────────
   notifications: {
     /** GET — list notifications for current user. */

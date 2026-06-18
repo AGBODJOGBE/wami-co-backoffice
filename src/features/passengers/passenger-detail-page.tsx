@@ -6,33 +6,21 @@ import {
   Banknote,
   Calendar,
   Car as CarIcon,
-  KeyRound,
   Mail,
   MapPin,
   Package,
-  Pencil,
   Phone,
-  PowerOff,
-  ShieldCheck,
   Star,
-  Trash2,
 } from "lucide-react";
 import { Avatar } from "@/shared/ui/avatar";
 import { Badge } from "@/shared/ui/badge";
-import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
-import { ConfirmModal } from "@/shared/ui/confirm-modal";
 import {
   DetailHeader,
   DetailNotFound,
   InfoGrid,
 } from "@/shared/ui/detail-header";
-import { DropdownMenu } from "@/shared/ui/dropdown-menu";
-import { Input } from "@/shared/ui/input";
-import { Modal } from "@/shared/ui/modal";
-import { Combobox } from "@/shared/ui/combobox";
 import { Tabs } from "@/shared/ui/tabs";
-import { toast } from "@/shared/ui/toast";
 import { formatXof } from "@/shared/lib/format";
 import { mockDeliveryOrders } from "@/features/delivery/domain/mock";
 import {
@@ -46,102 +34,21 @@ import {
   VEHICLE_TYPE_LABELS,
 } from "@/features/rides/domain/ride";
 import { useWalletStore } from "@/features/wallet/store";
-import { usePassengersStore, type PassengerRow } from "./store";
+import type { PassengerRow } from "./store";
 
-type ConfirmAction = "suspend" | "reactivate" | "reset-password" | "delete";
-
-const CITY_OPTIONS = [
-  { value: "Cotonou", label: "Cotonou" },
-  { value: "Calavi", label: "Calavi" },
-  { value: "Porto-Novo", label: "Porto-Novo" },
-  { value: "Ouidah", label: "Ouidah" },
-];
-
-function PassengerEditModal({
-  open,
-  passenger,
-  onClose,
-}: {
-  open: boolean;
-  passenger: PassengerRow;
-  onClose: () => void;
-}) {
-  const update = usePassengersStore((s) => s.update);
-  const [form, setForm] = useState({
-    fullName: passenger.fullName,
-    phone: passenger.phone,
-    email: passenger.email,
-    city: passenger.city,
-  });
-
-  function handleSubmit() {
-    update(passenger.passengerId, form);
-    toast({
-      kind: "success",
-      title: "Profil mis à jour",
-      description: form.fullName,
-    });
-    onClose();
-  }
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Modifier le profil"
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Annuler
-          </Button>
-          <Button onClick={handleSubmit}>Enregistrer</Button>
-        </>
-      }
-    >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Input
-          label="Nom complet"
-          value={form.fullName}
-          onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
-        />
-        <Input
-          label="Téléphone"
-          value={form.phone}
-          onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-        />
-        <Input
-          label="Email"
-          type="email"
-          value={form.email}
-          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-          className="sm:col-span-2"
-        />
-        <Combobox
-          label="Ville"
-          options={CITY_OPTIONS}
-          value={form.city}
-          onChange={(v) => setForm((f) => ({ ...f, city: v }))}
-        />
-      </div>
-    </Modal>
-  );
+interface PassengerDetailPageProps {
+  passengerId: string;
+  passenger: PassengerRow | null;
 }
 
-export function PassengerDetailPage({ passengerId }: { passengerId: string }) {
+export function PassengerDetailPage({
+  passengerId: _passengerId,
+  passenger,
+}: PassengerDetailPageProps) {
   const router = useRouter();
-  const passenger = usePassengersStore((s) =>
-    s.passengers.find((p) => p.passengerId === passengerId),
-  );
-  const suspend = usePassengersStore((s) => s.suspend);
-  const reactivate = usePassengersStore((s) => s.reactivate);
-  const remove = usePassengersStore((s) => s.remove);
   const transactions = useWalletStore((s) => s.transactions);
 
-  const [editOpen, setEditOpen] = useState(false);
-  const [confirm, setConfirm] = useState<{
-    open: boolean;
-    action: ConfirmAction;
-  }>({ open: false, action: "suspend" });
+  const [_editOpen, _setEditOpen] = useState(false);
 
   const passengerRides = useMemo(
     () =>
@@ -175,82 +82,6 @@ export function PassengerDetailPage({ passengerId }: { passengerId: string }) {
     );
   }
 
-  function runConfirm(reason?: string) {
-    if (!passenger) return;
-    if (confirm.action === "suspend") {
-      suspend(passenger.passengerId);
-      toast({
-        kind: "warning",
-        title: "Compte suspendu",
-        description: reason ?? passenger.fullName,
-      });
-    } else if (confirm.action === "reactivate") {
-      reactivate(passenger.passengerId);
-      toast({
-        kind: "success",
-        title: "Compte réactivé",
-        description: passenger.fullName,
-      });
-    } else if (confirm.action === "reset-password") {
-      toast({
-        kind: "info",
-        title: "Mot de passe réinitialisé",
-        description: `Un SMS a été envoyé à ${passenger.phone}.`,
-      });
-    } else if (confirm.action === "delete") {
-      remove(passenger.passengerId);
-      toast({
-        kind: "info",
-        title: "Compte supprimé",
-        description: passenger.fullName,
-      });
-      router.push("/vtc/passengers");
-      return;
-    }
-    setConfirm({ open: false, action: confirm.action });
-  }
-
-  const headerActions = (
-    <DropdownMenu
-      trigger={<Button size="sm">Actions</Button>}
-      groups={[
-        {
-          label: "Cas d'usage",
-          items: [
-            { label: "Modifier le profil", icon: Pencil, onSelect: () => setEditOpen(true) },
-            {
-              label: "Réinitialiser le mot de passe",
-              icon: KeyRound,
-              onSelect: () => setConfirm({ open: true, action: "reset-password" }),
-            },
-            passenger.isSuspended
-              ? {
-                  label: "Réactiver",
-                  icon: ShieldCheck,
-                  onSelect: () => setConfirm({ open: true, action: "reactivate" }),
-                }
-              : {
-                  label: "Suspendre",
-                  icon: PowerOff,
-                  onSelect: () => setConfirm({ open: true, action: "suspend" }),
-                  danger: true,
-                },
-          ],
-        },
-        {
-          items: [
-            {
-              label: "Supprimer",
-              icon: Trash2,
-              onSelect: () => setConfirm({ open: true, action: "delete" }),
-              danger: true,
-            },
-          ],
-        },
-      ]}
-    />
-  );
-
   return (
     <div className="flex flex-col gap-6">
       <DetailHeader
@@ -264,18 +95,24 @@ export function PassengerDetailPage({ passengerId }: { passengerId: string }) {
               <Phone className="size-3" />
               {passenger.phone}
             </span>
-            <span className="inline-flex items-center gap-1">
-              <Mail className="size-3" />
-              {passenger.email}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="size-3" />
-              {passenger.city}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <Calendar className="size-3" />
-              Inscrit {passenger.registeredAgo}
-            </span>
+            {passenger.email ? (
+              <span className="inline-flex items-center gap-1">
+                <Mail className="size-3" />
+                {passenger.email}
+              </span>
+            ) : null}
+            {passenger.city ? (
+              <span className="inline-flex items-center gap-1">
+                <MapPin className="size-3" />
+                {passenger.city}
+              </span>
+            ) : null}
+            {passenger.registeredAgo && passenger.registeredAgo !== "—" ? (
+              <span className="inline-flex items-center gap-1">
+                <Calendar className="size-3" />
+                Inscrit {passenger.registeredAgo}
+              </span>
+            ) : null}
           </div>
         }
         avatar={<Avatar name={passenger.fullName} className="size-16 text-lg" />}
@@ -286,7 +123,6 @@ export function PassengerDetailPage({ passengerId }: { passengerId: string }) {
             <Badge tone="success">Actif</Badge>
           )
         }
-        actions={headerActions}
       />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -351,8 +187,8 @@ export function PassengerDetailPage({ passengerId }: { passengerId: string }) {
                     rows={[
                       { label: "Nom complet", value: passenger.fullName },
                       { label: "Téléphone", value: <span className="font-mono">{passenger.phone}</span> },
-                      { label: "Email", value: <span className="font-mono">{passenger.email}</span> },
-                      { label: "Ville", value: passenger.city },
+                      { label: "Email", value: <span className="font-mono">{passenger.email || "—"}</span> },
+                      { label: "Ville", value: passenger.city || "—" },
                       { label: "Inscrit", value: passenger.registeredAgo },
                       { label: "Passenger ID", value: <span className="font-mono text-xs">{passenger.passengerId}</span> },
                     ]}
@@ -602,52 +438,6 @@ export function PassengerDetailPage({ passengerId }: { passengerId: string }) {
             ),
           },
         ]}
-      />
-
-      <PassengerEditModal
-        open={editOpen}
-        passenger={passenger}
-        onClose={() => setEditOpen(false)}
-      />
-
-      <ConfirmModal
-        open={confirm.open}
-        onClose={() => setConfirm((c) => ({ ...c, open: false }))}
-        onConfirm={runConfirm}
-        title={
-          {
-            suspend: "Suspendre ce passager ?",
-            reactivate: "Réactiver ce passager ?",
-            "reset-password": "Réinitialiser le mot de passe ?",
-            delete: "Supprimer définitivement ?",
-          }[confirm.action]
-        }
-        description={
-          <p>
-            <span className="font-medium text-[color:var(--foreground)]">
-              {passenger.fullName}
-            </span>{" "}
-            · {passenger.phone}
-          </p>
-        }
-        confirmLabel={
-          {
-            suspend: "Suspendre",
-            reactivate: "Réactiver",
-            "reset-password": "Envoyer le SMS",
-            delete: "Supprimer",
-          }[confirm.action]
-        }
-        tone={
-          confirm.action === "delete" || confirm.action === "suspend"
-            ? "danger"
-            : "primary"
-        }
-        withReason={
-          confirm.action === "suspend"
-            ? { label: "Motif", required: true }
-            : undefined
-        }
       />
     </div>
   );
