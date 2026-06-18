@@ -1,28 +1,25 @@
 "use client";
 
 import { Tabs } from "@/shared/ui/tabs";
-import { RidePricingClient } from "./ride-pricing-client";
+import { RidePricingProfileEditor } from "./ride-pricing-profile-editor";
 import { SurgeRulesSection } from "./surge-rules-section";
-import type {
-  RidePricingInput,
-  RideVehicleType,
-} from "../domain/ride-pricing";
+import { PricingProfilesSection } from "./pricing-profiles-section";
+import { VehiclePricingGrid } from "./vehicle-pricing-grid";
 import type { SurgeRule } from "../domain/surge";
+import type { PricingProfile } from "../domain/pricing-profile";
 
 export interface PricingTabsProps {
   surgeRules: SurgeRule[];
   surgeError?: string;
-  initialPricing?: RidePricingInput;
-  initialVehicleType?: RideVehicleType;
-  initialPricingError?: string;
+  profiles: PricingProfile[];
+  profilesError?: string;
 }
 
 export function PricingTabs({
   surgeRules,
   surgeError,
-  initialPricing,
-  initialVehicleType,
-  initialPricingError,
+  profiles,
+  profilesError,
 }: PricingTabsProps) {
   return (
     <Tabs
@@ -32,10 +29,9 @@ export function PricingTabs({
           value: "grid",
           label: "Grille tarifaire",
           content: (
-            <RidePricingClient
-              initialPricing={initialPricing}
-              initialVehicleType={initialVehicleType}
-              initialError={initialPricingError}
+            <RidePricingProfileEditor
+              profiles={profiles}
+              error={profilesError}
             />
           ),
         },
@@ -47,6 +43,27 @@ export function PricingTabs({
               ? { count: surgeRules.length, tone: "info" }
               : undefined,
           content: <SurgeRulesSection rules={surgeRules} error={surgeError} />,
+        },
+        {
+          value: "profiles",
+          label: "Profils de tarification",
+          badge:
+            profiles.length > 0
+              ? { count: profiles.length, tone: "neutral" }
+              : undefined,
+          content: (
+            <PricingProfilesSection
+              profiles={profiles}
+              error={profilesError}
+            />
+          ),
+        },
+        {
+          value: "vehicles",
+          label: "Tarifs par véhicule",
+          content: (
+            <VehiclePricingGrid profiles={profiles} error={profilesError} />
+          ),
         },
       ]}
     />

@@ -69,6 +69,25 @@ export const API_ROUTES = {
       `/api/admin/ride-pricing/${vehicleType}`,
   },
 
+  // ─── Admin: pricing profiles ───────────────────────────────────────────────
+  adminPricingProfiles: {
+    /** GET — list pricing profiles (query: serviceKey?, vehicleType?, isActive?). */
+    list: () => "/api/admin/pricing/profiles",
+    /** POST — create a pricing profile. */
+    create: () => "/api/admin/pricing/profiles",
+    /** GET — pricing profile detail. */
+    detail: (id: string) => `/api/admin/pricing/profiles/${id}`,
+    /** PATCH — update a pricing profile (inactive only). */
+    update: (id: string) => `/api/admin/pricing/profiles/${id}`,
+    /** DELETE — delete a pricing profile (inactive only). */
+    remove: (id: string) => `/api/admin/pricing/profiles/${id}`,
+    /** POST — activate a pricing profile. */
+    activate: (id: string) => `/api/admin/pricing/profiles/${id}/activate`,
+    /** POST — deactivate a pricing profile. */
+    deactivate: (id: string) =>
+      `/api/admin/pricing/profiles/${id}/deactivate`,
+  },
+
   // ─── Admin: promo codes ────────────────────────────────────────────────────
   adminPromos: {
     /** POST — create a promo code. */

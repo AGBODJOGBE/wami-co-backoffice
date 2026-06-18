@@ -1,16 +1,13 @@
-import { getActiveRidePricing } from "@/features/vtc-pricing/application/api";
 import { listSurgeRules } from "@/features/vtc-pricing/application/surge-api";
+import { listPricingProfiles } from "@/features/vtc-pricing/application/pricing-profiles-api";
 import { PricingTabs } from "@/features/vtc-pricing/presentation/pricing-tabs";
-import type { RideVehicleType } from "@/features/vtc-pricing/domain/ride-pricing";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_PRICING_VEHICLE: RideVehicleType = "STANDARD";
-
 export default async function VtcPricingPageRoute() {
-  const [surgeRes, pricingRes] = await Promise.allSettled([
+  const [surgeRes, profilesRes] = await Promise.allSettled([
     listSurgeRules(),
-    getActiveRidePricing(DEFAULT_PRICING_VEHICLE),
+    listPricingProfiles(),
   ]);
 
   const surgeRules = surgeRes.status === "fulfilled" ? surgeRes.value : [];
@@ -21,12 +18,12 @@ export default async function VtcPricingPageRoute() {
         : "Erreur de chargement."
       : undefined;
 
-  const initialPricing =
-    pricingRes.status === "fulfilled" ? pricingRes.value : undefined;
-  const initialPricingError =
-    pricingRes.status === "rejected"
-      ? pricingRes.reason instanceof Error
-        ? pricingRes.reason.message
+  const profiles =
+    profilesRes.status === "fulfilled" ? profilesRes.value : [];
+  const profilesError =
+    profilesRes.status === "rejected"
+      ? profilesRes.reason instanceof Error
+        ? profilesRes.reason.message
         : "Erreur de chargement."
       : undefined;
 
@@ -34,9 +31,8 @@ export default async function VtcPricingPageRoute() {
     <PricingTabs
       surgeRules={surgeRules}
       surgeError={surgeError}
-      initialPricing={initialPricing}
-      initialVehicleType={DEFAULT_PRICING_VEHICLE}
-      initialPricingError={initialPricingError}
+      profiles={profiles}
+      profilesError={profilesError}
     />
   );
 }
