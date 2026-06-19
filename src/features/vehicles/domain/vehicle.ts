@@ -66,6 +66,9 @@ export interface VehicleSummary {
   assignedAt: string | null;
   mileage: number | null;
   nextMaintenanceDate: string | null;
+  /** Purchase / resale price (FCFA). Returned by the detail endpoint and
+   * sometimes present on list items — used to auto-fill the contract amount. */
+  purchasePrice?: number | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -98,9 +98,10 @@ export interface Contract {
 
 // ─── Payment frequency ────────────────────────────────────────────────────────
 
-export type PaymentFrequency = "WEEKLY" | "MONTHLY" | "QUARTERLY";
+export type PaymentFrequency = "DAILY" | "WEEKLY" | "MONTHLY" | "QUARTERLY";
 
 export const PAYMENT_FREQUENCY_LABELS: Record<PaymentFrequency, string> = {
+  DAILY: "Quotidienne",
   WEEKLY: "Hebdomadaire",
   MONTHLY: "Mensuel",
   QUARTERLY: "Trimestriel",

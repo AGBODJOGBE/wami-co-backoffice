@@ -24,6 +24,8 @@ import { SearchField } from "@/shared/ui/search-field";
 import { Spinner } from "@/shared/ui/spinner";
 import { formatDate } from "@/shared/lib/format";
 import { StatCard } from "@/features/dashboard/presentation/components/stat-card";
+import type { AdminDriver } from "@/features/drivers/domain/admin-driver";
+import type { VehicleSummary } from "@/features/vehicles/domain/vehicle";
 import {
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_TONES,
@@ -49,9 +51,11 @@ export interface ContractsPageProps {
   contracts: Contract[];
   total: number;
   error?: string;
+  drivers: AdminDriver[];
+  vehicles: VehicleSummary[];
 }
 
-export function ContractsPage({ contracts, total, error }: ContractsPageProps) {
+export function ContractsPage({ contracts, total, error, drivers, vehicles }: ContractsPageProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [search, setSearch] = useState("");
@@ -315,6 +319,8 @@ export function ContractsPage({ contracts, total, error }: ContractsPageProps) {
           setCreateOpen(false);
           router.refresh();
         }}
+        drivers={drivers}
+        vehicles={vehicles}
       />
     </div>
   );

@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/shared/ui/button";
+import { Combobox } from "@/shared/ui/combobox";
 import { Input } from "@/shared/ui/input";
 import { Modal } from "@/shared/ui/modal";
 import { Select } from "@/shared/ui/select";
 import { toast } from "@/shared/ui/toast";
+import type { AdminDriver } from "@/features/drivers/domain/admin-driver";
+import type { VehicleSummary } from "@/features/vehicles/domain/vehicle";
 import { createContractAction } from "../application/actions";
 import {
   PAYMENT_FREQUENCY_OPTIONS,
@@ -13,6 +16,36 @@ import {
   type CreateContractInput,
   type PaymentFrequency,
 } from "../domain/contract";
+
+// ─── Annuity calc ─────────────────────────────────────────────────────────────
+
+function calcEcheance(input: CreateContractInput): number {
+  const { montantTotal, apport, tauxInteret, dureeMois, frequencePaiement } = input;
+  const capital = montantTotal - apport;
+  if (capital <= 0 || dureeMois <= 0) return 0;
+
+  const periodsPerYear =
+    frequencePaiement === "DAILY"
+      ? 365
+      : frequencePaiement === "WEEKLY"
+        ? 52
+        : frequencePaiement === "QUARTERLY"
+          ? 4
+          : 12;
+
+  const nbPeriods = Math.round((dureeMois / 12) * periodsPerYear);
+  const ratePerPeriod = tauxInteret / periodsPerYear;
+
+  if (ratePerPeriod === 0) return Math.round(capital / nbPeriods);
+
+  const echeance =
+    (capital * ratePerPeriod * Math.pow(1 + ratePerPeriod, nbPeriods)) /
+    (Math.pow(1 + ratePerPeriod, nbPeriods) - 1);
+
+  return Math.round(echeance);
+}
+
+// ─── Default form ─────────────────────────────────────────────────────────────
 
 function defaultForm(): CreateContractInput {
   const today = new Date().toISOString().slice(0, 10);
@@ -28,34 +61,27 @@ function defaultForm(): CreateContractInput {
   };
 }
 
-function calcMensualite(input: CreateContractInput): number {
-  const { montantTotal, apport, tauxInteret, dureeMois, frequencePaiement } = input;
-  const capital = montantTotal - apport;
-  if (capital <= 0 || dureeMois <= 0) return 0;
+// ─── Props ────────────────────────────────────────────────────────────────────
 
-  const periodsPerYear = frequencePaiement === "WEEKLY" ? 52 : frequencePaiement === "QUARTERLY" ? 4 : 12;
-  const nbPeriods = Math.round((dureeMois / 12) * periodsPerYear);
-  const ratePerPeriod = tauxInteret / periodsPerYear;
-
-  if (ratePerPeriod === 0) return Math.round(capital / nbPeriods);
-
-  // Standard annuity formula
-  const mensualite =
-    (capital * ratePerPeriod * Math.pow(1 + ratePerPeriod, nbPeriods)) /
-    (Math.pow(1 + ratePerPeriod, nbPeriods) - 1);
-
-  return Math.round(mensualite);
-}
-
-interface Props {
+export interface ContractCreateModalProps {
   open: boolean;
   onClose: () => void;
+  drivers: AdminDriver[];
+  vehicles: VehicleSummary[];
 }
 
-export function ContractCreateModal({ open, onClose }: Props) {
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export function ContractCreateModal({
+  open,
+  onClose,
+  drivers,
+  vehicles,
+}: ContractCreateModalProps) {
   const [form, setForm] = useState<CreateContractInput>(defaultForm());
   const [pending, start] = useTransition();
 
+  // Reset on open
   useEffect(() => {
     if (open) setForm(defaultForm());
   }, [open]);
@@ -67,20 +93,78 @@ export function ContractCreateModal({ open, onClose }: Props) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  const mensualite = calcMensualite(form);
-  const capital = form.montantTotal - form.apport;
+  // ── Driver options ──────────────────────────────────────────────────────────
+  const driverOptions = useMemo(
+    () =>
+      drivers
+        .filter((d) => d.isApproved)
+        .map((d) => ({
+          value: d.driverId,
+          label: `${d.firstName} ${d.lastName}`.trim() || d.driverId,
+          description: d.phoneNumber,
+        })),
+    [drivers],
+  );
 
+  // ── Vehicle options — filtered to vehicles assigned to the selected driver ──
+  const vehicleOptions = useMemo(() => {
+    if (!form.driverId) return [];
+    return vehicles
+      .filter(
+        (v) =>
+          v.status !== "RETIRED" &&
+          v.status !== "REJECTED" &&
+          (v.assignedToDriverId === form.driverId ||
+            v.ownership === "PLATFORM"),
+      )
+      .map((v) => ({
+        value: v.id,
+        label: v.licensePlate,
+        description: `${v.make} ${v.model} ${v.year} · ${v.type}`,
+      }));
+  }, [vehicles, form.driverId]);
+
+  // ── Selected vehicle (for info card + price auto-fill) ─────────────────────
+  const selectedVehicle = useMemo(
+    () => vehicles.find((v) => v.id === form.vehicleId) ?? null,
+    [vehicles, form.vehicleId],
+  );
+
+  // Auto-fill montantTotal from vehicle purchasePrice when vehicle is picked
+  useEffect(() => {
+    if (selectedVehicle?.purchasePrice) {
+      set("montantTotal", selectedVehicle.purchasePrice);
+    }
+  }, [selectedVehicle]);
+
+  // Clear vehicle when driver changes
+  function onDriverChange(driverId: string) {
+    setForm((f) => ({
+      ...f,
+      driverId,
+      vehicleId: "",
+      montantTotal: 0,
+      apport: 0,
+    }));
+  }
+
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const echeance = calcEcheance(form);
+  const capital = form.montantTotal - form.apport;
+  const priceFromVehicle = !!selectedVehicle?.purchasePrice;
+
+  // ── Validation & submit ───────────────────────────────────────────────────
   function submit() {
-    if (!form.driverId.trim()) {
-      toast({ kind: "error", title: "Champ requis", description: "L'identifiant du driver est requis." });
+    if (!form.driverId) {
+      toast({ kind: "error", title: "Champ requis", description: "Veuillez sélectionner un driver." });
       return;
     }
-    if (!form.vehicleId.trim()) {
-      toast({ kind: "error", title: "Champ requis", description: "L'identifiant du véhicule est requis." });
+    if (!form.vehicleId) {
+      toast({ kind: "error", title: "Champ requis", description: "Veuillez sélectionner un véhicule." });
       return;
     }
     if (form.montantTotal <= 0) {
-      toast({ kind: "error", title: "Montant invalide", description: "Le montant total doit être supérieur à 0." });
+      toast({ kind: "error", title: "Montant invalide", description: "Le prix de revente doit être supérieur à 0." });
       return;
     }
     if (form.apport >= form.montantTotal) {
@@ -122,32 +206,99 @@ export function ContractCreateModal({ open, onClose }: Props) {
       }
     >
       <div className="flex flex-col gap-6">
-        {/* Parties */}
+
+        {/* ── Parties ────────────────────────────────────────────────────── */}
         <div className="flex flex-col gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">
             Parties
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Input
-              label="ID du driver *"
+            <Combobox
+              label="Driver *"
+              placeholder="Sélectionner un driver…"
+              searchPlaceholder="Rechercher par nom ou téléphone…"
+              emptyMessage="Aucun driver approuvé trouvé."
+              options={driverOptions}
               value={form.driverId}
-              onChange={(e) => set("driverId", e.target.value.trim())}
-              placeholder="UUID du driverProfile"
-              hint="Copier depuis la liste des drivers"
+              onChange={onDriverChange}
+              allowClear
               required
+              hint="Seuls les drivers approuvés sont listés."
             />
-            <Input
-              label="ID du véhicule *"
-              value={form.vehicleId}
-              onChange={(e) => set("vehicleId", e.target.value.trim())}
-              placeholder="UUID du véhicule"
-              hint="vehicleId rattaché au driver"
-              required
-            />
+
+            <div className="flex flex-col gap-1.5">
+              <Combobox
+                label="Véhicule *"
+                placeholder={
+                  form.driverId
+                    ? "Sélectionner par immatriculation…"
+                    : "Sélectionnez d'abord un driver"
+                }
+                searchPlaceholder="Rechercher par immatriculation…"
+                emptyMessage="Aucun véhicule disponible pour ce driver."
+                options={vehicleOptions}
+                value={form.vehicleId}
+                onChange={(id) => set("vehicleId", id)}
+                allowClear
+                disabled={!form.driverId}
+                required
+              />
+            </div>
           </div>
+
+          {/* Vehicle info card */}
+          {selectedVehicle ? (
+            <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/40 px-4 py-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">
+                Informations du véhicule
+              </p>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Marque</dt>
+                  <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.make}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Modèle</dt>
+                  <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.model}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Année</dt>
+                  <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.year}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Type</dt>
+                  <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.type}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Immatriculation</dt>
+                  <dd className="font-mono font-medium text-[color:var(--foreground)]">
+                    {selectedVehicle.licensePlate}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Couleur</dt>
+                  <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.color}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Catégorie</dt>
+                  <dd className="font-medium text-[color:var(--foreground)]">
+                    {selectedVehicle.category ?? "—"}
+                  </dd>
+                </div>
+                {selectedVehicle.purchasePrice ? (
+                  <div>
+                    <dt className="text-xs text-[color:var(--muted-foreground)]">Prix d'achat</dt>
+                    <dd className="font-semibold text-[color:var(--foreground)]">
+                      {formatXof(selectedVehicle.purchasePrice)}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            </div>
+          ) : null}
         </div>
 
-        {/* Durée */}
+        {/* ── Durée ──────────────────────────────────────────────────────── */}
         <div className="flex flex-col gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">
             Durée du contrat
@@ -167,36 +318,52 @@ export function ContractCreateModal({ open, onClose }: Props) {
               max={120}
               value={form.dureeMois}
               onChange={(e) => set("dureeMois", Math.max(1, Number(e.target.value)))}
-              hint={`Fin estimée : ${
+              hint={
                 form.dateDebut
-                  ? new Date(
+                  ? `Fin estimée : ${new Date(
                       new Date(form.dateDebut).setMonth(
                         new Date(form.dateDebut).getMonth() + form.dureeMois,
                       ),
-                    ).toLocaleDateString("fr-FR")
-                  : "—"
-              }`}
+                    ).toLocaleDateString("fr-FR")}`
+                  : undefined
+              }
               required
             />
           </div>
         </div>
 
-        {/* Finances */}
+        {/* ── Conditions financières ─────────────────────────────────────── */}
         <div className="flex flex-col gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">
             Conditions financières
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Input
-              label="Montant total (FCFA) *"
-              type="number"
-              min={0}
-              step={10000}
-              value={form.montantTotal}
-              onChange={(e) => set("montantTotal", Number(e.target.value))}
-              hint={formatXof(form.montantTotal)}
-              required
-            />
+            {/* Prix de revente — read-only si vient du véhicule, éditable sinon */}
+            {priceFromVehicle ? (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-[color:var(--foreground)]">
+                  Prix de revente (FCFA)
+                </span>
+                <div className="flex h-10 items-center rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/40 px-3 text-sm font-semibold text-[color:var(--foreground)]">
+                  {formatXof(form.montantTotal)}
+                </div>
+                <p className="text-xs text-[color:var(--muted-foreground)]">
+                  Issu des données du véhicule — non modifiable ici.
+                </p>
+              </div>
+            ) : (
+              <Input
+                label="Prix de revente (FCFA) *"
+                type="number"
+                min={0}
+                step={10000}
+                value={form.montantTotal}
+                onChange={(e) => set("montantTotal", Number(e.target.value))}
+                hint={form.montantTotal > 0 ? formatXof(form.montantTotal) : "Prix négocié avec le driver"}
+                required
+              />
+            )}
+
             <Input
               label="Apport initial (FCFA) *"
               type="number"
@@ -204,7 +371,7 @@ export function ContractCreateModal({ open, onClose }: Props) {
               step={10000}
               value={form.apport}
               onChange={(e) => set("apport", Number(e.target.value))}
-              hint={`Capital restant : ${formatXof(capital)}`}
+              hint={`Capital restant : ${formatXof(Math.max(0, capital))}`}
               required
             />
             <Input
@@ -230,11 +397,11 @@ export function ContractCreateModal({ open, onClose }: Props) {
           </div>
         </div>
 
-        {/* Résumé simulé */}
+        {/* ── Simulation ─────────────────────────────────────────────────── */}
         {form.montantTotal > 0 && form.apport < form.montantTotal && (
           <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/40 px-4 py-3">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">
-              Simulation
+              Simulation de l'échéancier
             </p>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
               <div>
@@ -243,7 +410,7 @@ export function ContractCreateModal({ open, onClose }: Props) {
               </div>
               <div>
                 <dt className="text-xs text-[color:var(--muted-foreground)]">Échéance</dt>
-                <dd className="font-semibold text-[color:var(--foreground)]">{formatXof(mensualite)}</dd>
+                <dd className="font-semibold text-[color:var(--foreground)]">{formatXof(echeance)}</dd>
               </div>
               <div>
                 <dt className="text-xs text-[color:var(--muted-foreground)]">Durée</dt>
