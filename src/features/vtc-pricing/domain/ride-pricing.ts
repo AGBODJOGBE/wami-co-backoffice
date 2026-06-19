@@ -9,19 +9,21 @@
 
 export type RideVehicleType =
   | "MOTO"
+  | "TRICYCLE"
+  | "ECO"
   | "STANDARD"
   | "CONFORT"
   | "VIP"
-  | "VAN"
-  | "TRICYCLE";
+  | "VAN";
 
 export const RIDE_VEHICLE_LABELS: Record<RideVehicleType, string> = {
   MOTO: "Moto",
+  TRICYCLE: "Tricycle",
+  ECO: "Eco",
   STANDARD: "Standard",
   CONFORT: "Confort",
   VIP: "VIP",
   VAN: "Van",
-  TRICYCLE: "Tricycle",
 };
 
 export interface DistanceTiers {

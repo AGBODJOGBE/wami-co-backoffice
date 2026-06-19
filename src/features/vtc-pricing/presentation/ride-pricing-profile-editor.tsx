@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { clientFetch } from "@/shared/lib/api/client";
-import { API_ROUTES } from "@/shared/config/api-routes";
 import {
   AlertTriangle,
   Car,
@@ -213,10 +211,22 @@ function ProfilePanel({
               {profile.description}
             </p>
           )}
-          <div className="flex gap-4 text-xs text-[color:var(--muted-foreground)]">
-            <span>Commission : <strong className="text-[color:var(--foreground)]">{fmtPct(profile.commissionRate)}</strong></span>
-            <span>Chauffeur : <strong className="text-[color:var(--foreground)]">{fmtPct(profile.driverShareRate)}</strong></span>
-          </div>
+          {profile.commissionRate != null && (
+            <div className="flex gap-4 text-xs text-[color:var(--muted-foreground)]">
+              <span>
+                Commission :{" "}
+                <strong className="text-[color:var(--foreground)]">
+                  {fmtPct(profile.commissionRate)}
+                </strong>
+              </span>
+              <span>
+                Chauffeur :{" "}
+                <strong className="text-[color:var(--foreground)]">
+                  {fmtPct(profile.driverShareRate)}
+                </strong>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -275,57 +285,6 @@ export function RidePricingProfileEditor({
   const [refreshing, startRefresh] = useTransition();
   const [selectedVehicle, setSelectedVehicle] =
     useState<RideVehicleType>("MOTO");
-
-  // Enriched profiles cache: profileId → full detail
-  const [detailCache, setDetailCache] = useState<
-    Record<string, PricingProfile>
-  >({});
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [detailError, setDetailError] = useState<string | undefined>();
-
-  // Fetch full detail for profiles that don't have components yet
-  async function fetchDetails(
-    vProfiles: PricingProfile[],
-    cache: Record<string, PricingProfile>,
-  ) {
-    const missing = vProfiles.filter(
-      (p) => !cache[p.profileId] && !p.components,
-    );
-    if (missing.length === 0) return;
-    setLoadingDetail(true);
-    setDetailError(undefined);
-    try {
-      const results = await Promise.allSettled(
-        missing.map((p) =>
-          clientFetch<PricingProfile>(
-            API_ROUTES.adminPricingProfiles.detail(p.profileId),
-          ),
-        ),
-      );
-      const hasFailure = results.some((r) => r.status === "rejected");
-      if (hasFailure) {
-        setDetailError("Certains détails n'ont pas pu être chargés.");
-      }
-      setDetailCache((prev) => {
-        const next = { ...prev };
-        results.forEach((r, i) => {
-          if (r.status === "fulfilled") {
-            next[missing[i].profileId] = r.value;
-          }
-        });
-        return next;
-      });
-    } catch {
-      setDetailError("Erreur lors du chargement des détails.");
-    } finally {
-      setLoadingDetail(false);
-    }
-  }
-
-  // Enrich a profile: use cached detail if available
-  function enrich(p: PricingProfile): PricingProfile {
-    return detailCache[p.profileId] ?? p;
-  }
 
   // Modal states
   const [editTarget, setEditTarget] = useState<PricingProfile | null>(null);
@@ -387,21 +346,10 @@ export function RidePricingProfileEditor({
       (p.vehicleType ?? "").toUpperCase() === selectedVehicle,
   );
 
-  // Fetch details whenever selected vehicle or profiles list changes
-  useEffect(() => {
-    if (vehicleProfiles.length > 0) {
-      fetchDetails(vehicleProfiles, detailCache);
-    }
-    // detailCache intentionally omitted — we pass it as arg to avoid stale closure
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedVehicle, profiles]);
-
-  const activeProfile = vehicleProfiles.find((p) => p.isActive)
-    ? enrich(vehicleProfiles.find((p) => p.isActive)!)
-    : null;
+  const activeProfile =
+    vehicleProfiles.find((p) => p.isActive) ?? null;
   const inactiveProfiles = vehicleProfiles
     .filter((p) => !p.isActive)
-    .map(enrich)
     .sort((a, b) => b.version - a.version);
 
   return (
@@ -440,9 +388,9 @@ export function RidePricingProfileEditor({
         </CardContent>
       </Card>
 
-      {(error || detailError) && (
+      {error && (
         <div className="rounded-md border border-[color:var(--danger)]/30 bg-[color:var(--danger)]/10 px-3 py-2 text-sm text-[color:var(--danger)]">
-          {error ?? detailError}
+          {error}
         </div>
       )}
 
@@ -464,12 +412,7 @@ export function RidePricingProfileEditor({
           )}
         </div>
 
-        {loadingDetail ? (
-          <div className="flex items-center gap-2 py-6 text-sm text-[color:var(--muted-foreground)]">
-            <Spinner size="sm" />
-            Chargement des détails…
-          </div>
-        ) : activeProfile ? (
+        {activeProfile ? (
           <ProfilePanel
             profile={activeProfile}
             isActive

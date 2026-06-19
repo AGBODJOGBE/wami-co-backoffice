@@ -1,5 +1,8 @@
 import { listSurgeRules } from "@/features/vtc-pricing/application/surge-api";
-import { listPricingProfiles } from "@/features/vtc-pricing/application/pricing-profiles-api";
+import {
+  getPricingProfile,
+  listPricingProfiles,
+} from "@/features/vtc-pricing/application/pricing-profiles-api";
 import { PricingTabs } from "@/features/vtc-pricing/presentation/pricing-tabs";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +21,7 @@ export default async function VtcPricingPageRoute() {
         : "Erreur de chargement."
       : undefined;
 
-  const profiles =
+  const lightProfiles =
     profilesRes.status === "fulfilled" ? profilesRes.value : [];
   const profilesError =
     profilesRes.status === "rejected"
@@ -26,6 +29,17 @@ export default async function VtcPricingPageRoute() {
         ? profilesRes.reason.message
         : "Erreur de chargement."
       : undefined;
+
+  // Fetch all profile details server-side in parallel so client components
+  // receive complete data (with components) without needing client-side proxy calls.
+  const detailResults = await Promise.allSettled(
+    lightProfiles.map((p) => getPricingProfile(p.profileId)),
+  );
+
+  const profiles = lightProfiles.map((p, i) => {
+    const res = detailResults[i];
+    return res.status === "fulfilled" ? res.value : p;
+  });
 
   return (
     <PricingTabs

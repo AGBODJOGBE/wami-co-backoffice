@@ -199,6 +199,20 @@ export const RIDE_VEHICLE_TEMPLATES: Record<string, CreatePricingProfileInput> =
       500, 1.5, 0.18,
     ),
   },
+  ECO: {
+    serviceKey: "RIDE",
+    vehicleType: "ECO",
+    name: "RIDE ECO Standard",
+    description: "Tarif économique.",
+    strategy: "PER_KM",
+    commissionRate: 0.18,
+    driverShareRate: 0.82,
+    components: RIDE_BASE_COMPONENTS(
+      150,
+      [{ upTo: 10, pricePerKm: 100 }, { upTo: 20, pricePerKm: 85 }, { upTo: null, pricePerKm: 70 }],
+      350, 1.5, 0.18,
+    ),
+  },
   STANDARD: {
     serviceKey: "RIDE",
     vehicleType: "STANDARD",
