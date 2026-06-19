@@ -93,11 +93,11 @@ export function ContractCreateModal({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  // ── Driver options ──────────────────────────────────────────────────────────
+  // ── Driver options — approved drivers with no vehicle currently assigned ────
   const driverOptions = useMemo(
     () =>
       drivers
-        .filter((d) => d.isApproved)
+        .filter((d) => d.isApproved && !d.vehicle)
         .map((d) => ({
           value: d.driverId,
           label: `${d.firstName} ${d.lastName}`.trim() || d.driverId,
@@ -106,16 +106,15 @@ export function ContractCreateModal({
     [drivers],
   );
 
-  // ── Vehicle options — filtered to vehicles assigned to the selected driver ──
+  // ── Vehicle options — platform vehicles: verified and not yet assigned ──────
   const vehicleOptions = useMemo(() => {
     if (!form.driverId) return [];
     return vehicles
       .filter(
         (v) =>
-          v.status !== "RETIRED" &&
-          v.status !== "REJECTED" &&
-          (v.assignedToDriverId === form.driverId ||
-            v.ownership === "PLATFORM"),
+          v.ownership === "PLATFORM" &&
+          v.isVerified &&
+          !v.assignedToDriverId,
       )
       .map((v) => ({
         value: v.id,
@@ -223,7 +222,7 @@ export function ContractCreateModal({
               onChange={onDriverChange}
               allowClear
               required
-              hint="Seuls les drivers approuvés sont listés."
+              hint="Drivers approuvés sans véhicule actuellement assigné."
             />
 
             <div className="flex flex-col gap-1.5">
@@ -235,7 +234,7 @@ export function ContractCreateModal({
                     : "Sélectionnez d'abord un driver"
                 }
                 searchPlaceholder="Rechercher par immatriculation…"
-                emptyMessage="Aucun véhicule disponible pour ce driver."
+                emptyMessage="Aucun véhicule plateforme vérifié et non assigné disponible."
                 options={vehicleOptions}
                 value={form.vehicleId}
                 onChange={(id) => set("vehicleId", id)}
