@@ -69,11 +69,13 @@ export async function apiFetch<T>(
     `[apiFetch] → ${method} ${url} authenticated=${authenticated}${bodyPreview}`,
   );
 
-  // Only retry idempotent verbs on transient network errors. POST/PATCH/PUT
-  // could mutate twice if the request actually reached the server.
+  // Only retry idempotent verbs on transient errors (network-level or HTTP 5xx).
+  // POST/PATCH/PUT could mutate twice if the request reached the server.
   const isIdempotent =
     method === "GET" || method === "HEAD" || method === "OPTIONS";
   const maxAttempts = isIdempotent ? 3 : 1;
+  // HTTP status codes that are safe to retry (upstream temporarily unavailable).
+  const TRANSIENT_STATUSES = new Set([502, 503, 504]);
   const TRANSIENT_CODES = new Set([
     "ETIMEDOUT",
     "ECONNRESET",
@@ -96,19 +98,31 @@ export async function apiFetch<T>(
         signal: init.signal ?? AbortSignal.timeout(15_000),
       });
       lastError = null;
+
+      // Retry on transient HTTP errors (502/503/504) before processing the body.
+      if (TRANSIENT_STATUSES.has(response.status) && attempt < maxAttempts) {
+        const elapsed = Date.now() - startedAt;
+        console.warn(
+          `[apiFetch] ⟳ ${method} ${url} attempt ${attempt}/${maxAttempts} — HTTP ${response.status} in ${elapsed}ms, retrying…`,
+        );
+        await new Promise((r) => setTimeout(r, 300 * attempt));
+        response = null;
+        continue;
+      }
+
       break;
     } catch (networkError) {
       lastError = networkError;
       const cause = (networkError as { cause?: { code?: string } })?.cause;
       const code = cause?.code ?? "";
-      const ms = Date.now() - startedAt;
+      const elapsed = Date.now() - startedAt;
       const detail =
         networkError instanceof Error
           ? networkError.message
           : String(networkError);
       const isTransient = TRANSIENT_CODES.has(code);
       console.warn(
-        `[apiFetch] ⟳ ${method} ${url} attempt ${attempt}/${maxAttempts} failed in ${ms}ms: ${detail}${code ? ` (cause=${code})` : ""}`,
+        `[apiFetch] ⟳ ${method} ${url} attempt ${attempt}/${maxAttempts} failed in ${elapsed}ms: ${detail}${code ? ` (cause=${code})` : ""}`,
       );
       if (attempt < maxAttempts && isTransient) {
         // Linear backoff 200ms, 600ms, … keeps total wait bounded.
@@ -119,7 +133,7 @@ export async function apiFetch<T>(
         ? ` cause=${code} ${(cause as { message?: string }).message ?? ""}`.trim()
         : "";
       console.error(
-        `[apiFetch] ✗ ${method} ${url} — gave up after ${attempt} attempt${attempt > 1 ? "s" : ""} (${ms}ms): ${detail}${causeDetail ? ` | ${causeDetail}` : ""}`,
+        `[apiFetch] ✗ ${method} ${url} — gave up after ${attempt} attempt${attempt > 1 ? "s" : ""} (${Date.now() - startedAt}ms): ${detail}${causeDetail ? ` | ${causeDetail}` : ""}`,
       );
       throw new ApiError(
         `Réseau indisponible: ${detail}${causeDetail ? ` (${causeDetail})` : ""}`,
