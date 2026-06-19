@@ -7,6 +7,7 @@ import {
   Car,
   ClipboardList,
   CreditCard,
+  FileText,
   Gauge,
   LayoutDashboard,
   ListChecks,
@@ -218,6 +219,12 @@ export const navSections: NavSection[] = [
   {
     title: "Finance",
     items: [
+      {
+        href: "/contracts",
+        label: "Contrats location-vente",
+        icon: FileText,
+        dataSource: "live",
+      },
       {
         href: "/wallet",
         label: "Wallet & transactions",

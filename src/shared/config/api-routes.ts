@@ -215,6 +215,20 @@ export const API_ROUTES = {
     upload: () => "/api/documents/upload",
   },
 
+  // ─── Admin: contrats location-vente ────────────────────────────────────────
+  adminContracts: {
+    /** GET  — liste paginée. Query: page, limit, status, driverId, search */
+    list: () => "/api/admin/contracts",
+    /** POST — créer un contrat. Body: CreateContractInput */
+    create: () => "/api/admin/contracts",
+    /** GET  — détail d'un contrat */
+    detail: (id: string) => `/api/admin/contracts/${id}`,
+    /** GET  — échéancier d'un contrat */
+    installments: (id: string) => `/api/admin/contracts/${id}/installments`,
+    /** POST — résilier un contrat. Body: { reason } */
+    break: (id: string) => `/api/admin/contracts/${id}/break`,
+  },
+
   // ─── Admin: users (passengers, drivers by role) ────────────────────────────
   adminUsers: {
     /** GET — list users filtered by role, search, isActive. */
