@@ -22,6 +22,7 @@ import { ConfirmModal } from "@/shared/ui/confirm-modal";
 import { Spinner } from "@/shared/ui/spinner";
 import { toast } from "@/shared/ui/toast";
 import { formatDate } from "@/shared/lib/format";
+import { DevNote } from "@/shared/ui/dev-note";
 import {
   deleteSurgeRuleAction,
   type ActionResult,
@@ -91,6 +92,12 @@ export function SurgeRulesSection({ rules, error }: SurgeRulesSectionProps) {
             </Button>
           </div>
         </div>
+        <DevNote>
+          ⚠️ Bug backend confirmé : <code>POST /api/admin/surge-rules</code> échoue avec
+          {" "}<em>Cast to ObjectId failed</em> — le schéma Mongoose génère un UUID v4 comme{" "}
+          <code>_id</code> alors que MongoDB attend un ObjectId. À corriger dans le backend
+          (model SurgeRule, champ <code>_id</code>).
+        </DevNote>
       </CardHeader>
       <CardContent>
         {error ? (
