@@ -500,7 +500,7 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
       });
       return;
     }
-    const [min, max] = SEAT_RANGE[vehicle.type];
+    const [min, max] = SEAT_RANGE[vehicle.type] ?? [1, 10];
     if (form.seats < min || form.seats > max) {
       toast({
         kind: "error",
@@ -529,7 +529,7 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
     });
   }
 
-  const [seatMin, seatMax] = SEAT_RANGE[vehicle.type];
+  const [seatMin, seatMax] = SEAT_RANGE[vehicle.type] ?? [1, 10];
 
   return (
     <Modal
