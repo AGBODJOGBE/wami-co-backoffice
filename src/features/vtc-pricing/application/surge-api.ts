@@ -24,5 +24,9 @@ export async function listSurgeRules(): Promise<SurgeRule[]> {
         (raw as { rules?: unknown[]; data?: unknown[] }).data ??
         [])
       : [];
+  if (arr.length > 0) {
+    console.log("[surge] first rule raw keys:", Object.keys(arr[0] as object));
+    console.log("[surge] first rule raw:", JSON.stringify(arr[0]));
+  }
   return arr.map((r) => withId(r as Record<string, unknown>));
 }
