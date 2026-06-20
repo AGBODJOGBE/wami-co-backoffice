@@ -136,6 +136,17 @@ export function AdminDriversListClient({
       render: (r) => <Badge tone="primary">{r.category}</Badge>,
     },
     {
+      key: "approved",
+      header: "Approuvé",
+      sortAccessor: (r) => (r.isApproved ? 1 : 0),
+      render: (r) =>
+        r.isApproved ? (
+          <Badge tone="success">Oui</Badge>
+        ) : (
+          <Badge tone="warning">Non</Badge>
+        ),
+    },
+    {
       key: "vehicle",
       header: "Véhicule",
       render: (r) =>
@@ -191,29 +202,42 @@ export function AdminDriversListClient({
       key: "actions",
       header: "",
       align: "right",
-      render: (r) =>
-        r.status === "SUSPENDED" ? (
-          <DriverInlineActionButton
-            driverId={r.driverId}
-            action="reactivate"
-            label="Réactiver"
-            size="sm"
-          />
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              setSuspendTarget({
-                driverId: r.driverId,
-                label: fullName(r),
-              })
-            }
-          >
-            <ShieldX className="size-4" />
-            Suspendre
-          </Button>
-        ),
+      render: (r) => (
+        <div className="flex items-center justify-end gap-2">
+          {r.status === "SUSPENDED" ? (
+            <DriverInlineActionButton
+              driverId={r.driverId}
+              action="reactivate"
+              label="Réactiver"
+              size="sm"
+            />
+          ) : (
+            <>
+              {!r.isApproved ? (
+                <DriverInlineActionButton
+                  driverId={r.driverId}
+                  action="approve"
+                  label="Approuver"
+                  size="sm"
+                />
+              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setSuspendTarget({
+                    driverId: r.driverId,
+                    label: fullName(r),
+                  })
+                }
+              >
+                <ShieldX className="size-4" />
+                Suspendre
+              </Button>
+            </>
+          )}
+        </div>
+      ),
     },
   ];
 
