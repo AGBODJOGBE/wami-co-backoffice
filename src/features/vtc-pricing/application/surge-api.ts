@@ -5,9 +5,11 @@ import { apiFetch } from "@/shared/lib/api/server";
 import type { SurgeRule } from "../domain/surge";
 
 function withId(p: Record<string, unknown>): SurgeRule {
+  // Backend routes PATCH/DELETE on _id (MongoDB ObjectId), not the UUID field.
+  // Prefer _id so update/delete calls land on the right document.
   const id =
-    (p.id as string | undefined) ??
     (p._id as string | undefined) ??
+    (p.id as string | undefined) ??
     (p.ruleId as string | undefined) ??
     "";
   return { ...p, id } as unknown as SurgeRule;
