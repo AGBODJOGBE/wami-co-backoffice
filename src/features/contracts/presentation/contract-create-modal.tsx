@@ -93,11 +93,11 @@ export function ContractCreateModal({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  // ── Driver options — approved drivers with no vehicle currently assigned ────
+  // ── Driver options — approved drivers ───────────────────────────────────────
   const driverOptions = useMemo(
     () =>
       drivers
-        .filter((d) => d.isApproved && !d.vehicle)
+        .filter((d) => d.isApproved)
         .map((d) => ({
           value: d.driverId,
           label: `${d.firstName} ${d.lastName}`.trim() || d.driverId,
@@ -222,7 +222,7 @@ export function ContractCreateModal({
               onChange={onDriverChange}
               allowClear
               required
-              hint="Drivers approuvés sans véhicule actuellement assigné."
+              hint="Seuls les drivers approuvés sont listés."
             />
 
             <div className="flex flex-col gap-1.5">
