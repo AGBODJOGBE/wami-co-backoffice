@@ -48,7 +48,7 @@ const TYPE_CHIPS: Array<{
 }> = [
   { value: "MOTO", label: "Moto", icon: Bike },
   { value: "TRICYCLE", label: "Tricycle", icon: Truck },
-  { value: "VOITURE", label: "Voiture", icon: Car },
+  { value: "CAR", label: "Voiture", icon: Car },
 ];
 
 const CATEGORY_CHIPS: VehicleCategory[] = ["ECO", "STANDARD", "PREMIUM", "VIP"];
@@ -134,7 +134,7 @@ interface CreateFormState {
 
 function makeEmptyCreate(): CreateFormState {
   return {
-    type: "VOITURE",
+    type: "CAR",
     category: "STANDARD",
     make: "",
     model: "",
@@ -153,9 +153,15 @@ function makeEmptyCreate(): CreateFormState {
 export function VehicleCreateModal({ open, onClose }: CreateModalProps) {
   const [form, setForm] = useState<CreateFormState>(makeEmptyCreate);
   const [pending, start] = useTransition();
+  // Generate a vehicleId UUID once per modal session — passed to FileUpload
+  // so documents are associated to the vehicle BEFORE it is created.
+  const [vehicleId, setVehicleId] = useState<string>(() => crypto.randomUUID());
 
   useEffect(() => {
-    if (open) setForm(makeEmptyCreate());
+    if (open) {
+      setForm(makeEmptyCreate());
+      setVehicleId(crypto.randomUUID());
+    }
   }, [open]);
 
   function set<K extends keyof CreateFormState>(
@@ -211,7 +217,7 @@ export function VehicleCreateModal({ open, onClose }: CreateModalProps) {
       });
       return;
     }
-    if (!form.registration?.url || !form.insurance?.url) {
+    if (!form.registration || !form.insurance) {
       toast({
         kind: "error",
         title: "Documents manquants",
@@ -220,7 +226,24 @@ export function VehicleCreateModal({ open, onClose }: CreateModalProps) {
       return;
     }
 
+    // For private R2 documents the backend returns a fileKey (not a direct URL).
+    // The vehicle-creation endpoint stores the fileKey — fall back to url for
+    // public documents that don't have a fileKey.
+    const registrationCardUrl =
+      form.registration.fileKey ?? form.registration.url;
+    const insuranceUrl = form.insurance.fileKey ?? form.insurance.url;
+
+    if (!registrationCardUrl || !insuranceUrl) {
+      toast({
+        kind: "error",
+        title: "Documents manquants",
+        description: "Upload de la carte grise et de l'assurance requis.",
+      });
+      return;
+    }
+
     const payload: CreatePlatformVehicleInput = {
+      vehicleId,
       type: form.type,
       category: form.category,
       make: form.make.trim(),
@@ -229,8 +252,8 @@ export function VehicleCreateModal({ open, onClose }: CreateModalProps) {
       color: form.color.trim(),
       licensePlate: form.licensePlate.trim().toUpperCase(),
       seats: form.seats as number,
-      registrationCardUrl: form.registration.url,
-      insuranceUrl: form.insurance.url,
+      registrationCardUrl,
+      insuranceUrl,
       insuranceExpiryDate: form.insuranceExpiryDate,
       purchaseDate: form.purchaseDate,
       purchasePrice: form.purchasePrice as number,
@@ -380,6 +403,7 @@ export function VehicleCreateModal({ open, onClose }: CreateModalProps) {
               required
               documentType="REGISTRATION_CARD"
               ownerType="VEHICLE"
+              vehicleId={vehicleId}
               value={form.registration}
               onChange={(v) => set("registration", v)}
             />
@@ -388,6 +412,7 @@ export function VehicleCreateModal({ open, onClose }: CreateModalProps) {
               required
               documentType="INSURANCE"
               ownerType="VEHICLE"
+              vehicleId={vehicleId}
               expiresAt={form.insuranceExpiryDate || undefined}
               value={form.insurance}
               onChange={(v) => set("insurance", v)}

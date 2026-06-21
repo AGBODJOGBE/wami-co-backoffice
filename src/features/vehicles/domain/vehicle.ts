@@ -1,4 +1,4 @@
-export type VehicleType = "MOTO" | "TRICYCLE" | "VOITURE";
+export type VehicleType = "MOTO" | "TRICYCLE" | "CAR";
 
 export type VehicleCategory = "ECO" | "STANDARD" | "PREMIUM" | "VIP";
 
@@ -15,7 +15,7 @@ export type VehicleOwnership = "DRIVER" | "PLATFORM";
 export const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
   MOTO: "Moto",
   TRICYCLE: "Tricycle",
-  VOITURE: "Voiture",
+  CAR: "Voiture",
 };
 
 export const VEHICLE_CATEGORY_LABELS: Record<VehicleCategory, string> = {
@@ -62,13 +62,16 @@ export interface VehicleSummary {
   isVerified: boolean;
   verifiedAt: string | null;
   verifiedBy: string | null;
-  assignedToDriverId: string | null;
-  assignedAt: string | null;
+  /** NOTE: the backend does NOT currently return this field on list or detail
+   * responses — always undefined until the API is updated. */
+  assignedToDriverId?: string | null;
+  assignedAt?: string | null;
   mileage: number | null;
   nextMaintenanceDate: string | null;
-  /** Purchase / resale price (FCFA). Returned by the detail endpoint and
-   * sometimes present on list items — used to auto-fill the contract amount. */
+  /** Returned by detail endpoint — purchase price at acquisition (FCFA). */
   purchasePrice?: number | null;
+  /** Returned by detail endpoint — current book value (FCFA). */
+  currentValue?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -89,6 +92,7 @@ export interface VehicleListQuery {
 }
 
 export interface CreatePlatformVehicleInput {
+  vehicleId: string; // UUID v4 — backend requires explicit ID (Mongoose schema uses UUID, not ObjectId)
   type: VehicleType;
   category: VehicleCategory;
   make: string;
@@ -128,7 +132,7 @@ export interface VerifyVehicleResult {
 export const SEAT_RANGE: Record<VehicleType, [min: number, max: number]> = {
   MOTO: [1, 2],
   TRICYCLE: [2, 4],
-  VOITURE: [2, 9],
+  CAR: [2, 9],
 };
 
 export function daysUntil(iso: string | null | undefined): number | null {

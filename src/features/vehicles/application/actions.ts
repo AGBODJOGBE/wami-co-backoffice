@@ -25,7 +25,12 @@ function refresh(id?: string) {
 
 function fail<T>(error: unknown, fallback: string): ActionResult<T> {
   if (error instanceof ApiError) {
-    return { ok: false, message: error.message || fallback };
+    const fieldErrors = error.errors
+      ? Object.entries(error.errors)
+          .map(([f, msgs]) => `${f}: ${msgs.join(", ")}`)
+          .join(" | ")
+      : null;
+    return { ok: false, message: fieldErrors || error.message || fallback };
   }
   return {
     ok: false,

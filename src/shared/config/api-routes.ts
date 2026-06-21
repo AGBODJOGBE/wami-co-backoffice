@@ -27,6 +27,10 @@ export const API_ROUTES = {
     /** POST — grant a single permission to an admin. */
     grantPermission: (adminId: string) =>
       `/api/admin/admins/${adminId}/grant-permission`,
+    /** GET — list all admin users. */
+    listAdmins: () => "/api/admin/users",
+    /** PATCH — change an admin's role. */
+    updateAdminRole: (adminId: string) => `/api/admin/admins/${adminId}/role`,
   },
 
   // ─── Admin: drivers ────────────────────────────────────────────────────────
@@ -227,6 +231,11 @@ export const API_ROUTES = {
     installments: (id: string) => `/api/admin/contracts/${id}/installments`,
     /** POST — résilier un contrat. Body: { reason } */
     break: (id: string) => `/api/admin/contracts/${id}/break`,
+  },
+
+  appConfig: {
+    /** GET — list all mobile app version configs. */
+    list: () => "/api/app-config",
   },
 
   // ─── Admin: users (passengers, drivers by role) ────────────────────────────

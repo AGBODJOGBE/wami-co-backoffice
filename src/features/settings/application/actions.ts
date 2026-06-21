@@ -1,0 +1,56 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { API_ROUTES } from "@/shared/config/api-routes";
+import { apiFetch } from "@/shared/lib/api/server";
+import { ApiError } from "@/shared/lib/api/types";
+import type { CreateAdminInput, RegisterAdminResult } from "../domain/admin-user";
+
+export interface ActionResult<T = undefined> {
+  ok: boolean;
+  message: string;
+  data?: T;
+}
+
+function fail<T>(error: unknown, fallback: string): ActionResult<T> {
+  if (error instanceof ApiError) {
+    const fieldErrors = error.errors
+      ? Object.entries(error.errors)
+          .map(([f, msgs]) => `${f}: ${msgs.join(", ")}`)
+          .join(" | ")
+      : null;
+    return { ok: false, message: fieldErrors || error.message || fallback };
+  }
+  return { ok: false, message: error instanceof Error ? error.message : fallback };
+}
+
+export async function createAdminAction(
+  input: CreateAdminInput,
+): Promise<ActionResult<RegisterAdminResult>> {
+  try {
+    const data = await apiFetch<RegisterAdminResult>(API_ROUTES.admin.register(), {
+      method: "POST",
+      body: input,
+    });
+    revalidatePath("/settings");
+    return { ok: true, message: data.message ?? "Administrateur créé.", data };
+  } catch (e) {
+    return fail(e, "Création impossible.");
+  }
+}
+
+export async function updateAdminRoleAction(
+  adminId: string,
+  roleId: string,
+): Promise<ActionResult> {
+  try {
+    await apiFetch<unknown>(API_ROUTES.admin.updateAdminRole(adminId), {
+      method: "PATCH",
+      body: { roleId },
+    });
+    revalidatePath("/settings");
+    return { ok: true, message: "Rôle mis à jour." };
+  } catch (e) {
+    return fail(e, "Mise à jour impossible.");
+  }
+}

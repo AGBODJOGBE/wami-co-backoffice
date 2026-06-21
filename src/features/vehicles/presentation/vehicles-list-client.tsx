@@ -68,7 +68,7 @@ const TYPE_OPTIONS = [
   { value: "ALL", label: "Tous types" },
   { value: "MOTO", label: "Moto" },
   { value: "TRICYCLE", label: "Tricycle" },
-  { value: "VOITURE", label: "Voiture" },
+  { value: "CAR", label: "Voiture" },
 ];
 
 const CATEGORY_OPTIONS = [

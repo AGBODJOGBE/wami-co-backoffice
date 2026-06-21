@@ -31,8 +31,24 @@ export async function grantPermissionAction(
       body: { permissionCode },
     });
     revalidatePath("/settings");
-    return { ok: true, message: "Permission accordée." };
+    return { ok: true, message: `Permission '${permissionCode}' accordée.` };
   } catch (e) {
     return fail(e, "Octroi impossible.");
+  }
+}
+
+export async function changeAdminRoleAction(
+  adminId: string,
+  roleId: string,
+): Promise<ActionResult> {
+  try {
+    await apiFetch<unknown>(API_ROUTES.admin.updateAdminRole(adminId), {
+      method: "PATCH",
+      body: { roleId },
+    });
+    revalidatePath("/settings");
+    return { ok: true, message: "Rôle mis à jour." };
+  } catch (e) {
+    return fail(e, "Changement de rôle impossible.");
   }
 }
