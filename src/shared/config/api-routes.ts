@@ -236,6 +236,9 @@ export const API_ROUTES = {
   appConfig: {
     /** GET — list all mobile app version configs. */
     list: () => "/api/app-config",
+    /** PUT — create or update a version config for a given appType × platform. */
+    upsert: (appType: string, platform: string) =>
+      `/api/app-config/${appType}/${platform}`,
   },
 
   // ─── Admin: users (passengers, drivers by role) ────────────────────────────

@@ -4,7 +4,14 @@ import { revalidatePath } from "next/cache";
 import { API_ROUTES } from "@/shared/config/api-routes";
 import { apiFetch } from "@/shared/lib/api/server";
 import { ApiError } from "@/shared/lib/api/types";
-import type { CreateAdminInput, RegisterAdminResult } from "../domain/admin-user";
+import type { AppVersionConfig, CreateAdminInput, RegisterAdminResult } from "../domain/admin-user";
+
+export interface UpsertAppConfigInput {
+  latestVersion: string;
+  minSupportedVersion: string;
+  downloadUrl: string;
+  releaseNotes?: string;
+}
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -36,6 +43,23 @@ export async function createAdminAction(
     return { ok: true, message: data.message ?? "Administrateur créé.", data };
   } catch (e) {
     return fail(e, "Création impossible.");
+  }
+}
+
+export async function upsertAppConfigAction(
+  appType: string,
+  platform: string,
+  input: UpsertAppConfigInput,
+): Promise<ActionResult<AppVersionConfig>> {
+  try {
+    const data = await apiFetch<AppVersionConfig>(
+      API_ROUTES.appConfig.upsert(appType, platform),
+      { method: "PUT", body: input },
+    );
+    revalidatePath("/settings");
+    return { ok: true, message: "Configuration mise à jour.", data };
+  } catch (e) {
+    return fail(e, "Mise à jour impossible.");
   }
 }
 
