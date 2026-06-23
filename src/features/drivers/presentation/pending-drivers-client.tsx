@@ -22,7 +22,6 @@ import {
 } from "@/shared/ui/data-table";
 import { SearchField } from "@/shared/ui/search-field";
 import { Spinner } from "@/shared/ui/spinner";
-import { DevNote } from "@/shared/ui/dev-note";
 import { downloadCsv, timestampedFilename } from "@/shared/lib/csv";
 import { formatDate } from "@/shared/lib/format";
 import { StatCard } from "@/features/dashboard/presentation/components/stat-card";
@@ -54,7 +53,9 @@ export function PendingDriversClient({
     const q = search.trim().toLowerCase();
     if (!q) return drivers;
     return drivers.filter((d) =>
-      `${d.driverId} ${d.userId} ${d.category}`.toLowerCase().includes(q),
+      `${d.firstName ?? ""} ${d.lastName ?? ""} ${d.phoneNumber ?? ""} ${d.driverId} ${d.userId} ${d.category}`
+        .toLowerCase()
+        .includes(q),
     );
   }, [drivers, search]);
 
@@ -216,7 +217,7 @@ export function PendingDriversClient({
       <div className="flex flex-col gap-3 rounded-xl border border-[color:var(--border)] bg-white p-4 dark:bg-[color:var(--muted)]">
         <div className="flex flex-wrap items-center gap-3">
           <SearchField
-            placeholder="Rechercher par driverId, userId, catégorie…"
+            placeholder="Rechercher par nom, téléphone, catégorie…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full sm:flex-1 sm:min-w-72"
@@ -241,11 +242,13 @@ export function PendingDriversClient({
               downloadCsv(
                 timestampedFilename("drivers-pending"),
                 [
-                  { key: "driverId", header: "Driver ID", value: (r) => r.driverId },
-                  { key: "userId", header: "User ID", value: (r) => r.userId },
+                  { key: "firstName", header: "Prénom", value: (r) => r.firstName ?? "" },
+                  { key: "lastName", header: "Nom", value: (r) => r.lastName ?? "" },
+                  { key: "phoneNumber", header: "Téléphone", value: (r) => r.phoneNumber ?? "" },
                   { key: "category", header: "Catégorie", value: (r) => r.category },
                   { key: "docs", header: "Docs vérifiés", value: (r) => (r.isDocumentsVerified ? "oui" : "non") },
                   { key: "createdAt", header: "Inscrit le", value: (r) => r.createdAt },
+                  { key: "driverId", header: "Driver ID", value: (r) => r.driverId },
                 ],
                 filtered,
               )
@@ -287,11 +290,6 @@ export function PendingDriversClient({
         onClose={() => setSuspendTarget(null)}
       />
 
-      <DevNote>
-        Afficher nom + téléphone + photo dans cette table dès que{" "}
-        <code>GET /api/admin/drivers/&#123;driverId&#125;</code> existe (la
-        liste pending ne renvoie aujourd&apos;hui que les UUIDs).
-      </DevNote>
     </div>
   );
 }

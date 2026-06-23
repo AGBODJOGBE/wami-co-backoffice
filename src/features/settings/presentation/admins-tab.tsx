@@ -159,13 +159,15 @@ export function AdminsTab({ admins, total, roles, error }: AdminsTabProps) {
   const [refreshing, startRefresh] = useTransition();
   const [createOpen, setCreateOpen] = useState(false);
 
+  const displayTotal = admins.length;
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <UserCircle className="size-5 text-[color:var(--secondary)]" />
           <span className="text-sm font-semibold text-[color:var(--foreground)]">
-            Administrateurs ({total})
+            Administrateurs ({displayTotal})
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -214,9 +216,14 @@ export function AdminsTab({ admins, total, roles, error }: AdminsTabProps) {
                     <div className="flex items-center gap-3">
                       <Avatar name={`${admin.firstName} ${admin.lastName}`} />
                       <div className="flex flex-col leading-tight">
-                        <span className="font-medium text-[color:var(--foreground)]">
-                          {admin.firstName} {admin.lastName}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-[color:var(--foreground)]">
+                            {admin.firstName} {admin.lastName}
+                          </span>
+                          {admin.adminId && (
+                            <Badge tone="primary">Admin confirmé</Badge>
+                          )}
+                        </div>
                         {admin.email ? (
                           <span className="text-xs text-[color:var(--muted-foreground)]">{admin.email}</span>
                         ) : null}

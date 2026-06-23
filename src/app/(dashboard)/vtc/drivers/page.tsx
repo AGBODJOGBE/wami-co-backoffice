@@ -24,7 +24,7 @@ export default async function VtcDriversPage() {
         : "Erreur de chargement."
       : undefined;
 
-  const all =
+  const allRaw =
     allRes.status === "fulfilled" ? allRes.value : { drivers: [], total: 0 };
   const allError =
     allRes.status === "rejected"
@@ -33,21 +33,41 @@ export default async function VtcDriversPage() {
         : "Erreur de chargement."
       : undefined;
 
-  // Enrich pending rows with name/phone from the rich /drivers list so
-  // the pending tab doesn't only show UUIDs.
-  const byDriverId = new Map(all.drivers.map((d) => [d.driverId, d]));
-  const enrichedPending = pending.drivers.map((p) => {
-    const rich = byDriverId.get(p.driverId);
-    return rich
-      ? {
-          ...p,
-          firstName: rich.firstName,
-          lastName: rich.lastName,
-          phoneNumber: rich.phoneNumber,
-          photoUrl: rich.photoUrl,
-        }
-      : p;
-  });
+  // Approved drivers tab
+  const approvedDrivers = allRaw.drivers.filter((d) => d.isApproved);
+  const all = { drivers: approvedDrivers, total: approvedDrivers.length };
+
+  // Pending = not approved from /drivers (rich data with name/phone)
+  // + any from /pending not already in the rich list
+  const notApprovedFromRich = allRaw.drivers.filter((d) => !d.isApproved);
+  const richDriverIds = new Set(allRaw.drivers.map((d) => d.driverId));
+
+  // Enrich /pending rows that aren't already in the rich list
+  const byDriverId = new Map(allRaw.drivers.map((d) => [d.driverId, d]));
+  const extraPending = pending.drivers
+    .filter((p) => !richDriverIds.has(p.driverId))
+    .map((p) => {
+      const rich = byDriverId.get(p.driverId);
+      return rich
+        ? { ...p, firstName: rich.firstName, lastName: rich.lastName, phoneNumber: rich.phoneNumber, photoUrl: rich.photoUrl }
+        : p;
+    });
+
+  // Merge: rich non-approved + extra pending (cast to PendingDriver shape)
+  const enrichedPending = [
+    ...notApprovedFromRich.map((d) => ({
+      driverId: d.driverId,
+      userId: d.userId,
+      category: d.category,
+      isDocumentsVerified: false,
+      createdAt: d.createdAt,
+      firstName: d.firstName,
+      lastName: d.lastName,
+      phoneNumber: d.phoneNumber,
+      photoUrl: d.photoUrl,
+    })),
+    ...extraPending,
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -55,12 +75,12 @@ export default async function VtcDriversPage() {
         eyebrow="Opérations VTC"
         title="Drivers"
         dataSource="live"
-        dataSourceHint="Liste complète + onglet 'En attente' branchés sur /api/admin/drivers et /pending."
+        dataSourceHint="Drivers approuvés + onglet 'En attente' branchés sur /api/admin/drivers et /pending."
         description="Validation KYC, gestion des comptes et performance — temps réel."
       />
       <DriversTabs
         pending={enrichedPending}
-        pendingTotal={pending.total}
+        pendingTotal={enrichedPending.length}
         pendingError={pendingError}
         all={all.drivers}
         allTotal={all.total}

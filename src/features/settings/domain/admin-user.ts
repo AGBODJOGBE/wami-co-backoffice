@@ -1,6 +1,8 @@
 /** Admin user as returned by GET /api/admin/users?isAdmin=true */
 export interface AdminUser {
   userId: string;
+  /** Backend admin profile ID — needed for PATCH /admins/:id/role etc. Only known for the current user or newly created admins. */
+  adminId?: string;
   firstName: string;
   lastName: string;
   phoneNumber: string;

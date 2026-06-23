@@ -74,6 +74,7 @@ export const RIDE_STATUS_META: Record<
   CANCELLED_PASSENGER: { label: "Annulée (passager)", tone: "neutral" },
   CANCELLED_DRIVER: { label: "Annulée (driver)", tone: "neutral" },
   CANCELLED_SYSTEM: { label: "Annulée (système)", tone: "danger" },
+  NO_DRIVER_FOUND: { label: "Aucun driver trouvé", tone: "warning" },
 };
 
 export function rideStatusMeta(status: string) {

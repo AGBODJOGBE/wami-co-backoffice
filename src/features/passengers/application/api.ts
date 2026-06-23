@@ -16,6 +16,7 @@ interface UserRow {
   phoneNumber?: string;
   phone?: string;
   email: string | null;
+  role?: string;
   isActive: boolean;
   hasPassengerProfile?: boolean;
   createdAt: string;
@@ -25,6 +26,17 @@ interface UserRow {
 interface UsersPayload {
   users: UserRow[];
   total: number;
+}
+
+function computeRegisteredAgo(createdAt: string): string {
+  if (!createdAt) return "—";
+  const ms = Date.now() - new Date(createdAt).getTime();
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+  if (days === 0) return "aujourd'hui";
+  if (days < 30) return `il y a ${days} jour${days > 1 ? "s" : ""}`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `il y a ${months} mois`;
+  return `il y a ${Math.floor(months / 12)} an${Math.floor(months / 12) > 1 ? "s" : ""}`;
 }
 
 /** Map a raw UserRow from the API to the PassengerRow shape used by the UI. */
@@ -41,7 +53,7 @@ function mapUserToPassenger(u: UserRow): PassengerRow {
     walletBalance: 0,
     totalRides: 0,
     rating: 0,
-    registeredAgo: "—",
+    registeredAgo: computeRegisteredAgo(u.createdAt),
     lastActivity: "—",
   };
 }
@@ -123,15 +135,13 @@ export async function listPassengers(params?: {
     const raw = await apiFetch<unknown>(API_ROUTES.adminUsers.list(), { query });
     const { users, total } = normalizePayload(raw);
 
-    // Filter to passenger-profile users when the flag is present in the data.
-    // If no user has the flag set, skip the filter (undocumented endpoint may
-    // not include it) and show all returned users.
-    const hasFlag = users.some((u) => u.hasPassengerProfile !== undefined);
-    const filtered = hasFlag ? users.filter((u) => u.hasPassengerProfile) : users;
+    // The backend returns all roles (PASSENGER, DRIVER, USER) regardless of
+    // query params — filter client-side to keep only PASSENGER accounts.
+    const filtered = users.filter((u) => u.role === "PASSENGER");
 
     return {
       passengers: filtered.map(mapUserToPassenger),
-      total: hasFlag ? filtered.length : total,
+      total: filtered.length,
     };
   } catch {
     // Endpoint may not exist yet — return empty gracefully

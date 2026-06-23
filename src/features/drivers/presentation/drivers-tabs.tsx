@@ -32,7 +32,7 @@ export function DriversTabs({
       tabs={[
         {
           value: "all",
-          label: "Tous (live)",
+          label: "Approuvés (live)",
           badge:
             all.length > 0
               ? { count: allTotal, tone: "primary" }

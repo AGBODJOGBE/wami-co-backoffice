@@ -25,7 +25,13 @@ import { Modal } from "@/shared/ui/modal";
 import { Select } from "@/shared/ui/select";
 import { Spinner } from "@/shared/ui/spinner";
 import { toast } from "@/shared/ui/toast";
-import { changeAdminRoleAction, grantPermissionAction } from "../application/actions";
+import {
+  changeAdminRoleAction,
+  createPermissionAction,
+  grantPermissionAction,
+  updateRolePermissionsAction,
+  type CreatePermissionInput,
+} from "../application/actions";
 import type { MyPermissions, PermissionsByModule, RbacPermission, RbacRole } from "../domain/rbac";
 import type { AdminUser } from "@/features/settings/domain/admin-user";
 
@@ -75,8 +81,9 @@ function GrantPermissionModal({
       toast({ kind: "error", title: "Sélectionnez une permission" });
       return;
     }
+    const targetId = admin.adminId ?? admin.userId;
     start(async () => {
-      const r = await grantPermissionAction(admin.userId, permissionCode);
+      const r = await grantPermissionAction(targetId, permissionCode);
       if (r.ok) {
         toast({ kind: "success", title: "Permission accordée", description: r.message });
         handleClose();
@@ -150,8 +157,9 @@ function ChangeRoleModal({
       toast({ kind: "error", title: "Sélectionnez un rôle" });
       return;
     }
+    const targetId = admin.adminId ?? admin.userId;
     start(async () => {
-      const r = await changeAdminRoleAction(admin.userId, roleId);
+      const r = await changeAdminRoleAction(targetId, roleId);
       if (r.ok) {
         toast({ kind: "success", title: "Rôle mis à jour", description: r.message });
         handleClose();
@@ -194,9 +202,252 @@ function ChangeRoleModal({
   );
 }
 
+// ─── Create permission modal ─────────────────────────────────────────────────
+
+function CreatePermissionModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState<CreatePermissionInput>({
+    code: "",
+    name: "",
+    module: "",
+    category: "",
+  });
+  const [pending, start] = useTransition();
+
+  function set<K extends keyof CreatePermissionInput>(k: K, v: string) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  function handleClose() {
+    setForm({ code: "", name: "", module: "", category: "" });
+    onClose();
+  }
+
+  function submit() {
+    if (!form.code.trim() || !form.name.trim() || !form.module.trim() || !form.category.trim()) {
+      toast({ kind: "error", title: "Champs manquants", description: "Code, nom, module et catégorie sont requis." });
+      return;
+    }
+    start(async () => {
+      const r = await createPermissionAction(form);
+      if (r.ok) {
+        toast({ kind: "success", title: "Permission créée", description: r.message });
+        handleClose();
+      } else {
+        toast({ kind: "error", title: "Échec", description: r.message });
+      }
+    });
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title="Créer une permission"
+      description="Ajouter une nouvelle permission au catalogue. Sera ensuite assignable aux rôles et admins."
+      size="md"
+      footer={
+        <>
+          <Button variant="ghost" onClick={handleClose} disabled={pending}>Annuler</Button>
+          <Button onClick={submit} isLoading={pending}>
+            {pending ? "Création…" : "Créer"}
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Input
+          label="Code *"
+          required
+          value={form.code}
+          onChange={(e) => set("code", e.target.value)}
+          placeholder="module.action (ex: billing.export)"
+        />
+        <Input
+          label="Nom *"
+          required
+          value={form.name}
+          onChange={(e) => set("name", e.target.value)}
+          placeholder="Exporter la facturation"
+        />
+        <Input
+          label="Module *"
+          required
+          value={form.module}
+          onChange={(e) => set("module", e.target.value)}
+          placeholder="billing, driver, ride…"
+        />
+        <Input
+          label="Catégorie *"
+          required
+          value={form.category}
+          onChange={(e) => set("category", e.target.value)}
+          placeholder="BILLING, DRIVER, RIDE…"
+        />
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Manage role permissions modal ───────────────────────────────────────────
+
+function ManageRolePermissionsModal({
+  open,
+  onClose,
+  role,
+  catalog,
+}: {
+  open: boolean;
+  onClose: () => void;
+  role: RbacRole | null;
+  catalog: PermissionsByModule | null;
+}) {
+  const [toAdd, setToAdd] = useState<string[]>([]);
+  const [toRemove, setToRemove] = useState<string[]>([]);
+  const [pending, start] = useTransition();
+
+  const existingCodes = useMemo(
+    () => new Set(role?.permissions.map((p) => p.code) ?? []),
+    [role],
+  );
+
+  const allPerms = useMemo(() => {
+    if (!catalog) return [];
+    return Object.entries(catalog.permissions).flatMap(([mod, perms]) =>
+      perms.map((p) => ({ ...p, module: mod })),
+    );
+  }, [catalog]);
+
+  const addablePerms = useMemo(
+    () => allPerms.filter((p) => !existingCodes.has(p.code)),
+    [allPerms, existingCodes],
+  );
+
+  function handleClose() {
+    setToAdd([]);
+    setToRemove([]);
+    onClose();
+  }
+
+  function toggleAdd(code: string) {
+    setToAdd((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
+  }
+
+  function toggleRemove(code: string) {
+    setToRemove((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
+  }
+
+  function submit() {
+    if (!role || (toAdd.length === 0 && toRemove.length === 0)) {
+      toast({ kind: "error", title: "Aucune modification sélectionnée" });
+      return;
+    }
+    start(async () => {
+      const r = await updateRolePermissionsAction(role.id, toAdd, toRemove);
+      if (r.ok) {
+        toast({ kind: "success", title: "Permissions mises à jour", description: r.message });
+        handleClose();
+      } else {
+        toast({ kind: "error", title: "Échec", description: r.message });
+      }
+    });
+  }
+
+  const isSuperAdmin = role?.name === "SUPER_ADMIN";
+
+  return (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title={`Permissions : ${role?.displayName ?? ""}`}
+      description={isSuperAdmin ? "⚠ Impossible de retirer des permissions du rôle SUPER_ADMIN." : "Cochez les permissions à ajouter/retirer puis validez."}
+      size="xl"
+      footer={
+        <>
+          <Button variant="ghost" onClick={handleClose} disabled={pending}>Annuler</Button>
+          <Button onClick={submit} isLoading={pending} disabled={toAdd.length === 0 && toRemove.length === 0}>
+            {pending ? "Mise à jour…" : `Appliquer (${toAdd.length > 0 ? `+${toAdd.length}` : ""}${toAdd.length > 0 && toRemove.length > 0 ? " / " : ""}${toRemove.length > 0 ? `−${toRemove.length}` : ""})`}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+        {/* Remove section */}
+        {!isSuperAdmin && existingCodes.size > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--danger)]">
+              Retirer du rôle ({toRemove.length} sélectionnée{toRemove.length !== 1 ? "s" : ""})
+            </p>
+            <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
+              {role?.permissions.map((p) => {
+                const selected = toRemove.includes(p.code);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => toggleRemove(p.code)}
+                    className={`rounded-md border px-2 py-1.5 text-left transition-colors ${
+                      selected
+                        ? "border-[color:var(--danger)] bg-[color:var(--danger)]/10"
+                        : "border-[color:var(--border)] hover:bg-[color:var(--muted)]/40"
+                    }`}
+                  >
+                    <p className="text-xs font-medium text-[color:var(--foreground)]">{p.name}</p>
+                    <p className="font-mono text-[10px] text-[color:var(--muted-foreground)]">{p.code}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Add section */}
+        {addablePerms.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--success)]">
+              Ajouter au rôle ({toAdd.length} sélectionnée{toAdd.length !== 1 ? "s" : ""})
+            </p>
+            <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
+              {addablePerms.map((p) => {
+                const selected = toAdd.includes(p.code);
+                return (
+                  <button
+                    key={p.code}
+                    type="button"
+                    onClick={() => toggleAdd(p.code)}
+                    className={`rounded-md border px-2 py-1.5 text-left transition-colors ${
+                      selected
+                        ? "border-[color:var(--success)] bg-[color:var(--success)]/10"
+                        : "border-[color:var(--border)] hover:bg-[color:var(--muted)]/40"
+                    }`}
+                  >
+                    <p className="text-xs font-medium text-[color:var(--foreground)]">{p.name}</p>
+                    <p className="font-mono text-[10px] text-[color:var(--muted-foreground)]">{p.code} · {p.module}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Role detail card (collapsible permissions list) ─────────────────────────
 
-function RoleCard({ role }: { role: RbacRole }) {
+function RoleCard({
+  role,
+  onManagePermissions,
+}: {
+  role: RbacRole;
+  onManagePermissions: (role: RbacRole) => void;
+}) {
   const [open, setOpen] = useState(false);
   const tone = ROLE_TONE[role.name] ?? "neutral";
 
@@ -228,21 +479,34 @@ function RoleCard({ role }: { role: RbacRole }) {
           <ChevronRight className="mt-0.5 size-4 shrink-0 text-[color:var(--muted-foreground)]" />
         )}
       </button>
-      {open && role.permissions.length > 0 ? (
+      {open && (
         <div className="border-t border-[color:var(--border)] px-3 pb-3 pt-2">
-          <ul className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
-            {role.permissions.map((p) => (
-              <li
-                key={p.id}
-                className="rounded-md border border-[color:var(--border)] bg-[color:var(--muted)]/20 px-2 py-1.5"
-              >
-                <p className="text-xs font-medium text-[color:var(--foreground)]">{p.name}</p>
-                <p className="font-mono text-[10px] text-[color:var(--muted-foreground)]">{p.code}</p>
-              </li>
-            ))}
-          </ul>
+          <div className="mb-2 flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); onManagePermissions(role); }}
+            >
+              Gérer les permissions
+            </Button>
+          </div>
+          {role.permissions.length > 0 ? (
+            <ul className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
+              {role.permissions.map((p) => (
+                <li
+                  key={p.id}
+                  className="rounded-md border border-[color:var(--border)] bg-[color:var(--muted)]/20 px-2 py-1.5"
+                >
+                  <p className="text-xs font-medium text-[color:var(--foreground)]">{p.name}</p>
+                  <p className="font-mono text-[10px] text-[color:var(--muted-foreground)]">{p.code}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-[color:var(--muted-foreground)]">Aucune permission.</p>
+          )}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -273,6 +537,8 @@ export function RbacSection({
   const [search, setSearch] = useState("");
   const [grantTarget, setGrantTarget] = useState<AdminUser | null>(null);
   const [roleTarget, setRoleTarget] = useState<AdminUser | null>(null);
+  const [createPermOpen, setCreatePermOpen] = useState(false);
+  const [managePermRole, setManagePermRole] = useState<RbacRole | null>(null);
 
   const myCodes = useMemo(
     () => new Set((me?.permissions ?? []).map((p) => p.code)),
@@ -295,8 +561,8 @@ export function RbacSection({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* ── Refresh bar ─────────────────────────────────────────────────────── */}
-      <div className="flex justify-end">
+      {/* ── Action bar ──────────────────────────────────────────────────────── */}
+      <div className="flex justify-end gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -305,6 +571,10 @@ export function RbacSection({
         >
           {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
           Rafraîchir
+        </Button>
+        <Button size="sm" onClick={() => setCreatePermOpen(true)}>
+          <Shield className="size-4" />
+          Nouvelle permission
         </Button>
       </div>
 
@@ -386,7 +656,7 @@ export function RbacSection({
               <ul className="flex flex-col gap-2">
                 {roles.map((role) => (
                   <li key={role.id}>
-                    <RoleCard role={role} />
+                    <RoleCard role={role} onManagePermissions={setManagePermRole} />
                   </li>
                 ))}
               </ul>
@@ -533,6 +803,16 @@ export function RbacSection({
         onClose={() => setRoleTarget(null)}
         admin={roleTarget}
         roles={roles}
+      />
+      <CreatePermissionModal
+        open={createPermOpen}
+        onClose={() => setCreatePermOpen(false)}
+      />
+      <ManageRolePermissionsModal
+        open={!!managePermRole}
+        onClose={() => setManagePermRole(null)}
+        role={managePermRole}
+        catalog={catalog}
       />
     </div>
   );

@@ -1,3 +1,4 @@
+import { getCurrentAdmin } from "@/features/auth/application/session";
 import {
   getMyPermissions,
   listPermissionsByModule,
@@ -26,10 +27,42 @@ export default async function SettingsPageRoute() {
   const errMsg = (e: unknown) =>
     e instanceof Error ? e.message : "Erreur de chargement.";
 
+  const me = meRes.status === "fulfilled" ? meRes.value : null;
+  const session = await getCurrentAdmin();
   const roles = rolesRes.status === "fulfilled" ? rolesRes.value : [];
-  const admins = adminsRes.status === "fulfilled" ? adminsRes.value.users : [];
+  const rawAdmins = adminsRes.status === "fulfilled" ? adminsRes.value.users : [];
   const adminsTotal = adminsRes.status === "fulfilled" ? adminsRes.value.total : 0;
   const appConfigs = appConfigRes.status === "fulfilled" ? appConfigRes.value : [];
+
+  // Enrich admin list: inject adminId where known.
+  // We only know the mapping userId↔adminId for the logged-in user (from session cookie).
+  const enriched = rawAdmins.map((a) => {
+    if (session && a.userId === session.userId) {
+      return { ...a, adminId: session.adminId };
+    }
+    return a;
+  });
+
+  // The current admin might have been filtered out by listAdminUsers() if their
+  // user role is PASSENGER/DRIVER (admin profile is separate from user role).
+  // Always ensure the logged-in admin is in the list.
+  const currentInList = session && enriched.some((a) => a.userId === session.userId);
+  const admins = !currentInList && session
+    ? [
+        {
+          userId: session.userId,
+          adminId: session.adminId,
+          firstName: session.firstName,
+          lastName: session.lastName,
+          phoneNumber: session.phone,
+          email: null,
+          role: session.role.name,
+          isActive: session.status === "ACTIVE",
+          createdAt: "",
+        },
+        ...enriched,
+      ]
+    : enriched;
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,7 +80,7 @@ export default async function SettingsPageRoute() {
             value: "admins",
             label: "Admins",
             badge: adminsRes.status === "fulfilled"
-              ? { count: adminsTotal, tone: "primary" as const }
+              ? { count: admins.length, tone: "primary" as const }
               : undefined,
             content: (
               <AdminsTab

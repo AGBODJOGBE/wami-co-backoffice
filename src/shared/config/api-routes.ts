@@ -22,8 +22,13 @@ export const API_ROUTES = {
     myPermissions: () => "/api/admin/me/permissions",
     /** GET — list every active role. */
     roles: () => "/api/admin/roles",
+    /** PATCH — add/remove permissions on a role. Body: { add: string[], remove: string[] }. */
+    updateRolePermissions: (roleId: string) =>
+      `/api/admin/roles/${roleId}/permissions`,
     /** GET — list every active permission, grouped by module. */
     permissions: () => "/api/admin/permissions",
+    /** POST — create a new permission. Body: { code, name, module, category }. */
+    createPermission: () => "/api/admin/permissions",
     /** POST — grant a single permission to an admin. */
     grantPermission: (adminId: string) =>
       `/api/admin/admins/${adminId}/grant-permission`,
@@ -158,6 +163,8 @@ export const API_ROUTES = {
     list: () => "/api/admin/wallets",
     /** GET — full wallet detail (balance + metadata + owner). */
     detail: (walletId: string) => `/api/admin/wallets/${walletId}`,
+    /** POST — manually credit a sub-balance (admin only). Body: { balanceType, amount, type, description }. */
+    credit: (walletId: string) => `/api/wallets/${walletId}/credit`,
   },
 
   // ─── Admin: payments ───────────────────────────────────────────────────────
