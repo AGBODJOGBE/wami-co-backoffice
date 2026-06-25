@@ -71,6 +71,35 @@ export async function createPermissionAction(
   }
 }
 
+export interface CreateRoleInput {
+  name: string;
+  displayName: string;
+  permissionIds: string[];
+}
+
+export interface CreatedRole {
+  id: string;
+  name: string;
+  displayName: string;
+  isSystem: boolean;
+  isActive: boolean;
+}
+
+export async function createRoleAction(
+  input: CreateRoleInput,
+): Promise<ActionResult<CreatedRole>> {
+  try {
+    const data = await apiFetch<CreatedRole>(
+      API_ROUTES.admin.roles(),
+      { method: "POST", body: input },
+    );
+    revalidatePath("/settings");
+    return { ok: true, message: `Rôle '${input.displayName}' créé.`, data };
+  } catch (e) {
+    return fail(e, "Création du rôle impossible.");
+  }
+}
+
 export interface UpdateRolePermissionsResult {
   roleId: string;
   roleName: string;

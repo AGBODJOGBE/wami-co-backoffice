@@ -11,6 +11,7 @@ export interface ActionResult<T = undefined> {
 
 export type WalletBalanceType = "MAIN" | "BONUS" | "REFERRAL";
 export type WalletCreditType = "CREDIT" | "ADMIN_CREDIT" | "BONUS" | "REFERRAL_BONUS" | "REFUND";
+export type WalletDebitType = "DEBIT" | "ADMIN_DEBIT" | "PENALTY" | "CORRECTION";
 
 export interface WalletCreditInput {
   balanceType: WalletBalanceType;
@@ -22,6 +23,40 @@ export interface WalletCreditInput {
 export interface WalletCreditResult {
   transactionId: string;
   newBalance: number;
+}
+
+export interface WalletDebitInput {
+  balanceType: WalletBalanceType;
+  amount: number;
+  type: WalletDebitType;
+  description: string;
+}
+
+export interface WalletDebitResult {
+  transactionIds: string[];
+  remainingBalance: number;
+}
+
+/**
+ * POST /api/wallets/{walletId}/debit
+ * Débite manuellement un wallet. Admin only.
+ */
+export async function debitWalletAction(
+  walletId: string,
+  input: WalletDebitInput,
+): Promise<ActionResult<WalletDebitResult>> {
+  try {
+    const data = await apiFetch<WalletDebitResult>(
+      API_ROUTES.adminWallets.debit(walletId),
+      { method: "POST", body: input },
+    );
+    revalidatePath("/wallet");
+    return { success: true, data };
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Erreur lors du débit.";
+    return { success: false, error: message };
+  }
 }
 
 /**

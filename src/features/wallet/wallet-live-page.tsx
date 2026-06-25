@@ -30,8 +30,10 @@ import { formatDate, formatXof } from "@/shared/lib/format";
 import { rideStatusMeta, fullParty, type AdminRide } from "@/features/rides/domain/admin-ride";
 import {
   creditWalletAction,
+  debitWalletAction,
   type WalletBalanceType,
   type WalletCreditType,
+  type WalletDebitType,
 } from "./application/actions";
 import type { AdminWallet } from "./domain/wallet";
 
@@ -730,12 +732,170 @@ function CreditWalletModal({
   );
 }
 
+// ─── Modal débit manuel ───────────────────────────────────────────────────────
+
+function DebitWalletModal({
+  open,
+  wallets,
+  rides,
+  onClose,
+}: {
+  open: boolean;
+  wallets: AdminWallet[];
+  rides: AdminRide[];
+  onClose: () => void;
+}) {
+  const [walletId, setWalletId] = useState("");
+  const [balanceType, setBalanceType] = useState<WalletBalanceType>("MAIN");
+  const [debitType, setDebitType] = useState<WalletDebitType>("DEBIT");
+  const [amount, setAmount] = useState(0);
+  const [description, setDescription] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (open) {
+      setWalletId("");
+      setBalanceType("MAIN");
+      setDebitType("DEBIT");
+      setAmount(0);
+      setDescription("");
+    }
+  }, [open]);
+
+  function handleSubmit() {
+    if (!walletId || amount <= 0 || !description.trim()) {
+      toast({
+        kind: "error",
+        title: "Champs manquants",
+        description: "Sélectionnez un wallet, entrez un montant > 0 et un motif.",
+      });
+      return;
+    }
+    startTransition(async () => {
+      const res = await debitWalletAction(walletId, {
+        balanceType,
+        amount,
+        type: debitType,
+        description: description.trim(),
+      });
+      if (res.success) {
+        toast({
+          kind: "success",
+          title: "Débit appliqué",
+          description: `${formatXof(amount)} débité. Solde restant : ${formatXof(res.data?.remainingBalance ?? 0)}`,
+        });
+        onClose();
+      } else {
+        toast({ kind: "error", title: "Échec du débit", description: res.error });
+      }
+    });
+  }
+
+  const nameByProfileId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rides) {
+      if (r.passenger?.passengerId) {
+        const name = fullParty(r.passenger);
+        if (name) map.set(r.passenger.passengerId, name);
+      }
+      if (r.driver?.driverId) {
+        const name = fullParty(r.driver);
+        if (name) map.set(r.driver.driverId, name);
+      }
+    }
+    return map;
+  }, [rides]);
+
+  const walletOptions = wallets.map((w) => {
+    const ownerName = w.ownerName || nameByProfileId.get(w.profileId) || null;
+    const typeLabel = WALLET_TYPE_META[w.walletType]?.label ?? w.walletType;
+    const label = ownerName
+      ? `${ownerName} — ${typeLabel} (${formatXof(w.totalBalance)})`
+      : `${typeLabel} — ${w.profileId.slice(0, 12)}… (${formatXof(w.totalBalance)})`;
+    return { value: w.walletId, label };
+  });
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="lg"
+      title="Débit manuel wallet"
+      description="Débite un wallet. Réservé aux admins — usage interne (corrections, pénalités, litiges)."
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={pending}>
+            Annuler
+          </Button>
+          <Button variant="danger" onClick={handleSubmit} disabled={pending}>
+            {pending ? <Spinner size="sm" /> : null}
+            Débiter le wallet
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <Combobox
+            label="Wallet cible"
+            options={walletOptions}
+            value={walletId}
+            onChange={setWalletId}
+            placeholder="Sélectionner un wallet…"
+          />
+        </div>
+        <Combobox
+          label="Sous-solde"
+          options={[
+            { value: "MAIN",     label: "Principal",  description: "Solde principal" },
+            { value: "BONUS",    label: "Bonus",       description: "Bonus et promotions" },
+            { value: "REFERRAL", label: "Parrainage",  description: "Gains de parrainage" },
+          ]}
+          value={balanceType}
+          onChange={(v) => setBalanceType(v as WalletBalanceType)}
+        />
+        <Combobox
+          label="Type d'opération"
+          options={[
+            { value: "DEBIT",       label: "Débit générique", description: "Débit standard" },
+            { value: "ADMIN_DEBIT", label: "Débit admin",     description: "Correction manuelle" },
+            { value: "PENALTY",     label: "Pénalité",        description: "Sanction / amende" },
+            { value: "CORRECTION",  label: "Correction",      description: "Correction d'erreur" },
+          ]}
+          value={debitType}
+          onChange={(v) => setDebitType(v as WalletDebitType)}
+        />
+        <Input
+          label="Montant (FCFA)"
+          required
+          type="number"
+          min={1}
+          value={amount || ""}
+          onChange={(e) => setAmount(Number(e.target.value))}
+          placeholder="5000"
+        />
+        <div className="sm:col-span-2">
+          <Textarea
+            label="Motif / description"
+            required
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Pénalité retard, correction erreur, résolution litige…"
+            rows={3}
+          />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 export function WalletLivePage({ wallets, rides }: WalletLivePageProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [creditOpen, setCreditOpen] = useState(false);
+  const [debitOpen, setDebitOpen] = useState(false);
 
   // KPIs réels
   const tvl = wallets.reduce((s, w) => s + (w.totalBalance ?? 0), 0);
@@ -769,6 +929,10 @@ export function WalletLivePage({ wallets, rides }: WalletLivePageProps) {
         <Button size="sm" onClick={() => setCreditOpen(true)}>
           <ArrowDownLeft className="size-4" />
           Crédit manuel
+        </Button>
+        <Button size="sm" variant="danger" onClick={() => setDebitOpen(true)}>
+          <ArrowUpRight className="size-4" />
+          Débit manuel
         </Button>
       </div>
 
@@ -813,6 +977,12 @@ export function WalletLivePage({ wallets, rides }: WalletLivePageProps) {
         wallets={wallets}
         rides={rides}
         onClose={() => setCreditOpen(false)}
+      />
+      <DebitWalletModal
+        open={debitOpen}
+        wallets={wallets}
+        rides={rides}
+        onClose={() => setDebitOpen(false)}
       />
 
       {/* Tabs */}

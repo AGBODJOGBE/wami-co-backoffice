@@ -28,6 +28,7 @@ import { toast } from "@/shared/ui/toast";
 import {
   changeAdminRoleAction,
   createPermissionAction,
+  createRoleAction,
   grantPermissionAction,
   updateRolePermissionsAction,
   type CreatePermissionInput,
@@ -439,6 +440,126 @@ function ManageRolePermissionsModal({
   );
 }
 
+// ─── Create role modal ───────────────────────────────────────────────────────
+
+function CreateRoleModal({
+  open,
+  onClose,
+  catalog,
+}: {
+  open: boolean;
+  onClose: () => void;
+  catalog: PermissionsByModule | null;
+}) {
+  const [name, setName] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
+  const [pending, start] = useTransition();
+
+  const allPerms = useMemo(() => {
+    if (!catalog) return [];
+    return Object.entries(catalog.permissions).flatMap(([mod, perms]) =>
+      perms.map((p) => ({ ...p, module: mod })),
+    );
+  }, [catalog]);
+
+  function handleClose() {
+    setName("");
+    setDisplayName("");
+    setSelectedPerms([]);
+    onClose();
+  }
+
+  function togglePerm(id: string) {
+    setSelectedPerms((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+    );
+  }
+
+  function submit() {
+    if (!name.trim() || !displayName.trim()) {
+      toast({ kind: "error", title: "Nom et libellé requis" });
+      return;
+    }
+    start(async () => {
+      const r = await createRoleAction({
+        name: name.trim().toUpperCase().replace(/\s+/g, "_"),
+        displayName: displayName.trim(),
+        permissionIds: selectedPerms,
+      });
+      if (r.ok) {
+        toast({ kind: "success", title: "Rôle créé", description: r.message });
+        handleClose();
+      } else {
+        toast({ kind: "error", title: "Échec", description: r.message });
+      }
+    });
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title="Créer un rôle"
+      description="Crée un rôle personnalisé avec les permissions sélectionnées."
+      size="xl"
+      footer={
+        <>
+          <Button variant="ghost" onClick={handleClose} disabled={pending}>Annuler</Button>
+          <Button onClick={submit} isLoading={pending}>
+            {pending ? "Création…" : `Créer le rôle (${selectedPerms.length} perm.)`}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input
+            label="Nom technique *"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="MARKETING_ADMIN"
+            hint="Sera converti en MAJUSCULES_UNDERSCORE"
+          />
+          <Input
+            label="Nom affiché *"
+            required
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Administrateur Marketing"
+          />
+        </div>
+        <div className="max-h-[45vh] overflow-y-auto rounded-lg border border-[color:var(--border)] p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[color:var(--muted-foreground)]">
+            Permissions ({selectedPerms.length} sélectionnée{selectedPerms.length !== 1 ? "s" : ""})
+          </p>
+          <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
+            {allPerms.map((p) => {
+              const selected = selectedPerms.includes(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => togglePerm(p.id)}
+                  className={`rounded-md border px-2 py-1.5 text-left transition-colors ${
+                    selected
+                      ? "border-[color:var(--primary)] bg-[color:var(--primary)]/10"
+                      : "border-[color:var(--border)] hover:bg-[color:var(--muted)]/40"
+                  }`}
+                >
+                  <p className="text-xs font-medium text-[color:var(--foreground)]">{p.name}</p>
+                  <p className="font-mono text-[10px] text-[color:var(--muted-foreground)]">{p.code} · {p.module}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Role detail card (collapsible permissions list) ─────────────────────────
 
 function RoleCard({
@@ -538,6 +659,7 @@ export function RbacSection({
   const [grantTarget, setGrantTarget] = useState<AdminUser | null>(null);
   const [roleTarget, setRoleTarget] = useState<AdminUser | null>(null);
   const [createPermOpen, setCreatePermOpen] = useState(false);
+  const [createRoleOpen, setCreateRoleOpen] = useState(false);
   const [managePermRole, setManagePermRole] = useState<RbacRole | null>(null);
 
   const myCodes = useMemo(
@@ -572,9 +694,13 @@ export function RbacSection({
           {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
           Rafraîchir
         </Button>
-        <Button size="sm" onClick={() => setCreatePermOpen(true)}>
+        <Button size="sm" variant="outline" onClick={() => setCreatePermOpen(true)}>
           <Shield className="size-4" />
           Nouvelle permission
+        </Button>
+        <Button size="sm" onClick={() => setCreateRoleOpen(true)}>
+          <UserCog className="size-4" />
+          Nouveau rôle
         </Button>
       </div>
 
@@ -807,6 +933,11 @@ export function RbacSection({
       <CreatePermissionModal
         open={createPermOpen}
         onClose={() => setCreatePermOpen(false)}
+      />
+      <CreateRoleModal
+        open={createRoleOpen}
+        onClose={() => setCreateRoleOpen(false)}
+        catalog={catalog}
       />
       <ManageRolePermissionsModal
         open={!!managePermRole}

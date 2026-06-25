@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Car as CarIcon,
+  ExternalLink,
+  FileText,
   Pencil,
   Phone,
   RefreshCw,
@@ -56,6 +58,86 @@ import {
   VehicleVerifyModal,
   type SimpleConfirmKind,
 } from "./vehicle-modals";
+
+function extractFileKey(signedUrl: string): string | null {
+  try {
+    const url = new URL(signedUrl);
+    return url.pathname.startsWith("/") ? url.pathname.slice(1) : url.pathname;
+  } catch {
+    return null;
+  }
+}
+
+function VehicleDocCards({
+  registrationCardUrl,
+  insuranceUrl,
+}: {
+  registrationCardUrl: string | null;
+  insuranceUrl: string | null;
+}) {
+  const [loading, setLoading] = useState<string | null>(null);
+
+  async function openFreshUrl(signedUrl: string, label: string) {
+    const fileKey = extractFileKey(signedUrl);
+    if (!fileKey) {
+      window.open(signedUrl, "_blank");
+      return;
+    }
+    setLoading(label);
+    try {
+      const res = await fetch(
+        `/api/_proxy/documents/signed-url?key=${encodeURIComponent(fileKey)}`,
+      );
+      const json = await res.json();
+      const freshUrl = json.data?.url ?? json.url;
+      if (freshUrl) {
+        window.open(freshUrl, "_blank");
+      } else {
+        window.open(signedUrl, "_blank");
+      }
+    } catch {
+      window.open(signedUrl, "_blank");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  const docs = [
+    { url: registrationCardUrl, label: "Carte grise" },
+    { url: insuranceUrl, label: "Assurance" },
+  ].filter((d) => d.url);
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {docs.map(({ url, label }) => (
+        <button
+          key={label}
+          type="button"
+          onClick={() => openFreshUrl(url!, label)}
+          disabled={loading === label}
+          className="group flex flex-col gap-2 rounded-lg border border-[color:var(--border)] p-3 text-left transition-colors hover:border-[color:var(--primary)] hover:bg-[color:var(--muted)]/40 disabled:opacity-60"
+        >
+          <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-[color:var(--muted)]">
+            <img src={url!} alt={label} className="size-full object-cover" />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="size-4 text-[color:var(--muted-foreground)]" />
+              <span className="text-sm font-medium text-[color:var(--foreground)]">
+                {label}
+              </span>
+            </div>
+            {loading === label ? (
+              <span className="text-xs text-[color:var(--muted-foreground)]">Chargement…</span>
+            ) : (
+              <ExternalLink className="size-3.5 text-[color:var(--muted-foreground)] transition-colors group-hover:text-[color:var(--primary)]" />
+            )}
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function insuranceLabel(iso: string | null) {
   const left = daysUntil(iso);
@@ -319,7 +401,13 @@ export function VehicleDetailClient({
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Documents ({documents.length})</CardTitle>
+              <CardTitle>
+                Documents (
+                {documents.length > 0
+                  ? documents.length
+                  : [vehicle.registrationCardUrl, vehicle.insuranceUrl].filter(Boolean).length}
+                )
+              </CardTitle>
               {insurance ? (
                 <span className="text-xs">Assurance : {insurance}</span>
               ) : null}
@@ -330,13 +418,23 @@ export function VehicleDetailClient({
               <p className="text-sm text-[color:var(--danger)]">
                 {documentsError}
               </p>
-            ) : (
+            ) : documents.length > 0 ? (
               <DocumentsList
                 documents={documents}
                 pathHint={`/vtc/vehicles/${vehicle.id}`}
                 emptyMessage="Aucun document uploadé pour ce véhicule."
                 compact
               />
+            ) : vehicle.registrationCardUrl || vehicle.insuranceUrl ? (
+              <VehicleDocCards
+                registrationCardUrl={vehicle.registrationCardUrl}
+                insuranceUrl={vehicle.insuranceUrl}
+              />
+
+            ) : (
+              <p className="py-6 text-center text-sm text-[color:var(--muted-foreground)]">
+                Aucun document uploadé pour ce véhicule.
+              </p>
             )}
           </CardContent>
         </Card>

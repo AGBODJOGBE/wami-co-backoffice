@@ -149,7 +149,10 @@ export function DriverDetailClient({
         },
         {
           label: "Courses totales",
-          value: enriched.totalRides.toLocaleString("fr-FR"),
+          value: (recentRides.length > enriched.totalRides
+            ? recentRides.length
+            : enriched.totalRides
+          ).toLocaleString("fr-FR"),
         },
         {
           label: "Documents vérifiés",

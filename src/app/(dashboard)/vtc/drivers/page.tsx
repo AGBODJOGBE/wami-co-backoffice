@@ -2,15 +2,17 @@ import {
   listAdminDrivers,
   listPendingDrivers,
 } from "@/features/drivers/application/api";
+import { listAdminRides } from "@/features/rides/application/api";
 import { DriversTabs } from "@/features/drivers/presentation/drivers-tabs";
 import { PageHeader } from "@/shared/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
 export default async function VtcDriversPage() {
-  const [pendingRes, allRes] = await Promise.allSettled([
+  const [pendingRes, allRes, ridesRes] = await Promise.allSettled([
     listPendingDrivers(),
     listAdminDrivers(),
+    listAdminRides(),
   ]);
 
   const pending =
@@ -33,17 +35,35 @@ export default async function VtcDriversPage() {
         : "Erreur de chargement."
       : undefined;
 
+  // Count real completed rides per driver (backend totalRides is unreliable)
+  const rides = ridesRes.status === "fulfilled" ? ridesRes.value.rides : [];
+  const rideCountByDriverId = new Map<string, number>();
+  for (const r of rides) {
+    if (r.driver?.driverId) {
+      rideCountByDriverId.set(
+        r.driver.driverId,
+        (rideCountByDriverId.get(r.driver.driverId) ?? 0) + 1,
+      );
+    }
+  }
+
+  // Patch totalRides with the real count
+  const patchedDrivers = allRaw.drivers.map((d) => ({
+    ...d,
+    totalRides: rideCountByDriverId.get(d.driverId) ?? d.totalRides,
+  }));
+
   // Approved drivers tab
-  const approvedDrivers = allRaw.drivers.filter((d) => d.isApproved);
+  const approvedDrivers = patchedDrivers.filter((d) => d.isApproved);
   const all = { drivers: approvedDrivers, total: approvedDrivers.length };
 
   // Pending = not approved from /drivers (rich data with name/phone)
   // + any from /pending not already in the rich list
-  const notApprovedFromRich = allRaw.drivers.filter((d) => !d.isApproved);
-  const richDriverIds = new Set(allRaw.drivers.map((d) => d.driverId));
+  const notApprovedFromRich = patchedDrivers.filter((d) => !d.isApproved);
+  const richDriverIds = new Set(patchedDrivers.map((d) => d.driverId));
 
   // Enrich /pending rows that aren't already in the rich list
-  const byDriverId = new Map(allRaw.drivers.map((d) => [d.driverId, d]));
+  const byDriverId = new Map(patchedDrivers.map((d) => [d.driverId, d]));
   const extraPending = pending.drivers
     .filter((p) => !richDriverIds.has(p.driverId))
     .map((p) => {
