@@ -51,26 +51,20 @@ export async function clientFetch<T>(
 
   // Only treat as error when HTTP status is not OK, or when the backend
   // explicitly signals failure with success:false.
-  const isExplicitFailure =
-    payload !== null &&
-    typeof payload === "object" &&
-    "success" in (payload as unknown as Record<string, unknown>) &&
-    (payload as unknown as Record<string, unknown>).success === false;
+  const isExplicitFailure = payload !== null && payload.success === false;
 
   if (!response.ok || !payload || isExplicitFailure) {
-    const p = payload as Record<string, unknown> | null;
     const message =
-      (isExplicitFailure && p && typeof p.message === "string" && p.message) ||
+      (isExplicitFailure && payload && typeof payload.message === "string" && payload.message) ||
       `Request failed with status ${response.status}`;
-    const errors = isExplicitFailure && p ? (p.errors as Record<string, string[]> | undefined) : undefined;
+    const errors = isExplicitFailure && payload ? payload.errors : undefined;
     throw new ApiError(message, response.status, errors);
   }
 
   // Standard envelope: { success: true, data: T }
   // Some endpoints return raw T (object or array) without the envelope.
-  const p = payload as unknown as Record<string, unknown>;
-  if ("success" in p && "data" in p) {
-    return p.data as T;
+  if (payload.success === true) {
+    return payload.data;
   }
   return payload as unknown as T;
 }
