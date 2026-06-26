@@ -68,7 +68,7 @@ export async function clientFetch<T>(
 
   // Standard envelope: { success: true, data: T }
   // Some endpoints return raw T (object or array) without the envelope.
-  const p = payload as Record<string, unknown>;
+  const p = payload as unknown as Record<string, unknown>;
   if ("success" in p && "data" in p) {
     return p.data as T;
   }
