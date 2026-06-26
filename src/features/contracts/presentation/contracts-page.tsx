@@ -34,6 +34,7 @@ import {
   formatXof,
   vehicleLabel,
   type Contract,
+  type ContractKpis,
   type ContractStatus,
 } from "../domain/contract";
 import { ContractCreateModal } from "./contract-create-modal";
@@ -53,9 +54,10 @@ export interface ContractsPageProps {
   error?: string;
   drivers: AdminDriver[];
   vehicles: VehicleSummary[];
+  kpis?: ContractKpis;
 }
 
-export function ContractsPage({ contracts, total, error, drivers, vehicles }: ContractsPageProps) {
+export function ContractsPage({ contracts, total, error, drivers, vehicles, kpis }: ContractsPageProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [search, setSearch] = useState("");
@@ -83,14 +85,19 @@ export function ContractsPage({ contracts, total, error, drivers, vehicles }: Co
   }, [contracts, search, statusFilter]);
 
   const stats = useMemo(() => {
-    const active = contracts.filter((c) => c.status === "ACTIVE").length;
-    const pending = contracts.filter((c) => c.status === "PENDING").length;
-    const broken = contracts.filter((c) => c.status === "BROKEN").length;
-    const late = contracts.filter(
-      (c) => c.status === "ACTIVE" && (c.montantRestant ?? 0) > 0,
-    ).length;
-    return { active, pending, broken, late };
-  }, [contracts]);
+    // Prefer API KPIs (fleet-wide), fallback to local count from loaded page
+    return {
+      active: kpis?.contracts.active ?? contracts.filter((c) => c.status === "ACTIVE").length,
+      pending: kpis?.contracts.broken ?? contracts.filter((c) => c.status === "PENDING").length,
+      broken: kpis?.contracts.broken ?? contracts.filter((c) => c.status === "BROKEN").length,
+      late: kpis?.installments.overdueCount ?? contracts.filter(
+        (c) => c.status === "ACTIVE" && (c.montantRestant ?? 0) > 0,
+      ).length,
+      blockedDrivers: kpis?.blocking.blockedCount ?? 0,
+      atRisk: kpis?.blocking.atRiskCount ?? 0,
+      totalRestant: kpis?.financials.totalMontantRestant,
+    };
+  }, [contracts, kpis]);
 
   const columns: ColumnDef<Contract>[] = [
     {
@@ -238,32 +245,32 @@ export function ContractsPage({ contracts, total, error, drivers, vehicles }: Co
           label="Contrats actifs"
           value={String(stats.active)}
           trend={{ value: "live", direction: "flat" }}
-          helper={`${contracts.length} au total`}
+          helper={`${kpis?.contracts.total ?? contracts.length} au total`}
           icon={FileText}
           tone="success"
         />
         <StatCard
-          label="En attente"
-          value={String(stats.pending)}
-          trend={{ value: "à valider", direction: "flat" }}
-          helper="signature en cours"
-          icon={TrendingUp}
-          tone="warning"
-        />
-        <StatCard
-          label="Résiliés"
-          value={String(stats.broken)}
-          trend={{ value: "clôturés", direction: "flat" }}
-          helper="contrats cassés"
-          icon={ShieldOff}
-          tone="warning"
-        />
-        <StatCard
-          label="En retard"
+          label="Échéances en retard"
           value={String(stats.late)}
           trend={{ value: "à suivre", direction: "flat" }}
-          helper="restant > 0"
+          helper={stats.atRisk > 0 ? `${stats.atRisk} à risque` : "aucun risque"}
           icon={AlertTriangle}
+          tone="warning"
+        />
+        <StatCard
+          label="Chauffeurs bloqués"
+          value={String(stats.blockedDrivers)}
+          trend={{ value: "impayés", direction: "flat" }}
+          helper={stats.atRisk > 0 ? `${stats.atRisk} à risque` : "aucun risque"}
+          icon={ShieldOff}
+          tone={stats.blockedDrivers > 0 ? "danger" : "neutral"}
+        />
+        <StatCard
+          label="Restant à recouvrer"
+          value={stats.totalRestant != null ? `${(stats.totalRestant / 1000).toFixed(0)}k` : String(stats.broken)}
+          trend={{ value: "FCFA", direction: "flat" }}
+          helper={stats.totalRestant != null ? `${stats.broken} résiliés` : "contrats cassés"}
+          icon={TrendingUp}
           tone="warning"
         />
       </section>

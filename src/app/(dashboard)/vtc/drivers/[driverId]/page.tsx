@@ -3,6 +3,7 @@ import { DriverDetailClient } from "@/features/drivers/presentation/driver-detai
 import {
   listAdminDrivers,
   listOnlineDrivers,
+  listPendingDrivers,
 } from "@/features/drivers/application/api";
 import type {
   AdminDriver,
@@ -70,17 +71,24 @@ export default async function VtcDriverDetailPage({
     vehiclesRes,
     walletRes,
     recentRidesRes,
+    pendingRes,
   ] = await Promise.allSettled([
     listAdminDrivers(),
     listOnlineDrivers(),
     listDriverVehicles(driverId),
     findWalletByProfile(driverId),
     listRidesByDriver(driverId, 6),
+    listPendingDrivers(),
   ]);
 
   const enriched: AdminDriver | undefined =
     adminListRes.status === "fulfilled"
       ? adminListRes.value.drivers.find((d) => d.driverId === driverId)
+      : undefined;
+
+  const pendingDriver =
+    pendingRes.status === "fulfilled"
+      ? pendingRes.value.drivers.find((d) => d.driverId === driverId)
       : undefined;
 
   const online: OnlineDriver | undefined =
@@ -121,7 +129,19 @@ export default async function VtcDriverDetailPage({
     recentRidesRes.status === "fulfilled" ? recentRidesRes.value : [];
 
   const category = enriched?.category ?? fallbackCategory;
-  const isDocumentsVerified = enriched?.isApproved ?? fallbackVerified;
+
+  const REQUIRED_DOC_TYPES = ["DRIVERS_LICENSE", "IDENTITY_CARD", "CRIMINAL_RECORD"];
+  const isDocumentsVerifiedFromDocs =
+    documents.length > 0 &&
+    REQUIRED_DOC_TYPES.every((type) =>
+      documents.some((d) => d.type === type && d.status === "VERIFIED"),
+    );
+
+  const isDocumentsVerified =
+    isDocumentsVerifiedFromDocs ||
+    pendingDriver?.isDocumentsVerified ||
+    enriched?.isDocumentsVerified ||
+    fallbackVerified;
   const createdAt = enriched?.createdAt ?? fallbackCreatedAt;
   const status: AdminDriverStatus =
     (enriched?.status as AdminDriverStatus | undefined) ?? fallbackStatus;

@@ -6,44 +6,16 @@ import { Combobox } from "@/shared/ui/combobox";
 import { Input } from "@/shared/ui/input";
 import { Modal } from "@/shared/ui/modal";
 import { Select } from "@/shared/ui/select";
+import { Textarea } from "@/shared/ui/textarea";
 import { toast } from "@/shared/ui/toast";
 import type { AdminDriver } from "@/features/drivers/domain/admin-driver";
 import type { VehicleSummary } from "@/features/vehicles/domain/vehicle";
 import { createContractAction } from "../application/actions";
 import {
   PAYMENT_FREQUENCY_OPTIONS,
-  formatXof,
   type CreateContractInput,
   type PaymentFrequency,
 } from "../domain/contract";
-
-// ─── Annuity calc ─────────────────────────────────────────────────────────────
-
-function calcEcheance(input: CreateContractInput): number {
-  const { montantTotal, apport, tauxInteret, dureeMois, frequencePaiement } = input;
-  const capital = montantTotal - apport;
-  if (capital <= 0 || dureeMois <= 0) return 0;
-
-  const periodsPerYear =
-    frequencePaiement === "DAILY"
-      ? 365
-      : frequencePaiement === "WEEKLY"
-        ? 52
-        : frequencePaiement === "QUARTERLY"
-          ? 4
-          : 12;
-
-  const nbPeriods = Math.round((dureeMois / 12) * periodsPerYear);
-  const ratePerPeriod = tauxInteret / periodsPerYear;
-
-  if (ratePerPeriod === 0) return Math.round(capital / nbPeriods);
-
-  const echeance =
-    (capital * ratePerPeriod * Math.pow(1 + ratePerPeriod, nbPeriods)) /
-    (Math.pow(1 + ratePerPeriod, nbPeriods) - 1);
-
-  return Math.round(echeance);
-}
 
 // ─── Default form ─────────────────────────────────────────────────────────────
 
@@ -54,10 +26,9 @@ function defaultForm(): CreateContractInput {
     vehicleId: "",
     dateDebut: today,
     dureeMois: 24,
-    montantTotal: 0,
-    apport: 0,
-    tauxInteret: 0.05,
-    frequencePaiement: "MONTHLY",
+    frequenceEcheances: "MENSUEL",
+    marginPct: 20,
+    notes: "",
   };
 }
 
@@ -93,20 +64,27 @@ export function ContractCreateModal({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  // ── Driver options — approved, not vehicle owner, no vehicle assigned ───────
+  // ── Driver options — non approuvés, sans véhicule en propre ────────────────
   const driverOptions = useMemo(
     () =>
       drivers
-        .filter((d) => d.isApproved && !d.isVehicleOwner && !d.vehicle)
+        .filter((d) => !d.isApproved && !d.isVehicleOwner)
         .map((d) => ({
           value: d.driverId,
           label: `${d.firstName} ${d.lastName}`.trim() || d.driverId,
-          description: d.phoneNumber,
+          description: d.isDocumentsVerified
+            ? `${d.phoneNumber} · ✓ Documents vérifiés`
+            : `${d.phoneNumber} · ⚠ Documents non vérifiés`,
         })),
     [drivers],
   );
 
-  // ── Vehicle options — platform vehicles: verified and not yet assigned ──────
+  const selectedDriver = useMemo(
+    () => drivers.find((d) => d.driverId === form.driverId) ?? null,
+    [drivers, form.driverId],
+  );
+
+  // ── Vehicle options — plateforme, vérifiés, non assignés ──────────────────
   const vehicleOptions = useMemo(() => {
     if (!form.driverId) return [];
     return vehicles
@@ -123,34 +101,22 @@ export function ContractCreateModal({
       }));
   }, [vehicles, form.driverId]);
 
-  // ── Selected vehicle (for info card + price auto-fill) ─────────────────────
   const selectedVehicle = useMemo(
     () => vehicles.find((v) => v.id === form.vehicleId) ?? null,
     [vehicles, form.vehicleId],
   );
 
-  // Auto-fill montantTotal from vehicle purchasePrice when vehicle is picked
-  useEffect(() => {
-    if (selectedVehicle?.purchasePrice) {
-      set("montantTotal", selectedVehicle.purchasePrice);
-    }
-  }, [selectedVehicle]);
-
-  // Clear vehicle when driver changes
   function onDriverChange(driverId: string) {
-    setForm((f) => ({
-      ...f,
-      driverId,
-      vehicleId: "",
-      montantTotal: 0,
-      apport: 0,
-    }));
+    setForm((f) => ({ ...f, driverId, vehicleId: "" }));
   }
 
-  // ── Derived ────────────────────────────────────────────────────────────────
-  const echeance = calcEcheance(form);
-  const capital = form.montantTotal - form.apport;
-  const priceFromVehicle = !!selectedVehicle?.purchasePrice;
+  // ── Date fin estimée ───────────────────────────────────────────────────────
+  const dateFin = useMemo(() => {
+    if (!form.dateDebut || form.dureeMois < 1) return null;
+    const d = new Date(form.dateDebut);
+    d.setMonth(d.getMonth() + form.dureeMois);
+    return d.toLocaleDateString("fr-FR");
+  }, [form.dateDebut, form.dureeMois]);
 
   // ── Validation & submit ───────────────────────────────────────────────────
   function submit() {
@@ -162,26 +128,31 @@ export function ContractCreateModal({
       toast({ kind: "error", title: "Champ requis", description: "Veuillez sélectionner un véhicule." });
       return;
     }
-    if (form.montantTotal <= 0) {
-      toast({ kind: "error", title: "Montant invalide", description: "Le prix de revente doit être supérieur à 0." });
-      return;
-    }
-    if (form.apport >= form.montantTotal) {
-      toast({ kind: "error", title: "Apport invalide", description: "L'apport doit être inférieur au montant total." });
-      return;
-    }
     if (form.dureeMois < 1) {
       toast({ kind: "error", title: "Durée invalide", description: "La durée doit être d'au moins 1 mois." });
       return;
     }
 
     start(async () => {
-      const r = await createContractAction(form);
+      const payload: CreateContractInput = {
+        ...form,
+        notes: form.notes?.trim() || undefined,
+      };
+      const r = await createContractAction(payload);
       if (r.ok) {
         toast({ kind: "success", title: "Contrat créé", description: r.message });
         onClose();
       } else {
-        toast({ kind: "error", title: "Échec", description: r.message });
+        const isEligibilityError =
+          r.message.toLowerCase().includes("eligible") ||
+          r.message.toLowerCase().includes("documents verified");
+        toast({
+          kind: "error",
+          title: isEligibilityError ? "Driver non éligible" : "Échec de création",
+          description: isEligibilityError
+            ? "Les documents du driver doivent être vérifiés avant de créer un contrat."
+            : r.message,
+        });
       }
     });
   }
@@ -192,7 +163,7 @@ export function ContractCreateModal({
       onClose={onClose}
       size="xl"
       title="Nouveau contrat de location-vente"
-      description="Le driver doit être approuvé et ses documents vérifiés pour être éligible."
+      description="Le backend calcule le montant total à partir du prix d'acquisition du véhicule et de la marge."
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={pending}>
@@ -216,34 +187,44 @@ export function ContractCreateModal({
               label="Driver *"
               placeholder="Sélectionner un driver…"
               searchPlaceholder="Rechercher par nom ou téléphone…"
-              emptyMessage="Aucun driver approuvé trouvé."
+              emptyMessage="Aucun driver éligible trouvé."
               options={driverOptions}
               value={form.driverId}
               onChange={onDriverChange}
               allowClear
               required
-              hint="Drivers approuvés, sans véhicule (propriétaire = Non)."
+              hint="Drivers non approuvés, sans véhicule en propre."
             />
 
-            <div className="flex flex-col gap-1.5">
-              <Combobox
-                label="Véhicule *"
-                placeholder={
-                  form.driverId
-                    ? "Sélectionner par immatriculation…"
-                    : "Sélectionnez d'abord un driver"
-                }
-                searchPlaceholder="Rechercher par immatriculation…"
-                emptyMessage="Aucun véhicule plateforme vérifié et non assigné disponible."
-                options={vehicleOptions}
-                value={form.vehicleId}
-                onChange={(id) => set("vehicleId", id)}
-                allowClear
-                disabled={!form.driverId}
-                required
-              />
-            </div>
+            <Combobox
+              label="Véhicule *"
+              placeholder={
+                form.driverId
+                  ? "Sélectionner par immatriculation…"
+                  : "Sélectionnez d'abord un driver"
+              }
+              searchPlaceholder="Rechercher par immatriculation…"
+              emptyMessage="Aucun véhicule plateforme vérifié disponible."
+              options={vehicleOptions}
+              value={form.vehicleId}
+              onChange={(id) => set("vehicleId", id)}
+              allowClear
+              disabled={!form.driverId}
+              required
+            />
           </div>
+
+          {/* Alerte documents non vérifiés */}
+          {selectedDriver && !selectedDriver.isDocumentsVerified && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-600/40 dark:bg-amber-500/10">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
+                ⚠ Documents non vérifiés
+              </p>
+              <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-500">
+                Le backend refusera la création tant que les documents ne sont pas vérifiés.
+              </p>
+            </div>
+          )}
 
           {/* Vehicle info card */}
           {selectedVehicle ? (
@@ -265,18 +246,14 @@ export function ContractCreateModal({
                   <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.year}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-[color:var(--muted-foreground)]">Type</dt>
-                  <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.type}</dd>
-                </div>
-                <div>
                   <dt className="text-xs text-[color:var(--muted-foreground)]">Immatriculation</dt>
                   <dd className="font-mono font-medium text-[color:var(--foreground)]">
                     {selectedVehicle.licensePlate}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-[color:var(--muted-foreground)]">Couleur</dt>
-                  <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.color}</dd>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Type</dt>
+                  <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.type}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-[color:var(--muted-foreground)]">Catégorie</dt>
@@ -284,14 +261,6 @@ export function ContractCreateModal({
                     {selectedVehicle.category ?? "—"}
                   </dd>
                 </div>
-                {selectedVehicle.purchasePrice ? (
-                  <div>
-                    <dt className="text-xs text-[color:var(--muted-foreground)]">Prix d'achat</dt>
-                    <dd className="font-semibold text-[color:var(--foreground)]">
-                      {formatXof(selectedVehicle.purchasePrice)}
-                    </dd>
-                  </div>
-                ) : null}
               </dl>
             </div>
           ) : null}
@@ -317,15 +286,7 @@ export function ContractCreateModal({
               max={120}
               value={form.dureeMois}
               onChange={(e) => set("dureeMois", Math.max(1, Number(e.target.value)))}
-              hint={
-                form.dateDebut
-                  ? `Fin estimée : ${new Date(
-                      new Date(form.dateDebut).setMonth(
-                        new Date(form.dateDebut).getMonth() + form.dureeMois,
-                      ),
-                    ).toLocaleDateString("fr-FR")}`
-                  : undefined
-              }
+              hint={dateFin ? `Fin estimée : ${dateFin}` : undefined}
               required
             />
           </div>
@@ -337,93 +298,41 @@ export function ContractCreateModal({
             Conditions financières
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
-            {/* Prix de revente — read-only si vient du véhicule, éditable sinon */}
-            {priceFromVehicle ? (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-[color:var(--foreground)]">
-                  Prix de revente (FCFA)
-                </span>
-                <div className="flex h-10 items-center rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/40 px-3 text-sm font-semibold text-[color:var(--foreground)]">
-                  {formatXof(form.montantTotal)}
-                </div>
-                <p className="text-xs text-[color:var(--muted-foreground)]">
-                  Issu des données du véhicule — non modifiable ici.
-                </p>
-              </div>
-            ) : (
-              <Input
-                label="Prix de revente (FCFA) *"
-                type="number"
-                min={0}
-                step={10000}
-                value={form.montantTotal}
-                onChange={(e) => set("montantTotal", Number(e.target.value))}
-                hint={form.montantTotal > 0 ? formatXof(form.montantTotal) : "Prix négocié avec le driver"}
-                required
-              />
-            )}
-
             <Input
-              label="Apport initial (FCFA) *"
+              label="Marge (%)"
               type="number"
               min={0}
-              step={10000}
-              value={form.apport}
-              onChange={(e) => set("apport", Number(e.target.value))}
-              hint={`Capital restant : ${formatXof(Math.max(0, capital))}`}
-              required
-            />
-            <Input
-              label="Taux d'intérêt annuel *"
-              type="number"
-              min={0}
-              max={1}
-              step={0.005}
-              value={form.tauxInteret}
-              onChange={(e) => set("tauxInteret", Number(e.target.value))}
-              hint={`${(form.tauxInteret * 100).toFixed(1)} % / an`}
-              required
+              max={200}
+              step={1}
+              value={form.marginPct ?? 20}
+              onChange={(e) => set("marginPct", Number(e.target.value))}
+              hint="Ex : 20 pour 20%. Le backend calcule montantTotal = prix_achat × (1 + marge/100)."
             />
             <Select
-              label="Fréquence de paiement *"
+              label="Fréquence des échéances"
               id="contract-freq"
               options={PAYMENT_FREQUENCY_OPTIONS}
-              value={form.frequencePaiement}
+              value={form.frequenceEcheances ?? "MENSUEL"}
               onChange={(e) =>
-                set("frequencePaiement", e.target.value as PaymentFrequency)
+                set("frequenceEcheances", e.target.value as PaymentFrequency)
               }
             />
           </div>
         </div>
 
-        {/* ── Simulation ─────────────────────────────────────────────────── */}
-        {form.montantTotal > 0 && form.apport < form.montantTotal && (
-          <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/40 px-4 py-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">
-              Simulation de l'échéancier
-            </p>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
-              <div>
-                <dt className="text-xs text-[color:var(--muted-foreground)]">Capital financé</dt>
-                <dd className="font-semibold text-[color:var(--foreground)]">{formatXof(capital)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-[color:var(--muted-foreground)]">Échéance</dt>
-                <dd className="font-semibold text-[color:var(--foreground)]">{formatXof(echeance)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-[color:var(--muted-foreground)]">Durée</dt>
-                <dd className="font-semibold text-[color:var(--foreground)]">{form.dureeMois} mois</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-[color:var(--muted-foreground)]">Fréquence</dt>
-                <dd className="font-semibold text-[color:var(--foreground)]">
-                  {PAYMENT_FREQUENCY_OPTIONS.find((o) => o.value === form.frequencePaiement)?.label}
-                </dd>
-              </div>
-            </dl>
-          </div>
-        )}
+        {/* ── Notes ──────────────────────────────────────────────────────── */}
+        <div className="flex flex-col gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">
+            Notes (optionnel)
+          </p>
+          <Textarea
+            label=""
+            value={form.notes ?? ""}
+            onChange={(e) => set("notes", e.target.value)}
+            placeholder="Remarques internes, conditions particulières, accord verbal…"
+            rows={3}
+          />
+        </div>
       </div>
     </Modal>
   );

@@ -230,16 +230,26 @@ export const API_ROUTES = {
 
   // ─── Admin: contrats location-vente ────────────────────────────────────────
   adminContracts: {
-    /** GET  — liste paginée. Query: page, limit, status, driverId, search */
+    /** GET  — liste paginée. Query: page, limit, statut (ACTIF|ROMPU|TERMINE|SOLDE), driverId */
     list: () => "/api/admin/contracts",
     /** POST — créer un contrat. Body: CreateContractInput */
     create: () => "/api/admin/contracts",
+    /** GET  — snapshot KPIs de la flotte */
+    kpis: () => "/api/admin/contracts/dashboard/kpis",
+    /** GET  — journal d'audit. Query: contractId, driverId, action, page, limit */
+    auditLogs: () => "/api/admin/contracts/audit-logs",
     /** GET  — détail d'un contrat */
     detail: (id: string) => `/api/admin/contracts/${id}`,
     /** GET  — échéancier d'un contrat */
     installments: (id: string) => `/api/admin/contracts/${id}/installments`,
+    /** POST — paiement manuel d'une échéance (hors plateforme) */
+    manualPayment: (installmentId: string) =>
+      `/api/admin/contracts/installments/${installmentId}/manual-payment`,
     /** POST — résilier un contrat. Body: { reason } */
     break: (id: string) => `/api/admin/contracts/${id}/break`,
+    /** POST — débloquer manuellement un chauffeur suspendu pour impayés */
+    unblockDriver: (driverId: string) =>
+      `/api/admin/contracts/drivers/${driverId}/unblock`,
   },
 
   appConfig: {

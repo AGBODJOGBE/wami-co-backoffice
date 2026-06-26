@@ -4,20 +4,87 @@ import { API_ROUTES } from "@/shared/config/api-routes";
 import { apiFetch } from "@/shared/lib/api/server";
 import type {
   Contract,
+  ContractAuditLog,
+  ContractAuditLogsResult,
   ContractInstallment,
+  ContractKpis,
   ContractStatus,
 } from "../domain/contract";
+
+// ─── Field mappings (API → domain) ───────────────────────────────────────────
+
+const STATUT_MAP: Record<string, ContractStatus> = {
+  ACTIF: "ACTIVE",
+  ROMPU: "BROKEN",
+  SOLDE: "COMPLETED",
+  TERMINE: "TERMINATED",
+  EN_ATTENTE: "PENDING",
+  // passthrough for already-normalised values
+  ACTIVE: "ACTIVE",
+  BROKEN: "BROKEN",
+  COMPLETED: "COMPLETED",
+  TERMINATED: "TERMINATED",
+  PENDING: "PENDING",
+};
+
+// Backend uses French frequency values — keep as-is
+const FREQ_MAP: Record<string, string> = {
+  MENSUEL: "MENSUEL",
+  HEBDOMADAIRE: "HEBDOMADAIRE",
+  JOURNALIER: "JOURNALIER",
+  // legacy English passthrough (just in case)
+  MONTHLY: "MENSUEL",
+  WEEKLY: "HEBDOMADAIRE",
+  DAILY: "JOURNALIER",
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function normalizeContract(raw: unknown): Contract {
-  if (raw && typeof raw === "object") {
-    const r = raw as Record<string, unknown>;
-    // Unwrap nested data if double-enveloped
-    const c = (r.data ?? r) as Record<string, unknown>;
-    return c as unknown as Contract;
-  }
-  return raw as Contract;
+  if (!raw || typeof raw !== "object") return raw as Contract;
+
+  const r = raw as Record<string, unknown>;
+  // Unwrap nested data if double-enveloped
+  const c = (r.data && typeof r.data === "object" ? r.data : r) as Record<string, unknown>;
+
+  // Map API field names → domain field names
+  const contractId = (c.contractId ?? c.id ?? "") as string;
+  const rawStatut = (c.statut ?? c.status ?? "PENDING") as string;
+  const status: ContractStatus = STATUT_MAP[rawStatut] ?? "PENDING";
+  const rawFreq = (c.frequenceEcheances ?? c.frequencePaiement ?? "MENSUEL") as string;
+  const frequencePaiement = (FREQ_MAP[rawFreq] ?? "MENSUEL") as import("../domain/contract").PaymentFrequency;
+
+  // Build minimal driver/vehicle stubs if the list doesn't embed them
+  const driver = (c.driver && typeof c.driver === "object"
+    ? c.driver
+    : { driverId: (c.driverId ?? "") as string }
+  ) as import("../domain/contract").ContractDriver;
+
+  const vehicle = (c.vehicle && typeof c.vehicle === "object"
+    ? c.vehicle
+    : { vehicleId: (c.vehicleId ?? "") as string }
+  ) as import("../domain/contract").ContractVehicle;
+
+  return {
+    contractId,
+    status,
+    driver,
+    vehicle,
+    dateDebut: (c.dateDebut ?? "") as string,
+    dateFin: (c.dateFin ?? c.dateFinPrevue ?? null) as string | null,
+    dureeMois: (c.dureeMois ?? 0) as number,
+    montantTotal: (c.montantTotal ?? 0) as number,
+    apport: (c.apport ?? 0) as number,
+    tauxInteret: (c.marginPct ?? c.tauxInteret ?? 0) as number,
+    frequencePaiement,
+    montantMensuel: (c.montantMensuel ?? c.montantEcheance) as number | undefined,
+    montantRestant: (c.montantRestant) as number | undefined,
+    echeancesTotal: (c.echeancesTotal ?? c.nbEcheances) as number | undefined,
+    echeancesPayees: (c.echeancesPayees ?? c.nbPaies) as number | undefined,
+    createdAt: (c.createdAt ?? "") as string,
+    updatedAt: (c.updatedAt ?? "") as string,
+    breakReason: (c.breakReason ?? c.motifRupture ?? null) as string | null,
+  };
 }
 
 function normalizeList(raw: unknown): { items: Contract[]; total: number; page: number; limit: number } {
@@ -28,7 +95,7 @@ function normalizeList(raw: unknown): { items: Contract[]; total: number; page: 
   // { items, total, page, limit }
   if (Array.isArray(r.items)) {
     return {
-      items: r.items as Contract[],
+      items: r.items.map(normalizeContract),
       total: typeof r.total === "number" ? r.total : (r.items as unknown[]).length,
       page: typeof r.page === "number" ? r.page : 1,
       limit: typeof r.limit === "number" ? r.limit : 20,
@@ -39,7 +106,7 @@ function normalizeList(raw: unknown): { items: Contract[]; total: number; page: 
     const d = r.data as Record<string, unknown>;
     if (Array.isArray(d.items)) {
       return {
-        items: d.items as Contract[],
+        items: d.items.map(normalizeContract),
         total: typeof d.total === "number" ? d.total : (d.items as unknown[]).length,
         page: typeof d.page === "number" ? d.page : 1,
         limit: typeof d.limit === "number" ? d.limit : 20,
@@ -49,16 +116,31 @@ function normalizeList(raw: unknown): { items: Contract[]; total: number; page: 
   return empty;
 }
 
+function normalizeInstallment(raw: unknown): ContractInstallment {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {
+    installmentId: (r.installmentId ?? r.id ?? "") as string,
+    contractId: r.contractId as string | undefined,
+    numero: (r.numero ?? 0) as number,
+    montant: (r.montant ?? 0) as number,
+    dateEcheance: (r.dateEcheance ?? "") as string,
+    datePaiement: (r.datePaiement ?? null) as string | null,
+    status: (r.statut ?? r.status ?? "EN_ATTENTE") as import("../domain/contract").InstallmentStatus,
+    retardJours: r.retardJours as number | undefined,
+    penalite: r.penalite as number | undefined,
+  };
+}
+
 function normalizeInstallments(raw: unknown): ContractInstallment[] {
-  if (Array.isArray(raw)) return raw as ContractInstallment[];
+  if (Array.isArray(raw)) return raw.map(normalizeInstallment);
   if (raw && typeof raw === "object") {
     const r = raw as Record<string, unknown>;
     const list = r.installments ?? r.items ?? r.data;
-    if (Array.isArray(list)) return list as ContractInstallment[];
+    if (Array.isArray(list)) return list.map(normalizeInstallment);
     if (r.data && typeof r.data === "object") {
       const d = r.data as Record<string, unknown>;
       const inner = d.installments ?? d.items;
-      if (Array.isArray(inner)) return inner as ContractInstallment[];
+      if (Array.isArray(inner)) return inner.map(normalizeInstallment);
     }
   }
   return [];
@@ -74,6 +156,15 @@ export interface ListContractsParams {
   search?: string;
 }
 
+// Backend uses French statut values
+const STATUS_TO_STATUT: Record<string, string> = {
+  ACTIVE: "ACTIF",
+  BROKEN: "ROMPU",
+  COMPLETED: "SOLDE",
+  TERMINATED: "TERMINE",
+  PENDING: "EN_ATTENTE",
+};
+
 export async function listContracts(
   params?: ListContractsParams,
 ): Promise<{ items: Contract[]; total: number; page: number; limit: number }> {
@@ -81,12 +172,51 @@ export async function listContracts(
     page: params?.page ?? 1,
     limit: params?.limit ?? 20,
   };
-  if (params?.status) query.status = params.status;
+  // Backend expects French statut param, not English status
+  if (params?.status) query.statut = STATUS_TO_STATUT[params.status] ?? params.status;
   if (params?.driverId) query.driverId = params.driverId;
   if (params?.search) query.search = params.search;
 
   const raw = await apiFetch<unknown>(API_ROUTES.adminContracts.list(), { query });
   return normalizeList(raw);
+}
+
+export async function getContractKpis(): Promise<ContractKpis> {
+  return apiFetch<ContractKpis>(API_ROUTES.adminContracts.kpis());
+}
+
+export interface ListAuditLogsParams {
+  contractId?: string;
+  driverId?: string;
+  action?: string;
+  page?: number;
+  limit?: number;
+}
+
+export async function listContractAuditLogs(
+  params?: ListAuditLogsParams,
+): Promise<ContractAuditLogsResult> {
+  const empty: ContractAuditLogsResult = { items: [], total: 0, page: 1, limit: 20 };
+  const query: Record<string, string | number | undefined> = {
+    page: params?.page ?? 1,
+    limit: params?.limit ?? 20,
+  };
+  if (params?.contractId) query.contractId = params.contractId;
+  if (params?.driverId) query.driverId = params.driverId;
+  if (params?.action) query.action = params.action;
+
+  const raw = await apiFetch<unknown>(API_ROUTES.adminContracts.auditLogs(), { query });
+  if (!raw || typeof raw !== "object") return empty;
+  const r = raw as Record<string, unknown>;
+  if (Array.isArray(r.items)) {
+    return {
+      items: r.items as ContractAuditLog[],
+      total: typeof r.total === "number" ? r.total : (r.items as unknown[]).length,
+      page: typeof r.page === "number" ? r.page : 1,
+      limit: typeof r.limit === "number" ? r.limit : 20,
+    };
+  }
+  return empty;
 }
 
 export async function getContract(id: string): Promise<Contract> {

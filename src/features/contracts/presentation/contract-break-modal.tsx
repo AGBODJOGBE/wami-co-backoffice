@@ -10,6 +10,7 @@ import { breakContractAction } from "../application/actions";
 interface Props {
   open: boolean;
   contractId: string;
+  vehicleId?: string;
   onClose: () => void;
   onSuccess?: () => void;
 }
@@ -17,6 +18,7 @@ interface Props {
 export function ContractBreakModal({
   open,
   contractId,
+  vehicleId,
   onClose,
   onSuccess,
 }: Props) {
@@ -33,7 +35,7 @@ export function ContractBreakModal({
       return;
     }
     start(async () => {
-      const r = await breakContractAction(contractId, reason.trim());
+      const r = await breakContractAction(contractId, reason.trim(), vehicleId);
       if (r.ok) {
         toast({ kind: "success", title: "Contrat résilié", description: r.message });
         setReason("");

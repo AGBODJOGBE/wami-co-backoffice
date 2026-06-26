@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldOff } from "lucide-react";
+import { ShieldOff, Unlock } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
@@ -15,8 +15,11 @@ import {
   InfoGrid,
   type InfoRow,
 } from "@/shared/ui/detail-header";
+import { Spinner } from "@/shared/ui/spinner";
+import { toast } from "@/shared/ui/toast";
 import { formatDate } from "@/shared/lib/format";
 import {
+  AUDIT_LOG_ACTION_LABELS,
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_TONES,
   INSTALLMENT_STATUS_LABELS,
@@ -26,22 +29,55 @@ import {
   formatXof,
   vehicleLabel,
   type Contract,
+  type ContractAuditLog,
   type ContractInstallment,
   type ContractStatus,
   type InstallmentStatus,
 } from "../domain/contract";
+import {
+  recordManualPaymentAction,
+  unblockDriverAction,
+} from "../application/actions";
 import { ContractBreakModal } from "./contract-break-modal";
 
 interface Props {
   contract: Contract;
   installments: ContractInstallment[];
+  auditLogs?: ContractAuditLog[];
 }
 
-export function ContractDetailPage({ contract, installments }: Props) {
+export function ContractDetailPage({ contract, installments, auditLogs = [] }: Props) {
   const router = useRouter();
   const [breakOpen, setBreakOpen] = useState(false);
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [unblocking, startUnblock] = useTransition();
 
   const canBreak = contract.status === "ACTIVE" || contract.status === "PENDING";
+
+  function handleManualPayment(installmentId: string) {
+    setPayingId(installmentId);
+    recordManualPaymentAction(installmentId, contract.contractId).then((r) => {
+      setPayingId(null);
+      if (r.ok) {
+        toast({ kind: "success", title: "Paiement enregistré", description: r.message });
+        router.refresh();
+      } else {
+        toast({ kind: "error", title: "Échec", description: r.message });
+      }
+    });
+  }
+
+  function handleUnblock() {
+    startUnblock(async () => {
+      const r = await unblockDriverAction(contract.driver.driverId, contract.contractId);
+      if (r.ok) {
+        toast({ kind: "success", title: "Chauffeur débloqué", description: r.message });
+        router.refresh();
+      } else {
+        toast({ kind: "error", title: "Échec", description: r.message });
+      }
+    });
+  }
 
   const contractInfo: InfoRow[] = [
     { label: "Identifiant", value: contract.contractId },
@@ -73,8 +109,8 @@ export function ContractDetailPage({ contract, installments }: Props) {
       value: formatXof(contract.montantTotal - contract.apport),
     },
     {
-      label: "Taux d'intérêt annuel",
-      value: `${(contract.tauxInteret * 100).toFixed(2)} %`,
+      label: "Taux / Marge",
+      value: `${contract.tauxInteret} %`,
     },
     {
       label: "Montant par échéance",
@@ -183,6 +219,57 @@ export function ContractDetailPage({ contract, installments }: Props) {
         </Badge>
       ),
     },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      render: (row) => {
+        const canPay = row.status === "EN_ATTENTE" || row.status === "IMPAYEE";
+        if (!canPay) return null;
+        const loading = payingId === row.installmentId;
+        return (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleManualPayment(row.installmentId)}
+            disabled={!!payingId}
+          >
+            {loading ? <Spinner size="sm" /> : "Paiement manuel"}
+          </Button>
+        );
+      },
+    },
+  ];
+
+  const auditColumns: ColumnDef<ContractAuditLog>[] = [
+    {
+      key: "occurredAt",
+      header: "Date",
+      sortAccessor: (row) => row.occurredAt,
+      render: (row) => (
+        <span className="text-xs text-[color:var(--muted-foreground)]">
+          {formatDate(row.occurredAt)}
+        </span>
+      ),
+    },
+    {
+      key: "action",
+      header: "Action",
+      render: (row) => (
+        <span className="text-sm font-medium text-[color:var(--foreground)]">
+          {AUDIT_LOG_ACTION_LABELS[row.action] ?? row.action}
+        </span>
+      ),
+    },
+    {
+      key: "performedBy",
+      header: "Par",
+      render: (row) => (
+        <span className="font-mono text-xs text-[color:var(--muted-foreground)]">
+          {row.performedBy.slice(0, 8)}…
+        </span>
+      ),
+    },
   ];
 
   return (
@@ -199,16 +286,27 @@ export function ContractDetailPage({ contract, installments }: Props) {
         }
         subtitle={`Contrat #${contract.contractId.slice(0, 8)} · Créé le ${formatDate(contract.createdAt)}`}
         actions={
-          canBreak ? (
+          <div className="flex gap-2">
             <Button
-              variant="danger"
+              variant="outline"
               size="sm"
-              onClick={() => setBreakOpen(true)}
+              onClick={handleUnblock}
+              disabled={unblocking}
             >
-              <ShieldOff className="size-4" />
-              Résilier le contrat
+              {unblocking ? <Spinner size="sm" /> : <Unlock className="size-4" />}
+              Débloquer le chauffeur
             </Button>
-          ) : undefined
+            {canBreak ? (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setBreakOpen(true)}
+              >
+                <ShieldOff className="size-4" />
+                Résilier le contrat
+              </Button>
+            ) : null}
+          </div>
         }
       />
 
@@ -280,9 +378,25 @@ export function ContractDetailPage({ contract, installments }: Props) {
         )}
       </Card>
 
+      {auditLogs.length > 0 ? (
+        <Card className="overflow-hidden p-0">
+          <CardHeader className="border-b border-[color:var(--border)]">
+            <CardTitle>Journal d'audit ({auditLogs.length} entrées)</CardTitle>
+          </CardHeader>
+          <DataTable
+            rows={auditLogs}
+            columns={auditColumns}
+            rowKey={(row) => row.id}
+            defaultSort={{ key: "occurredAt", direction: "desc" }}
+            emptyMessage="Aucune entrée d'audit."
+          />
+        </Card>
+      ) : null}
+
       <ContractBreakModal
         open={breakOpen}
         contractId={contract.contractId}
+        vehicleId={contract.vehicle.vehicleId}
         onClose={() => setBreakOpen(false)}
         onSuccess={() => router.refresh()}
       />

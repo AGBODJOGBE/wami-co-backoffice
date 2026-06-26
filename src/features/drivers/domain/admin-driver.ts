@@ -71,6 +71,8 @@ export interface AdminDriver {
   totalRides: number;
   isApproved: boolean;
   isVehicleOwner: boolean;
+  /** Enrichi côté serveur depuis /api/admin/drivers/pending */
+  isDocumentsVerified?: boolean;
   vehicle?: DriverVehicleSummary | null;
   createdAt: string;
 }
