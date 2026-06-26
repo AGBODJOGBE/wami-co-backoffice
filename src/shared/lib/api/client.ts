@@ -1,4 +1,4 @@
-import { ApiError, type ApiResponse } from "./types";
+import { ApiError, type ApiFailure, type ApiResponse } from "./types";
 
 interface ClientRequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
@@ -49,16 +49,16 @@ export async function clientFetch<T>(
     // ignore
   }
 
-  // Only treat as error when HTTP status is not OK, or when the backend
-  // explicitly signals failure with success:false.
-  const isExplicitFailure = payload !== null && payload.success === false;
+  // Explicit backend failure: { success: false, ... }
+  if (payload !== null && payload.success === false) {
+    const failure: ApiFailure = payload;
+    const message = failure.message ?? `Request failed with status ${response.status}`;
+    throw new ApiError(message, response.status, failure.errors);
+  }
 
-  if (!response.ok || !payload || isExplicitFailure) {
-    const message =
-      (isExplicitFailure && payload && typeof payload.message === "string" && payload.message) ||
-      `Request failed with status ${response.status}`;
-    const errors = isExplicitFailure && payload ? payload.errors : undefined;
-    throw new ApiError(message, response.status, errors);
+  // HTTP-level failure (no parseable payload or non-2xx without envelope)
+  if (!response.ok || !payload) {
+    throw new ApiError(`Request failed with status ${response.status}`, response.status);
   }
 
   // Standard envelope: { success: true, data: T }

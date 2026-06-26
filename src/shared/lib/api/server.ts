@@ -201,8 +201,7 @@ export async function apiFetch<T>(
   // Standard envelope: { success: true, data: T }
   // Some endpoints return raw T (array or object) without the envelope.
   // In that case payload.data is undefined — return the payload directly.
-  const p = payload as Record<string, unknown>;
-  if ("success" in p && "data" in p) {
+  if (payload.success === true) {
     return payload.data;
   }
   return payload as unknown as T;
