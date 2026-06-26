@@ -54,8 +54,8 @@ export async function clientFetch<T>(
   const isExplicitFailure =
     payload !== null &&
     typeof payload === "object" &&
-    "success" in (payload as Record<string, unknown>) &&
-    (payload as Record<string, unknown>).success === false;
+    "success" in (payload as unknown as Record<string, unknown>) &&
+    (payload as unknown as Record<string, unknown>).success === false;
 
   if (!response.ok || !payload || isExplicitFailure) {
     const p = payload as Record<string, unknown> | null;
