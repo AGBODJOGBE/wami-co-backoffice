@@ -227,17 +227,18 @@ export function ReferralsListClient({
 
   function exportCsv() {
     downloadCsv(
-      filtered.map((r) => ({
-        Code:               r.referralCode,
-        Filleul:            r.referredName,
-        Type:               REFERRAL_TYPE_LABELS[r.referralType as keyof typeof REFERRAL_TYPE_LABELS] ?? r.referralType,
-        Statut:             REFERRAL_STATUS_LABELS[r.status as keyof typeof REFERRAL_STATUS_LABELS] ?? r.status,
-        "Récompense parrain (FCFA)": r.referrerReward,
-        "Récompense filleul (FCFA)": r.referredReward,
-        "Validé le":        r.validatedAt ?? "",
-        "Créé le":          r.createdAt,
-      })),
       timestampedFilename("referrals"),
+      [
+        { key: "code",              header: "Code",                      value: (r) => r.referralCode },
+        { key: "filleul",           header: "Filleul",                   value: (r) => r.referredName },
+        { key: "type",              header: "Type",                      value: (r) => REFERRAL_TYPE_LABELS[r.referralType as keyof typeof REFERRAL_TYPE_LABELS] ?? r.referralType },
+        { key: "statut",            header: "Statut",                    value: (r) => REFERRAL_STATUS_LABELS[r.status as keyof typeof REFERRAL_STATUS_LABELS] ?? r.status },
+        { key: "recompense_parrain",header: "Récompense parrain (FCFA)", value: (r) => r.referrerReward },
+        { key: "recompense_filleul",header: "Récompense filleul (FCFA)", value: (r) => r.referredReward },
+        { key: "valide_le",         header: "Validé le",                 value: (r) => r.validatedAt ?? "" },
+        { key: "cree_le",           header: "Créé le",                   value: (r) => r.createdAt },
+      ],
+      filtered,
     );
   }
 
