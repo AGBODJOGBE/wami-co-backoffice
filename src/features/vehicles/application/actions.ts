@@ -135,6 +135,7 @@ export async function unassignVehicleAction(
   try {
     await apiFetch<unknown>(API_ROUTES.vehicles.unassign(id), {
       method: "POST",
+      body: {},
     });
     refresh(id);
     return { ok: true, message: "Véhicule désassigné." };
@@ -161,10 +162,13 @@ export async function setVehicleCategoryAction(
 
 export async function startMaintenanceAction(
   id: string,
+  reason: string,
+  estimatedCost?: number,
 ): Promise<ActionResult> {
   try {
     await apiFetch<unknown>(API_ROUTES.vehicles.startMaintenance(id), {
       method: "POST",
+      body: { reason, ...(estimatedCost != null ? { estimatedCost } : {}) },
     });
     refresh(id);
     return { ok: true, message: "Maintenance démarrée." };
@@ -173,17 +177,25 @@ export async function startMaintenanceAction(
   }
 }
 
+interface CompleteMaintenanceData {
+  vehicleId: string;
+  status: string;
+  mileage: number;
+  nextMaintenanceDate: string;
+}
+
 export async function completeMaintenanceAction(
   id: string,
   mileage: number,
-): Promise<ActionResult> {
+  actualCost?: number,
+): Promise<ActionResult<CompleteMaintenanceData>> {
   try {
-    await apiFetch<unknown>(API_ROUTES.vehicles.completeMaintenance(id), {
-      method: "POST",
-      body: { mileage },
-    });
+    const data = await apiFetch<CompleteMaintenanceData>(
+      API_ROUTES.vehicles.completeMaintenance(id),
+      { method: "POST", body: { mileage, ...(actualCost != null ? { actualCost } : {}) } },
+    );
     refresh(id);
-    return { ok: true, message: "Maintenance terminée." };
+    return { ok: true, message: "Maintenance terminée.", data };
   } catch (e) {
     return fail(e, "Clôture maintenance impossible.");
   }
@@ -195,6 +207,7 @@ export async function retireVehicleAction(
   try {
     await apiFetch<unknown>(API_ROUTES.vehicles.retire(id), {
       method: "POST",
+      body: {},
     });
     refresh(id);
     return { ok: true, message: "Véhicule retiré." };

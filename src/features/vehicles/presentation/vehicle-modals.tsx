@@ -12,6 +12,7 @@ import { Modal } from "@/shared/ui/modal";
 import { Textarea } from "@/shared/ui/textarea";
 import { toast } from "@/shared/ui/toast";
 import { cn } from "@/shared/lib/cn";
+import type { AdminDriver } from "@/features/drivers/domain/admin-driver";
 import {
   assignVehicleAction,
   completeMaintenanceAction,
@@ -243,7 +244,6 @@ export function VehicleCreateModal({ open, onClose }: CreateModalProps) {
     }
 
     const payload: CreatePlatformVehicleInput = {
-      vehicleId,
       type: form.type,
       category: form.category,
       make: form.make.trim(),
@@ -793,12 +793,14 @@ export function VehicleRejectModal({
 interface AssignModalProps {
   open: boolean;
   vehicle: VehicleSummary | null;
+  drivers: AdminDriver[];
   onClose: () => void;
 }
 
 export function VehicleAssignModal({
   open,
   vehicle,
+  drivers,
   onClose,
 }: AssignModalProps) {
   const [driverId, setDriverId] = useState("");
@@ -809,6 +811,12 @@ export function VehicleAssignModal({
   }, [open]);
 
   if (!vehicle) return null;
+
+  const driverOptions = drivers.map((d) => ({
+    value: d.driverId,
+    label: `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim() || d.driverId,
+    description: d.phoneNumber ?? d.driverId,
+  }));
 
   function submit() {
     if (!vehicle) return;
@@ -825,7 +833,7 @@ export function VehicleAssignModal({
       open={open}
       onClose={onClose}
       title="Assigner à un driver"
-      description="Renseigne l'UUID du driver."
+      description="Sélectionne le driver auquel assigner ce véhicule."
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={pending}>
@@ -837,19 +845,17 @@ export function VehicleAssignModal({
         </>
       }
     >
-      <div className="flex flex-col gap-3">
-        <Input
-          label="Driver ID"
-          value={driverId}
-          onChange={(e) => setDriverId(e.target.value)}
-          placeholder="bed23218-a8f9-41da-b325-920e6cee0a9e"
-          autoFocus
-        />
-        <DevNote>
-          Remplacer l&apos;input UUID par un combobox driver dès que{" "}
-          <code>GET /api/admin/drivers</code> renverra une liste filtrable.
-        </DevNote>
-      </div>
+      <Combobox
+        label="Driver"
+        placeholder="Rechercher par nom ou téléphone…"
+        searchPlaceholder="Nom, prénom, téléphone…"
+        emptyMessage="Aucun driver trouvé."
+        options={driverOptions}
+        value={driverId}
+        onChange={setDriverId}
+        allowClear
+        required
+      />
     </Modal>
   );
 }
@@ -911,6 +917,86 @@ export function VehicleCategoryModal({
   );
 }
 
+interface MaintenanceStartModalProps {
+  open: boolean;
+  vehicle: VehicleSummary | null;
+  onClose: () => void;
+}
+
+export function VehicleMaintenanceStartModal({
+  open,
+  vehicle,
+  onClose,
+}: MaintenanceStartModalProps) {
+  const [reason, setReason] = useState("");
+  const [estimatedCost, setEstimatedCost] = useState<number | "">("");
+  const [pending, start] = useTransition();
+
+  useEffect(() => {
+    if (open) {
+      setReason("");
+      setEstimatedCost("");
+    }
+  }, [open]);
+
+  if (!vehicle) return null;
+
+  function submit() {
+    if (!vehicle) return;
+    if (!reason.trim()) {
+      toast({ kind: "error", title: "Motif requis", description: "Décris la raison de la mise en maintenance." });
+      return;
+    }
+    start(async () => {
+      const r = await startMaintenanceAction(
+        vehicle.id,
+        reason.trim(),
+        estimatedCost !== "" ? Number(estimatedCost) : undefined,
+      );
+      notify(r, "Maintenance démarrée");
+      if (r.ok) onClose();
+    });
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Mettre en maintenance"
+      description={`${vehicle.make} ${vehicle.model} · ${vehicle.licensePlate}`}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={pending}>
+            Annuler
+          </Button>
+          <Button onClick={submit} isLoading={pending}>
+            Démarrer
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <Textarea
+          label="Motif de la maintenance"
+          placeholder="Ex : Vidange + freins avant à remplacer"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={3}
+          required
+        />
+        <Input
+          label="Coût estimé (FCFA, optionnel)"
+          type="number"
+          min={0}
+          value={estimatedCost}
+          onChange={(e) => setEstimatedCost(e.target.value === "" ? "" : Number(e.target.value))}
+          placeholder="Ex : 25000"
+        />
+      </div>
+    </Modal>
+  );
+}
+
 interface MaintenanceCompleteModalProps {
   open: boolean;
   vehicle: VehicleSummary | null;
@@ -923,10 +1009,14 @@ export function VehicleMaintenanceCompleteModal({
   onClose,
 }: MaintenanceCompleteModalProps) {
   const [mileage, setMileage] = useState<number>(0);
+  const [actualCost, setActualCost] = useState<number | "">("");
   const [pending, start] = useTransition();
 
   useEffect(() => {
-    if (open && vehicle) setMileage(vehicle.mileage ?? 0);
+    if (open && vehicle) {
+      setMileage(vehicle.mileage ?? 0);
+      setActualCost(vehicle.currentMaintenance?.estimatedCost ?? "");
+    }
   }, [open, vehicle]);
 
   if (!vehicle) return null;
@@ -942,9 +1032,22 @@ export function VehicleMaintenanceCompleteModal({
       return;
     }
     start(async () => {
-      const r = await completeMaintenanceAction(vehicle.id, mileage);
-      notify(r, "Maintenance terminée");
-      if (r.ok) onClose();
+      const r = await completeMaintenanceAction(
+        vehicle.id,
+        mileage,
+        actualCost !== "" ? Number(actualCost) : undefined,
+      );
+      if (r.ok && r.data) {
+        const next = new Date(r.data.nextMaintenanceDate).toLocaleDateString("fr-FR");
+        toast({
+          kind: "success",
+          title: "Maintenance terminée",
+          description: `Kilométrage enregistré : ${r.data.mileage.toLocaleString("fr-FR")} km · Prochaine maintenance : ${next}`,
+        });
+        onClose();
+      } else {
+        notify(r, "Maintenance terminée");
+      }
     });
   }
 
@@ -965,21 +1068,32 @@ export function VehicleMaintenanceCompleteModal({
         </>
       }
     >
-      <Input
-        label="Kilométrage (km)"
-        type="number"
-        min={0}
-        value={mileage}
-        onChange={(e) => setMileage(Number(e.target.value))}
-        required
-      />
+      <div className="flex flex-col gap-4">
+        <Input
+          label="Kilométrage (km)"
+          type="number"
+          min={0}
+          value={mileage}
+          onChange={(e) => setMileage(Number(e.target.value))}
+          required
+        />
+        <Input
+          label="Coût réel (FCFA, optionnel)"
+          type="number"
+          min={0}
+          value={actualCost}
+          onChange={(e) => setActualCost(e.target.value === "" ? "" : Number(e.target.value))}
+          placeholder={vehicle.currentMaintenance?.estimatedCost != null
+            ? `Estimé : ${vehicle.currentMaintenance.estimatedCost.toLocaleString("fr-FR")} FCFA`
+            : "Ex : 30000"}
+        />
+      </div>
     </Modal>
   );
 }
 
 export type SimpleConfirmKind =
   | "unassign"
-  | "startMaintenance"
   | "retire"
   | "delete";
 
@@ -1007,14 +1121,6 @@ const CONFIRM_META: Record<
     successTitle: "Véhicule désassigné",
     description: (v) => `${v.make} ${v.model} · ${v.licensePlate}`,
     run: unassignVehicleAction,
-  },
-  startMaintenance: {
-    title: "Mettre en maintenance ?",
-    confirmLabel: "Mettre en maintenance",
-    tone: "primary",
-    successTitle: "Maintenance démarrée",
-    description: (v) => `${v.make} ${v.model} · ${v.licensePlate}`,
-    run: startMaintenanceAction,
   },
   retire: {
     title: "Retirer définitivement ?",

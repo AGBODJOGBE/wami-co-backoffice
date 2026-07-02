@@ -4234,22 +4234,45 @@
               "type": "object",
               "properties": {
                 "rideId": {
-                  "type": "string"
+                  "type": "string",
+                  "format": "uuid"
                 },
                 "rideNumber": {
-                  "type": "string"
+                  "type": "string",
+                  "example": "RD-20260630-0042"
                 },
                 "status": {
-                  "type": "string"
+                  "type": "string",
+                  "example": "COMPLETED"
                 },
                 "rideType": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "STANDARD",
+                    "SCHEDULED",
+                    "SHARED"
+                  ]
+                },
+                "pricingType": {
+                  "type": "string",
+                  "enum": [
+                    "DISTANCE",
+                    "DURATION",
+                    "FIXED"
+                  ]
                 },
                 "vehicleType": {
-                  "type": "string"
+                  "type": "string",
+                  "example": "MOTO"
                 },
                 "paymentMethod": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "CASH",
+                    "WALLET",
+                    "MOBILE_MONEY",
+                    "MIXED"
+                  ]
                 },
                 "passenger": {
                   "type": "object",
@@ -4283,17 +4306,211 @@
                     },
                     "phoneNumber": {
                       "type": "string"
+                    },
+                    "photo": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "rating": {
+                      "type": "number",
+                      "example": 4.8
+                    },
+                    "totalRides": {
+                      "type": "integer",
+                      "example": 142
                     }
                   }
                 },
-                "estimatedPrice": {
-                  "type": "integer"
+                "vehicle": {
+                  "type": "object",
+                  "nullable": true,
+                  "properties": {
+                    "vehicleId": {
+                      "type": "string"
+                    },
+                    "make": {
+                      "type": "string"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string"
+                    },
+                    "licensePlate": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
                 },
-                "finalPrice": {
-                  "type": "integer",
+                "pickup": {
+                  "type": "object",
+                  "properties": {
+                    "latitude": {
+                      "type": "number"
+                    },
+                    "longitude": {
+                      "type": "number"
+                    },
+                    "address": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                },
+                "dropoff": {
+                  "type": "object",
+                  "properties": {
+                    "latitude": {
+                      "type": "number"
+                    },
+                    "longitude": {
+                      "type": "number"
+                    },
+                    "address": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                },
+                "pricing": {
+                  "type": "object",
+                  "properties": {
+                    "estimatedPrice": {
+                      "type": "integer",
+                      "example": 1500
+                    },
+                    "finalPrice": {
+                      "type": "integer",
+                      "nullable": true,
+                      "example": 1700
+                    },
+                    "baseFare": {
+                      "type": "integer",
+                      "example": 500
+                    },
+                    "surgeMultiplier": {
+                      "type": "number",
+                      "example": 1
+                    },
+                    "driverShareRate": {
+                      "type": "number",
+                      "example": 0.8
+                    },
+                    "commissionRate": {
+                      "type": "number",
+                      "example": 0.2
+                    },
+                    "waitingFee": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "pauseFee": {
+                      "type": "integer",
+                      "nullable": true,
+                      "example": 0
+                    },
+                    "driverEarnings": {
+                      "type": "integer",
+                      "nullable": true,
+                      "example": 1360
+                    },
+                    "platformCommission": {
+                      "type": "integer",
+                      "nullable": true,
+                      "example": 340
+                    },
+                    "discountAmount": {
+                      "type": "integer",
+                      "nullable": true,
+                      "example": 0
+                    },
+                    "promoCodeId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "walletAmountPaid": {
+                      "type": "integer",
+                      "nullable": true,
+                      "example": 1700
+                    },
+                    "cashAmountPaid": {
+                      "type": "integer",
+                      "nullable": true,
+                      "example": 0
+                    },
+                    "cancellationFee": {
+                      "type": "integer",
+                      "example": 0
+                    }
+                  }
+                },
+                "distance": {
+                  "type": "object",
+                  "properties": {
+                    "estimatedMeters": {
+                      "type": "integer",
+                      "example": 3200
+                    },
+                    "actualMeters": {
+                      "type": "integer",
+                      "nullable": true,
+                      "example": 3450
+                    }
+                  }
+                },
+                "duration": {
+                  "type": "object",
+                  "properties": {
+                    "estimatedSeconds": {
+                      "type": "integer",
+                      "example": 720
+                    },
+                    "actualSeconds": {
+                      "type": "integer",
+                      "nullable": true,
+                      "example": 850
+                    }
+                  }
+                },
+                "dispute": {
+                  "type": "object",
+                  "properties": {
+                    "isDisputed": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                },
+                "cancelledBy": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [
+                    "PASSENGER",
+                    "DRIVER",
+                    "SYSTEM",
+                    null
+                  ]
+                },
+                "cancellationReason": {
+                  "type": "string",
                   "nullable": true
                 },
                 "scheduledAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true
+                },
+                "arrivedAt": {
                   "type": "string",
                   "format": "date-time",
                   "nullable": true
@@ -4308,7 +4525,16 @@
                   "format": "date-time",
                   "nullable": true
                 },
+                "cancelledAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true
+                },
                 "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updatedAt": {
                   "type": "string",
                   "format": "date-time"
                 }
@@ -4316,7 +4542,418 @@
             }
           },
           "total": {
-            "type": "integer"
+            "type": "integer",
+            "example": 247
+          },
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "limit": {
+            "type": "integer",
+            "example": 50
+          }
+        }
+      },
+      "GetRideDetailResponse": {
+        "type": "object",
+        "properties": {
+          "rideId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rideNumber": {
+            "type": "string",
+            "example": "RD-20260630-0042"
+          },
+          "status": {
+            "type": "string",
+            "example": "COMPLETED"
+          },
+          "rideType": {
+            "type": "string",
+            "enum": [
+              "STANDARD",
+              "SCHEDULED",
+              "SHARED"
+            ]
+          },
+          "vehicleType": {
+            "type": "string",
+            "example": "MOTO"
+          },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "WALLET",
+              "MOBILE_MONEY",
+              "MIXED"
+            ]
+          },
+          "passenger": {
+            "type": "object",
+            "properties": {
+              "passengerId": {
+                "type": "string"
+              },
+              "firstName": {
+                "type": "string"
+              },
+              "lastName": {
+                "type": "string"
+              },
+              "phoneNumber": {
+                "type": "string"
+              },
+              "photoUrl": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "driver": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "driverId": {
+                "type": "string"
+              },
+              "firstName": {
+                "type": "string"
+              },
+              "lastName": {
+                "type": "string"
+              },
+              "phoneNumber": {
+                "type": "string"
+              },
+              "photoUrl": {
+                "type": "string",
+                "nullable": true
+              },
+              "rating": {
+                "type": "number",
+                "example": 4.8
+              },
+              "totalRides": {
+                "type": "integer",
+                "example": 142
+              }
+            }
+          },
+          "vehicle": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "vehicleId": {
+                "type": "string"
+              },
+              "make": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "color": {
+                "type": "string"
+              },
+              "licensePlate": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "category": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "pickup": {
+            "type": "object",
+            "description": "Lieu de ramassage demandé par le passager",
+            "properties": {
+              "latitude": {
+                "type": "number",
+                "example": 6.3689
+              },
+              "longitude": {
+                "type": "number",
+                "example": 2.4194
+              },
+              "address": {
+                "type": "string",
+                "nullable": true,
+                "example": "Carrefour Aidjedo, Cotonou"
+              }
+            }
+          },
+          "dropoff": {
+            "type": "object",
+            "description": "Destination demandée par le passager",
+            "properties": {
+              "latitude": {
+                "type": "number",
+                "example": 6.3751
+              },
+              "longitude": {
+                "type": "number",
+                "example": 2.4205
+              },
+              "address": {
+                "type": "string",
+                "nullable": true,
+                "example": "Cité Houéyiho, Cotonou"
+              }
+            }
+          },
+          "actualPickup": {
+            "type": "object",
+            "nullable": true,
+            "description": "Position GPS réelle du chauffeur au moment du démarrage de la course",
+            "properties": {
+              "latitude": {
+                "type": "number",
+                "example": 6.3691
+              },
+              "longitude": {
+                "type": "number",
+                "example": 2.4197
+              }
+            }
+          },
+          "actualDropoff": {
+            "type": "object",
+            "nullable": true,
+            "description": "Position GPS réelle à la fin de la course",
+            "properties": {
+              "latitude": {
+                "type": "number",
+                "example": 6.3754
+              },
+              "longitude": {
+                "type": "number",
+                "example": 2.4208
+              }
+            }
+          },
+          "driverLocationEnRoute": {
+            "type": "object",
+            "nullable": true,
+            "description": "Position GPS du chauffeur au moment où il a accepté la course",
+            "properties": {
+              "lat": {
+                "type": "number",
+                "example": 6.365
+              },
+              "lng": {
+                "type": "number",
+                "example": 2.418
+              }
+            }
+          },
+          "estimatedPrice": {
+            "type": "integer",
+            "example": 1500,
+            "description": "Prix estimé en XOF"
+          },
+          "finalPrice": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1700,
+            "description": "Prix final en XOF"
+          },
+          "driverEarnings": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1360,
+            "description": "Part chauffeur en XOF"
+          },
+          "platformCommission": {
+            "type": "integer",
+            "nullable": true,
+            "example": 340,
+            "description": "Commission ForYou en XOF"
+          },
+          "surgeMultiplier": {
+            "type": "number",
+            "example": 1
+          },
+          "discountAmount": {
+            "type": "integer",
+            "nullable": true,
+            "example": 0
+          },
+          "promoCodeId": {
+            "type": "string",
+            "nullable": true,
+            "description": "ID du code promo appliqué"
+          },
+          "walletAmountPaid": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1700,
+            "description": "Montant débité du wallet passager"
+          },
+          "cashAmountPaid": {
+            "type": "integer",
+            "nullable": true,
+            "example": 0,
+            "description": "Montant cash remis au chauffeur"
+          },
+          "estimatedDistanceKm": {
+            "type": "number",
+            "example": 3.2
+          },
+          "estimatedDurationMin": {
+            "type": "integer",
+            "example": 12
+          },
+          "actualDistanceMeters": {
+            "type": "integer",
+            "nullable": true,
+            "example": 3450
+          },
+          "actualDurationSeconds": {
+            "type": "integer",
+            "nullable": true,
+            "example": 850
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "arrivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "pausedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancelledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "waitingDurationSeconds": {
+            "type": "integer",
+            "example": 120,
+            "description": "Durée d'attente chauffeur en secondes"
+          },
+          "freeWaitingMinutes": {
+            "type": "integer",
+            "example": 3,
+            "description": "Minutes gratuites incluses"
+          },
+          "waitingFeeFcfa": {
+            "type": "integer",
+            "example": 200,
+            "description": "Frais d'attente facturés en XOF"
+          },
+          "totalPausedSeconds": {
+            "type": "integer",
+            "example": 0
+          },
+          "pausesCount": {
+            "type": "integer",
+            "example": 0
+          },
+          "pauseHistory": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "startedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "endedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true
+                },
+                "durationSeconds": {
+                  "type": "integer",
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "pauseFeeFcfa": {
+            "type": "integer",
+            "example": 0
+          },
+          "noShowMinutes": {
+            "type": "integer",
+            "nullable": true,
+            "example": 5,
+            "description": "Minutes avant frais no-show (statut DRIVER_ARRIVED seulement)"
+          },
+          "noShowFee": {
+            "type": "integer",
+            "nullable": true,
+            "example": 500,
+            "description": "Frais no-show en XOF"
+          },
+          "cancelledBy": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "PASSENGER",
+              "DRIVER",
+              "SYSTEM",
+              null
+            ]
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "cancellationFeeAmount": {
+            "type": "integer",
+            "example": 0
+          },
+          "passengerRating": {
+            "type": "number",
+            "nullable": true,
+            "example": 5
+          },
+          "driverRating": {
+            "type": "number",
+            "nullable": true,
+            "example": 4
+          },
+          "passengerComment": {
+            "type": "string",
+            "nullable": true,
+            "example": "Chauffeur très professionnel"
+          },
+          "driverComment": {
+            "type": "string",
+            "nullable": true
+          },
+          "isFirstRideForPassenger": {
+            "type": "boolean",
+            "example": false
           }
         }
       },
@@ -6089,6 +6726,23 @@
           }
         }
       },
+      "DriverRideDetail": {
+        "type": "object",
+        "description": "État complet d'une course côté driver. Identique à PassengerRideDetail avec driverEarnings en plus.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PassengerRideDetail"
+          }
+        ],
+        "properties": {
+          "driverEarnings": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1131,
+            "description": "Gains nets du driver (FCFA) = finalPrice × driverShareRate. null avant COMPLETED."
+          }
+        }
+      },
       "CompleteRideBody": {
         "type": "object",
         "required": [
@@ -6213,6 +6867,343 @@
             "nullable": true,
             "example": 180,
             "description": "Durée en secondes. null si pause en cours"
+          }
+        }
+      },
+      "PassengerRideDetail": {
+        "type": "object",
+        "description": "État complet d'une course côté passager. Retourné par GET /api/passenger/rides/:rideId.",
+        "properties": {
+          "rideId": {
+            "type": "string",
+            "example": "uuid-..."
+          },
+          "rideNumber": {
+            "type": "string",
+            "example": "RD-20260312-0042"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RideStatus"
+          },
+          "rideType": {
+            "type": "string",
+            "enum": [
+              "STANDARD",
+              "DELIVERY",
+              "PARTNER"
+            ],
+            "example": "STANDARD"
+          },
+          "vehicleType": {
+            "type": "string",
+            "enum": [
+              "MOTO",
+              "STANDARD",
+              "CONFORT",
+              "VIP",
+              "VAN",
+              "TRICYCLE"
+            ],
+            "example": "MOTO"
+          },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "WALLET",
+              "MOBILE_MONEY",
+              "MIXED"
+            ],
+            "example": "WALLET"
+          },
+          "passenger": {
+            "$ref": "#/components/schemas/EnrichedPassenger"
+          },
+          "driver": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EnrichedDriver"
+              }
+            ],
+            "nullable": true,
+            "description": "null si aucun driver assigné"
+          },
+          "vehicle": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EnrichedVehicle"
+              }
+            ],
+            "nullable": true,
+            "description": "null si aucun véhicule assigné"
+          },
+          "pickup": {
+            "type": "object",
+            "properties": {
+              "latitude": {
+                "type": "number",
+                "example": 6.3654
+              },
+              "longitude": {
+                "type": "number",
+                "example": 2.3158
+              },
+              "address": {
+                "type": "string",
+                "nullable": true,
+                "example": "Carrefour Cadjehoun"
+              }
+            }
+          },
+          "dropoff": {
+            "type": "object",
+            "properties": {
+              "latitude": {
+                "type": "number",
+                "example": 6.3709
+              },
+              "longitude": {
+                "type": "number",
+                "example": 2.3949
+              },
+              "address": {
+                "type": "string",
+                "nullable": true,
+                "example": "Aéroport de Cotonou"
+              }
+            }
+          },
+          "actualPickup": {
+            "type": "object",
+            "nullable": true,
+            "description": "Position GPS du driver au démarrage de la course. null si course non encore démarrée.",
+            "properties": {
+              "latitude": {
+                "type": "number",
+                "example": 6.3652
+              },
+              "longitude": {
+                "type": "number",
+                "example": 2.3155
+              }
+            }
+          },
+          "actualDropoff": {
+            "type": "object",
+            "nullable": true,
+            "description": "Dernier ping GPS du driver à la fin de course. null si non complétée.",
+            "properties": {
+              "latitude": {
+                "type": "number",
+                "example": 6.37
+              },
+              "longitude": {
+                "type": "number",
+                "example": 2.39
+              }
+            }
+          },
+          "driverLocationEnRoute": {
+            "type": "object",
+            "nullable": true,
+            "description": "Position GPS du driver au moment de l'acceptation (pour ETA initial). null si non disponible.",
+            "properties": {
+              "lat": {
+                "type": "number",
+                "example": 6.362
+              },
+              "lng": {
+                "type": "number",
+                "example": 2.31
+              }
+            }
+          },
+          "estimatedPrice": {
+            "type": "integer",
+            "example": 1200,
+            "description": "Prix estimé en FCFA (avec surge)"
+          },
+          "finalPrice": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1380,
+            "description": "Prix final après completion. null avant COMPLETED."
+          },
+          "surgeMultiplier": {
+            "type": "number",
+            "example": 1.25,
+            "description": "1.0 si pas de surge"
+          },
+          "discountAmount": {
+            "type": "integer",
+            "nullable": true,
+            "example": 120,
+            "description": "Réduction code promo (FCFA). null si aucun code."
+          },
+          "promoCodeId": {
+            "type": "string",
+            "nullable": true,
+            "example": "promo-uuid",
+            "description": "ID du code promo appliqué. null si aucun."
+          },
+          "estimatedDistanceKm": {
+            "type": "number",
+            "example": 5.4,
+            "description": "Distance estimée (km)"
+          },
+          "estimatedDurationMin": {
+            "type": "integer",
+            "example": 15,
+            "description": "Durée estimée (minutes)"
+          },
+          "actualDistanceMeters": {
+            "type": "integer",
+            "nullable": true,
+            "example": 5820,
+            "description": "Distance réelle GPS (mètres). null si non complétée."
+          },
+          "actualDurationSeconds": {
+            "type": "integer",
+            "nullable": true,
+            "example": 1140,
+            "description": "Durée réelle (secondes). null si non complétée."
+          },
+          "waitingDurationSeconds": {
+            "type": "integer",
+            "example": 240,
+            "description": "Durée totale d'attente au pickup (secondes)."
+          },
+          "freeWaitingMinutes": {
+            "type": "integer",
+            "example": 3,
+            "description": "Minutes d'attente gratuites configurées."
+          },
+          "waitingFeeFcfa": {
+            "type": "integer",
+            "example": 150,
+            "description": "Frais d'attente facturés (FCFA). 0 si ≤ freeWaitingMinutes."
+          },
+          "totalPausedSeconds": {
+            "type": "integer",
+            "example": 300,
+            "description": "Total secondes de pause cumulées."
+          },
+          "pausesCount": {
+            "type": "integer",
+            "example": 2,
+            "description": "Nombre de pauses effectuées (max 3)."
+          },
+          "pauseFeeFcfa": {
+            "type": "integer",
+            "example": 0,
+            "description": "Frais de pause (FCFA). 0 si total < 5 min gratuites."
+          },
+          "pauseHistory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PauseRecord"
+            }
+          },
+          "noShowMinutes": {
+            "type": "integer",
+            "nullable": true,
+            "example": 15,
+            "description": "Renvoyé UNIQUEMENT quand status=DRIVER_ARRIVED."
+          },
+          "noShowFee": {
+            "type": "integer",
+            "nullable": true,
+            "example": 500,
+            "description": "Montant no-show (FCFA). Renvoyé UNIQUEMENT quand status=DRIVER_ARRIVED."
+          },
+          "walletAmountPaid": {
+            "type": "integer",
+            "nullable": true,
+            "example": 800,
+            "description": "Montant payé par wallet (FCFA). null avant COMPLETED."
+          },
+          "cashAmountPaid": {
+            "type": "integer",
+            "nullable": true,
+            "example": 580,
+            "description": "Montant payé en espèces (FCFA). null avant COMPLETED."
+          },
+          "cancelledBy": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "PASSENGER",
+              "DRIVER",
+              "SYSTEM"
+            ]
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true,
+            "example": "Chauffeur trop loin"
+          },
+          "cancellationFeeAmount": {
+            "type": "integer",
+            "example": 0,
+            "description": "Frais d'annulation facturés (FCFA). 0 si gratuit."
+          },
+          "passengerRating": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 5
+          },
+          "driverRating": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 5
+          },
+          "passengerComment": {
+            "type": "string",
+            "nullable": true
+          },
+          "driverComment": {
+            "type": "string",
+            "nullable": true
+          },
+          "isFirstRideForPassenger": {
+            "type": "boolean",
+            "example": false
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "arrivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "pausedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancelledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -7630,6 +8621,34 @@
               }
             }
           },
+          "pricing": {
+            "type": "object",
+            "properties": {
+              "estimatedPrice": {
+                "type": "integer",
+                "example": 1500
+              },
+              "finalPrice": {
+                "type": "integer",
+                "nullable": true
+              },
+              "commissionRate": {
+                "type": "number",
+                "example": 0.15,
+                "description": "Commission rate (0-1)"
+              },
+              "platformCommission": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Platform commission in FCFA"
+              },
+              "driverPayout": {
+                "type": "integer",
+                "nullable": true,
+                "description": "Driver payout in FCFA"
+              }
+            }
+          },
           "estimatedPrice": {
             "type": "integer",
             "example": 1500
@@ -7657,6 +8676,11 @@
           },
           "cancelledBy": {
             "type": "string",
+            "nullable": true
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time",
             "nullable": true
           },
           "createdAt": {
@@ -7717,6 +8741,7 @@
               "PENDING",
               "AVAILABLE",
               "ASSIGNED",
+              "EN_CONTRAT",
               "MAINTENANCE",
               "RETIRED",
               "REJECTED"
@@ -7789,6 +8814,73 @@
             "format": "date-time",
             "nullable": true
           },
+          "contractCount": {
+            "type": "integer",
+            "example": 2,
+            "description": "Nombre total de contrats (tous statuts confondus) pour ce véhicule"
+          },
+          "hasActiveContract": {
+            "type": "boolean",
+            "example": false,
+            "description": "True si le véhicule a un contrat ACTIF ou SUSPENDU en ce moment"
+          },
+          "currentMaintenance": {
+            "type": "object",
+            "nullable": true,
+            "description": "Maintenance en cours (null si aucune)",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "example": "Changement de pneus"
+              },
+              "startedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "estimatedCost": {
+                "type": "integer",
+                "example": 150000,
+                "nullable": true,
+                "description": "Coût estimé (centimes XOF)"
+              },
+              "actualCost": {
+                "type": "integer",
+                "example": 130000,
+                "nullable": true,
+                "description": "Coût réel (centimes XOF)"
+              }
+            }
+          },
+          "maintenanceHistory": {
+            "type": "array",
+            "description": "Historique des maintenances passées",
+            "items": {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "type": "string"
+                },
+                "startedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "completedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "estimatedCost": {
+                  "type": "integer",
+                  "nullable": true,
+                  "description": "Coût estimé (centimes XOF)"
+                },
+                "actualCost": {
+                  "type": "integer",
+                  "nullable": true,
+                  "description": "Coût réel (centimes XOF)"
+                }
+              }
+            }
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -7837,6 +8929,11 @@
           "nbEcheances": {
             "type": "integer",
             "example": 12
+          },
+          "purchasePriceSnapshot": {
+            "type": "integer",
+            "example": 5000000,
+            "description": "Prix d'achat du véhicule capturé à la création du contrat (FCFA)"
           },
           "marginPct": {
             "type": "number",
@@ -7893,6 +8990,16 @@
             "type": "string",
             "nullable": true
           },
+          "montantCaution": {
+            "type": "integer",
+            "example": 500000,
+            "description": "Caution de garantie (centimes XOF) — séparée du prix de vente, ne modifie pas les échéances"
+          },
+          "cautionRestituee": {
+            "type": "boolean",
+            "example": false,
+            "description": "True quand la caution a été restituée automatiquement à la fin du contrat (TERMINE)"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -7900,6 +9007,62 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "vehicle": {
+            "type": "object",
+            "nullable": true,
+            "description": "Détails du véhicule associé au contrat. Null si le véhicule n'est plus accessible (cas rare).",
+            "properties": {
+              "licensePlate": {
+                "type": "string",
+                "example": "BJ-123-AA",
+                "description": "Immatriculation du véhicule"
+              },
+              "make": {
+                "type": "string",
+                "example": "Toyota",
+                "description": "Marque du véhicule"
+              },
+              "model": {
+                "type": "string",
+                "example": "Corolla",
+                "description": "Modèle du véhicule"
+              },
+              "year": {
+                "type": "integer",
+                "example": 2022,
+                "description": "Année du véhicule"
+              },
+              "color": {
+                "type": "string",
+                "example": "Blanc",
+                "description": "Couleur du véhicule"
+              },
+              "purchaseDate": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true,
+                "description": "Date d'achat du véhicule (ISO string)"
+              },
+              "purchasePrice": {
+                "type": "integer",
+                "nullable": true,
+                "example": 5000000,
+                "description": "Prix d'achat du véhicule (FCFA)"
+              },
+              "mileage": {
+                "type": "integer",
+                "nullable": true,
+                "example": 12000,
+                "description": "Kilométrage du véhicule"
+              },
+              "currentValue": {
+                "type": "integer",
+                "nullable": true,
+                "example": 4500000,
+                "description": "Valeur marchande actuelle du véhicule (FCFA)"
+              }
+            }
           }
         }
       },
@@ -8668,6 +9831,16 @@
             "type": "number",
             "example": 0.82,
             "description": "Taux reversé au driver. commissionRate + driverShareRate === 1."
+          },
+          "noShowMinutes": {
+            "type": "integer",
+            "example": 5,
+            "description": "Délai en minutes après arrivée du driver avant qu'un no-show est déclenché. Strictement positif."
+          },
+          "noShowFee": {
+            "type": "integer",
+            "example": 50000,
+            "description": "Montant forfaitaire en centimes XOF facturé au passager en cas de no-show (ex : 50000 = 500 FCFA)."
           },
           "isActive": {
             "type": "boolean",
@@ -10649,6 +11822,190 @@
         }
       }
     },
+    "/api/passengers/promo-codes": {
+      "get": {
+        "tags": [
+          "Passengers"
+        ],
+        "summary": "Codes promo disponibles pour le passager",
+        "description": "Retourne tous les codes promo actifs accessibles au passager selon son profil (statut NEW/RECURRING/INACTIVE, ciblage CSV). Voir `/api/passenger/promo-codes` pour la documentation complète des règles de filtrage.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "vertical",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ride",
+                "delivery"
+              ]
+            },
+            "description": "Filtrer par vertical"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Codes promo retournés",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string",
+                            "example": "BIENVENUE"
+                          },
+                          "campaignName": {
+                            "type": "string",
+                            "example": "Promo Nouveaux Utilisateurs"
+                          },
+                          "discountType": {
+                            "type": "string",
+                            "enum": [
+                              "PERCENTAGE",
+                              "FIXED_AMOUNT",
+                              "CASHBACK",
+                              "FREE_RIDE"
+                            ]
+                          },
+                          "discountValue": {
+                            "type": "number",
+                            "example": 20
+                          },
+                          "maxDiscountAmount": {
+                            "type": "number",
+                            "nullable": true,
+                            "example": 2000
+                          },
+                          "endDate": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "maxUsagesPerUser": {
+                            "type": "number",
+                            "nullable": true,
+                            "example": 1
+                          },
+                          "displayText": {
+                            "type": "string",
+                            "example": "-20% sur votre première course"
+                          },
+                          "isActive": {
+                            "type": "boolean",
+                            "example": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          }
+        }
+      }
+    },
+    "/api/passengers/promo-codes/usages": {
+      "get": {
+        "tags": [
+          "Passengers"
+        ],
+        "summary": "Historique d'utilisation des codes promo",
+        "description": "Retourne tous les codes promo utilisés par le passager avec les montants de réduction appliqués.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historique retourné avec succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "usages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "usageId": {
+                                "type": "string"
+                              },
+                              "promoCodeId": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string",
+                                "example": "BIENVENUE"
+                              },
+                              "discountAmount": {
+                                "type": "integer",
+                                "example": 700,
+                                "description": "Réduction appliquée en FCFA"
+                              },
+                              "relatedRideId": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "usedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "example": 3
+                        },
+                        "totalDiscount": {
+                          "type": "integer",
+                          "example": 1500,
+                          "description": "Total des réductions obtenues en FCFA"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          }
+        }
+      }
+    },
     "/api/passengers/referrals": {
       "get": {
         "tags": [
@@ -10735,10 +12092,39 @@
         },
         "responses": {
           "200": {
-            "description": "Code OTP envoyé par SMS"
+            "description": "Code OTP envoyé par SMS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Code OTP envoyé au +22901234567. Valable 10 minutes."
+                        },
+                        "phoneNumber": {
+                          "type": "string",
+                          "example": "+22901234567"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Numéro de téléphone invalide"
+            "description": "Numéro de téléphone invalide ou format incorrect"
+          },
+          "409": {
+            "description": "Numéro déjà enregistré"
           }
         }
       }
@@ -10777,10 +12163,40 @@
         },
         "responses": {
           "200": {
-            "description": "Numéro vérifié — inscription autorisée pendant 30 minutes"
+            "description": "Numéro vérifié — inscription autorisée pendant 30 minutes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "verified": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "phoneNumber": {
+                          "type": "string",
+                          "example": "+22901234567"
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "Numéro vérifié. Vous pouvez procéder à l'inscription."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Code invalide ou expiré"
+            "description": "Code invalide, expiré, ou déjà utilisé"
           }
         }
       }
@@ -11394,13 +12810,39 @@
         },
         "responses": {
           "200": {
-            "description": "FCM token updated or cleared successfully"
+            "description": "FCM token mis à jour ou supprimé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "driverId": {
+                          "type": "string",
+                          "example": "uuid-..."
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "FCM token mis à jour."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid token format"
+            "description": "Format de token invalide"
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Non authentifié"
           }
         }
       }
@@ -11635,10 +13077,10 @@
     "/api/drivers/referrals": {
       "get": {
         "tags": [
-          "Drivers"
+          "Driver - Referrals"
         ],
-        "summary": "Get my referrals",
-        "description": "Returns all referrals made by the authenticated driver with their status and reward amounts.",
+        "summary": "Get my referrals (as referrer)",
+        "description": "Returns list of all users referred by the authenticated driver (as referrer/parrain). Includes status, reward amounts, and validation date.",
         "security": [
           {
             "bearerAuth": []
@@ -11646,7 +13088,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Referrals returned successfully",
+            "description": "List of referrals returned successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -11662,7 +13104,70 @@
                         "referrals": {
                           "type": "array",
                           "items": {
-                            "$ref": "#/components/schemas/ReferralItem"
+                            "type": "object",
+                            "properties": {
+                              "referralId": {
+                                "type": "string",
+                                "example": "uuid-123"
+                              },
+                              "referrerId": {
+                                "type": "string",
+                                "example": "uuid-456"
+                              },
+                              "referredUserId": {
+                                "type": "string",
+                                "example": "uuid-789"
+                              },
+                              "referredName": {
+                                "type": "string",
+                                "example": "Jean Dupont"
+                              },
+                              "referralCode": {
+                                "type": "string",
+                                "example": "ABC123"
+                              },
+                              "referralType": {
+                                "type": "string",
+                                "enum": [
+                                  "PASSENGER",
+                                  "DRIVER_STANDARD",
+                                  "DRIVER_PREMIUM",
+                                  "DRIVER_VIP",
+                                  "PARTNER"
+                                ],
+                                "example": "DRIVER_STANDARD"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "PENDING",
+                                  "VALIDATED",
+                                  "EXPIRED"
+                                ],
+                                "example": "PENDING"
+                              },
+                              "referrerReward": {
+                                "type": "number",
+                                "example": 500
+                              },
+                              "referredReward": {
+                                "type": "number",
+                                "example": 500
+                              },
+                              "validatedAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "nullable": true
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "updatedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            }
                           }
                         },
                         "total": {
@@ -11671,11 +13176,11 @@
                         },
                         "totalPending": {
                           "type": "integer",
-                          "example": 2
+                          "example": 3
                         },
                         "totalValidated": {
                           "type": "integer",
-                          "example": 3
+                          "example": 2
                         }
                       }
                     }
@@ -11685,7 +13190,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Non authentifié"
           }
         }
       }
@@ -15178,8 +16683,8 @@
         "tags": [
           "Admin - Ride Management"
         ],
-        "summary": "List all rides",
-        "description": "All rides with status, vehicle type and date filters. Enriched with passenger and driver info. Frontend handles pagination.",
+        "summary": "Lister toutes les courses",
+        "description": "Retourne toutes les courses avec leur détail complet (passager, chauffeur, véhicule, tarification, distances).\n\n**Permission requise :** `ride.view_all`\n\n**Filtres disponibles :**\n- `status` : PENDING_MATCH, BROADCAST_ACTIVE, DRIVER_ASSIGNED, DRIVER_EN_ROUTE, DRIVER_ARRIVED, IN_PROGRESS, PAUSED, COMPLETED, CANCELLED_PASSENGER, CANCELLED_DRIVER, CANCELLED_SYSTEM, DISPUTED, RATED\n- `vehicleType` : MOTO, TRICYCLE, CAR, VAN\n- `driverId` / `passengerId` : courses d'un utilisateur spécifique\n- `fromDate` / `toDate` : plage de dates (createdAt)\n- `page` / `limit` : pagination",
         "security": [
           {
             "bearerAuth": []
@@ -15192,7 +16697,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Filter by ride status"
+            "description": "Statut de la course"
           },
           {
             "name": "vehicleType",
@@ -15200,7 +16705,23 @@
             "schema": {
               "type": "string"
             },
-            "description": "Filter by vehicle type"
+            "description": "Type de véhicule (MOTO, CAR, VAN, TRICYCLE)"
+          },
+          {
+            "name": "driverId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "UUID du chauffeur — courses de ce chauffeur"
+          },
+          {
+            "name": "passengerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "UUID du passager — courses de ce passager"
           },
           {
             "name": "fromDate",
@@ -15209,7 +16730,7 @@
               "type": "string",
               "format": "date-time"
             },
-            "description": "Start date"
+            "description": "Borne inférieure (createdAt)"
           },
           {
             "name": "toDate",
@@ -15218,12 +16739,30 @@
               "type": "string",
               "format": "date-time"
             },
-            "description": "End date"
+            "description": "Borne supérieure (createdAt)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Numéro de page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "description": "Résultats par page"
           }
         ],
         "responses": {
           "200": {
-            "description": "Ride list",
+            "description": "Liste des courses",
             "content": {
               "application/json": {
                 "schema": {
@@ -15233,7 +16772,60 @@
             }
           },
           "403": {
-            "description": "Missing ride.view_all permission"
+            "description": "Permission ride.view_all manquante"
+          }
+        }
+      }
+    },
+    "/api/admin/rides/{rideId}": {
+      "get": {
+        "tags": [
+          "Admin - Ride Management"
+        ],
+        "summary": "Détail complet d'une course",
+        "description": "Retourne tous les détails d'une course enrichis avec passager, chauffeur, véhicule, positions GPS réelles et ventilation financière complète.\n\n**Permission requise :** `ride.view_all`\n\n**Positions GPS :**\n| Champ | Contenu |\n|---|---|\n| `pickup` | Lieu de ramassage demandé (lat/lng + adresse) |\n| `dropoff` | Destination demandée (lat/lng + adresse) |\n| `actualPickup` | Position GPS du chauffeur au démarrage de la course |\n| `actualDropoff` | Position GPS à la fin de la course |\n| `driverLocationEnRoute` | Position GPS du chauffeur au moment de l'acceptation |\n\n**Ventilation financière (admin uniquement) :**\n- `finalPrice` = `walletAmountPaid` + `cashAmountPaid`\n- `finalPrice` = `driverEarnings` + `platformCommission`\n- `waitingFeeFcfa` et `pauseFeeFcfa` inclus dans `finalPrice`",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rideId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "UUID de la course"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Détail de la course",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GetRideDetailResponse"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission ride.view_all manquante"
+          },
+          "404": {
+            "description": "Course introuvable"
           }
         }
       }
@@ -15531,6 +17123,109 @@
           },
           "403": {
             "description": "Permission wallet.view_all manquante"
+          }
+        }
+      }
+    },
+    "/api/admin/platform/revenue": {
+      "get": {
+        "tags": [
+          "Admin - Platform"
+        ],
+        "summary": "Revenus différenciés du wallet PLATFORM",
+        "description": "Retourne le solde courant du wallet PLATFORM ForYou et la décomposition des revenus crédités par source (courses, livraisons B2C/B2B, contrats, location véhicule, consolidation, P2P). Filtrable par période.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fromDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Borne inférieure inclusive (createdAt)"
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Borne supérieure inclusive (createdAt)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revenus PLATFORM",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "walletId": {
+                      "type": "string",
+                      "example": "uuid"
+                    },
+                    "balance": {
+                      "type": "integer",
+                      "description": "Solde MAIN actuel en centimes XOF",
+                      "example": 4250000
+                    },
+                    "period": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "to": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "breakdown": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "source": {
+                            "type": "string",
+                            "example": "COMMISSION_REVENUE"
+                          },
+                          "label": {
+                            "type": "string",
+                            "example": "Courses"
+                          },
+                          "total": {
+                            "type": "integer",
+                            "example": 2100000
+                          }
+                        }
+                      }
+                    },
+                    "totalRevenue": {
+                      "type": "integer",
+                      "description": "Somme de tous les postes du breakdown",
+                      "example": 4250000
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission wallet.view_all manquante"
+          },
+          "404": {
+            "description": "Wallet PLATFORM introuvable"
           }
         }
       }
@@ -16005,7 +17700,77 @@
                         "transactions": {
                           "type": "array",
                           "items": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "walletId": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string",
+                                "example": "RIDE_PAYMENT",
+                                "description": "39 types immuables — ex: RECHARGE, RIDE_PAYMENT, WITHDRAWAL, BONUS_CREDIT…"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "PENDING",
+                                  "COMPLETED",
+                                  "FAILED"
+                                ],
+                                "example": "COMPLETED"
+                              },
+                              "balanceType": {
+                                "type": "string",
+                                "enum": [
+                                  "MAIN",
+                                  "BONUS",
+                                  "REFERRAL"
+                                ],
+                                "example": "MAIN"
+                              },
+                              "amount": {
+                                "type": "integer",
+                                "example": 1500,
+                                "description": "Montant en centimes FCFA"
+                              },
+                              "balanceBefore": {
+                                "type": "integer",
+                                "example": 20000,
+                                "description": "Snapshot solde avant transaction"
+                              },
+                              "balanceAfter": {
+                                "type": "integer",
+                                "example": 18500,
+                                "description": "Snapshot solde après transaction"
+                              },
+                              "relatedEntityType": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "RIDE"
+                              },
+                              "relatedEntityId": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "a1b2c3d4-..."
+                              },
+                              "description": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "Paiement course FY-RD-0042"
+                              },
+                              "expiresAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "nullable": true
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            }
                           }
                         },
                         "total": {
@@ -16226,7 +17991,56 @@
         },
         "responses": {
           "201": {
-            "description": "Demande de retrait créée — traitement en cours"
+            "description": "Demande de retrait créée — traitement en cours",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "withdrawalId": {
+                          "type": "string",
+                          "description": "ID de la demande de retrait"
+                        },
+                        "walletId": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "integer",
+                          "example": 15000,
+                          "description": "Montant réservé en FCFA"
+                        },
+                        "method": {
+                          "type": "string",
+                          "enum": [
+                            "MOBILE_MONEY",
+                            "BANK_TRANSFER"
+                          ],
+                          "example": "MOBILE_MONEY"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "PENDING"
+                          ],
+                          "example": "PENDING"
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "Votre demande de retrait est en cours de traitement."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "Non authentifié"
@@ -16553,7 +18367,49 @@
         },
         "responses": {
           "200": {
-            "description": "Sous-solde crédité avec succès"
+            "description": "Sous-solde crédité avec succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "walletId": {
+                          "type": "string"
+                        },
+                        "balanceType": {
+                          "type": "string",
+                          "enum": [
+                            "MAIN",
+                            "BONUS",
+                            "REFERRAL"
+                          ],
+                          "example": "BONUS"
+                        },
+                        "amount": {
+                          "type": "integer",
+                          "example": 5000
+                        },
+                        "newBalance": {
+                          "type": "integer",
+                          "example": 7000,
+                          "description": "Nouveau solde du sous-solde crédité"
+                        },
+                        "transactionId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "Non authentifié"
@@ -16634,7 +18490,40 @@
         },
         "responses": {
           "200": {
-            "description": "Wallet débité avec succès"
+            "description": "Wallet débité avec succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "walletId": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "integer",
+                          "example": 2000
+                        },
+                        "newBalance": {
+                          "type": "integer",
+                          "example": 13000,
+                          "description": "Nouveau solde MAIN après débit"
+                        },
+                        "transactionId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "Non authentifié"
@@ -17066,7 +18955,7 @@
           "Ride — Passenger"
         ],
         "summary": "Get ride price estimate",
-        "description": "Returns estimated price, distance, duration and surge data. No side effects.",
+        "description": "Retourne le prix estimé, la distance, la durée et le surge. Aucun effet de bord.\n\n**Mode DISTANCE** (par défaut) : fournir pickupLat/Lng + dropoffLat/Lng. Le prix est calculé selon les tiers kilométriques + le tarif à la minute.\n\n**Mode TIMED** : fournir `pricingType=TIMED` + `durationMinutes` (60, 120, 180, 240 ou 480). Prix fixe du package, sans dropoff nécessaire.\n\n**Code promo** : passer `promoCode` pour pré-calculer la remise avant de créer la course.",
         "security": [
           {
             "bearerAuth": []
@@ -17081,23 +18970,26 @@
                 "required": [
                   "pickupLat",
                   "pickupLng",
-                  "dropoffLat",
-                  "dropoffLng",
-                  "vehicleType",
-                  "paymentMethod"
+                  "vehicleType"
                 ],
                 "properties": {
                   "pickupLat": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 6.3654
                   },
                   "pickupLng": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 2.3158
                   },
                   "dropoffLat": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 6.3709,
+                    "description": "Requis en mode DISTANCE"
                   },
                   "dropoffLng": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 2.3949,
+                    "description": "Requis en mode DISTANCE"
                   },
                   "vehicleType": {
                     "type": "string",
@@ -17108,7 +19000,34 @@
                       "VIP",
                       "VAN",
                       "TRICYCLE"
-                    ]
+                    ],
+                    "example": "MOTO"
+                  },
+                  "pricingType": {
+                    "type": "string",
+                    "enum": [
+                      "DISTANCE",
+                      "TIMED"
+                    ],
+                    "default": "DISTANCE",
+                    "description": "Mode de tarification"
+                  },
+                  "durationMinutes": {
+                    "type": "integer",
+                    "enum": [
+                      60,
+                      120,
+                      180,
+                      240,
+                      480
+                    ],
+                    "example": 60,
+                    "description": "Requis en mode TIMED"
+                  },
+                  "promoCode": {
+                    "type": "string",
+                    "example": "BIENVENUE10",
+                    "description": "Code promo à pré-valider (optionnel)"
                   }
                 }
               }
@@ -17117,13 +19036,15 @@
         },
         "responses": {
           "200": {
-            "description": "Estimate returned",
+            "description": "Estimation retournée",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "properties": {
                     "success": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "example": true
                     },
                     "data": {
                       "$ref": "#/components/schemas/RideEstimateResponse"
@@ -17134,7 +19055,7 @@
             }
           },
           "400": {
-            "description": "Missing fields",
+            "description": "Champs manquants ou mode TIMED sans durationMinutes",
             "content": {
               "application/json": {
                 "schema": {
@@ -17207,8 +19128,8 @@
         "tags": [
           "Ride — Passenger"
         ],
-        "summary": "Track a ride",
-        "description": "Returns current ride state, driver position and ETA. Fallback when WebSocket is unavailable.",
+        "summary": "Suivre l'état d'une course",
+        "description": "Retourne l'état complet de la course enrichi avec driver, véhicule, GPS et breakdown financier.\n\nUtilisé comme **fallback HTTP** quand le WebSocket est indisponible. Pour le suivi temps-réel, utiliser la room Socket.io `ride:{rideId}`.\n\n**Champs context-sensibles** :\n- `noShowMinutes` / `noShowFee` : présents UNIQUEMENT si `status=DRIVER_ARRIVED`\n- `pausedAt` : non-null uniquement si `status=PAUSED`\n- `finalPrice`, `walletAmountPaid`, `cashAmountPaid` : non-null uniquement après `COMPLETED`\n- `driverEarnings` : **non exposé au passager**",
         "security": [
           {
             "bearerAuth": []
@@ -17226,10 +19147,29 @@
         ],
         "responses": {
           "200": {
-            "description": "Ride details"
+            "description": "Détail complet de la course",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PassengerRideDetail"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Course appartenant à un autre passager"
           },
           "404": {
-            "description": "Not found",
+            "description": "Course introuvable",
             "content": {
               "application/json": {
                 "schema": {
@@ -17333,7 +19273,8 @@
         "tags": [
           "Ride — Passenger"
         ],
-        "summary": "Rate the driver",
+        "summary": "Noter le chauffeur",
+        "description": "Soumet la note et le commentaire du passager pour le chauffeur.\n\nPeut être appelé quand `status=COMPLETED` ou `status=RATED`. Une seule notation par passager par course. La course passe en `RATED` après la soumission.",
         "security": [
           {
             "bearerAuth": []
@@ -17361,10 +19302,39 @@
         },
         "responses": {
           "200": {
-            "description": "Rating submitted"
+            "description": "Notation soumise",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rideId": {
+                          "type": "string"
+                        },
+                        "rideNumber": {
+                          "type": "string",
+                          "example": "RD-20260312-0042"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "RATED"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid score or already rated"
+            "description": "Note invalide (hors 1–5), course non complétée, ou déjà notée"
           }
         }
       }
@@ -17374,8 +19344,8 @@
         "tags": [
           "Ride — Passenger"
         ],
-        "summary": "Set wallet/cash split",
-        "description": "Pre-set how much to pay from wallet. Can be called before or at completion time. Pass walletAmount=null to revert to automatic mode.",
+        "summary": "Définir la répartition wallet / espèces",
+        "description": "Pré-configure le montant à prélever sur le wallet pour les courses en paiement MIXED.\n\nPeut être appelé **avant ou au moment de la complétion**. Si `walletAmount=null`, le système déduit automatiquement le maximum disponible dans le wallet et demande le reste en espèces.\n\n⚠️ Uniquement disponible pour les courses avec `paymentMethod=MIXED`.",
         "security": [
           {
             "bearerAuth": []
@@ -17403,10 +19373,46 @@
         },
         "responses": {
           "200": {
-            "description": "Split set"
+            "description": "Répartition enregistrée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rideId": {
+                          "type": "string"
+                        },
+                        "paymentMethod": {
+                          "type": "string",
+                          "example": "MIXED"
+                        },
+                        "requestedWalletAmount": {
+                          "type": "integer",
+                          "nullable": true,
+                          "example": 800,
+                          "description": "Montant wallet demandé (FCFA). null = mode auto."
+                        },
+                        "estimatedCashAmount": {
+                          "type": "integer",
+                          "example": 580,
+                          "description": "Montant estimé restant en espèces (FCFA)."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid amount or wrong payment method"
+            "description": "Montant négatif, supérieur au prix final, ou paymentMethod ≠ MIXED"
           }
         }
       }
@@ -17416,8 +19422,8 @@
         "tags": [
           "Ride — Driver"
         ],
-        "summary": "Accept a ride request",
-        "description": "Atomically claims the ride. Returns 400 if already claimed by another driver.",
+        "summary": "Accepter une course",
+        "description": "Claim atomique de la course — si deux drivers appellent en même temps, seul le premier réussit (opération Redis + verrou Mongo).\n\n**Transition** : `PENDING_MATCH` → `DRIVER_ASSIGNED`\n\nAprès l'acceptation, le WebSocket émet `ride:accepted` au passager avec les infos du driver et du véhicule. Le driver reçoit immédiatement les coordonnées du pickup pour démarrer la navigation.",
         "security": [
           {
             "bearerAuth": []
@@ -17435,10 +19441,118 @@
         ],
         "responses": {
           "200": {
-            "description": "Ride accepted"
+            "description": "Course acceptée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rideId": {
+                          "type": "string"
+                        },
+                        "rideNumber": {
+                          "type": "string",
+                          "example": "RD-20260312-0042"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "DRIVER_ASSIGNED"
+                        },
+                        "passenger": {
+                          "type": "object",
+                          "properties": {
+                            "passengerId": {
+                              "type": "string"
+                            },
+                            "firstName": {
+                              "type": "string"
+                            },
+                            "lastName": {
+                              "type": "string"
+                            },
+                            "phoneNumber": {
+                              "type": "string"
+                            },
+                            "photoUrl": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        },
+                        "pickup": {
+                          "type": "object",
+                          "properties": {
+                            "latitude": {
+                              "type": "number",
+                              "example": 6.3654
+                            },
+                            "longitude": {
+                              "type": "number",
+                              "example": 2.3158
+                            },
+                            "address": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        },
+                        "dropoff": {
+                          "type": "object",
+                          "properties": {
+                            "latitude": {
+                              "type": "number",
+                              "example": 6.3709
+                            },
+                            "longitude": {
+                              "type": "number",
+                              "example": 2.3949
+                            },
+                            "address": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        },
+                        "estimatedPrice": {
+                          "type": "integer",
+                          "example": 1200,
+                          "description": "FCFA"
+                        },
+                        "estimatedDistanceKm": {
+                          "type": "number",
+                          "example": 5.4
+                        },
+                        "estimatedDurationMin": {
+                          "type": "integer",
+                          "example": 15
+                        },
+                        "paymentMethod": {
+                          "type": "string",
+                          "example": "WALLET"
+                        },
+                        "surgeMultiplier": {
+                          "type": "number",
+                          "example": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Already taken or invalid status"
+            "description": "Course déjà prise par un autre driver, statut invalide, ou driver non disponible"
+          },
+          "404": {
+            "description": "Course introuvable"
           }
         }
       }
@@ -17467,7 +19581,53 @@
         ],
         "responses": {
           "200": {
-            "description": "Marked DRIVER_ARRIVED"
+            "description": "Arrivée signalée — status → DRIVER_ARRIVED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rideId": {
+                          "type": "string"
+                        },
+                        "rideNumber": {
+                          "type": "string",
+                          "example": "RD-20260312-0042"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "DRIVER_ARRIVED"
+                        },
+                        "arrivedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "noShowMinutes": {
+                          "type": "integer",
+                          "example": 15,
+                          "description": "Délai avant pouvoir annuler avec indemnité"
+                        },
+                        "noShowFee": {
+                          "type": "integer",
+                          "example": 500,
+                          "description": "Indemnité versée au driver si annulation après noShowMinutes (FCFA)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Statut invalide (doit être DRIVER_EN_ROUTE) ou driver non assigné"
           }
         }
       }
@@ -17494,9 +19654,72 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lat": {
+                    "type": "number",
+                    "example": 6.3654,
+                    "description": "Latitude GPS du driver au démarrage (optionnel — stocké comme actualPickup)"
+                  },
+                  "lng": {
+                    "type": "number",
+                    "example": 2.3158,
+                    "description": "Longitude GPS du driver au démarrage (optionnel)"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Ride started"
+            "description": "Course démarrée — status → IN_PROGRESS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rideId": {
+                          "type": "string"
+                        },
+                        "rideNumber": {
+                          "type": "string",
+                          "example": "RD-20260312-0042"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "IN_PROGRESS"
+                        },
+                        "startedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "waitingFeeFcfa": {
+                          "type": "integer",
+                          "example": 150,
+                          "description": "Frais d'attente calculés et ajoutés au prix (FCFA). 0 si ≤ freeWaitingMinutes."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Statut invalide (doit être DRIVER_ARRIVED) ou driver non assigné"
           }
         }
       }
@@ -17525,10 +19748,45 @@
         ],
         "responses": {
           "200": {
-            "description": "Ride paused — status transitions to PAUSED"
+            "description": "Course mise en pause — status → PAUSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rideId": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "PAUSED"
+                        },
+                        "pausesCount": {
+                          "type": "integer",
+                          "example": 1,
+                          "description": "Nombre de pauses effectuées (max 3)"
+                        },
+                        "pausedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Heure de début de cette pause"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid status or not the assigned driver or max pauses reached"
+            "description": "Statut invalide, driver non assigné, ou 3 pauses déjà utilisées"
           }
         }
       }
@@ -17689,7 +19947,52 @@
         },
         "responses": {
           "200": {
-            "description": "Ride cancelled"
+            "description": "Course annulée par le driver — status → CANCELLED_DRIVER",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rideId": {
+                          "type": "string"
+                        },
+                        "rideNumber": {
+                          "type": "string",
+                          "example": "RD-20260312-0042"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "CANCELLED_DRIVER"
+                        },
+                        "cancelledBy": {
+                          "type": "string",
+                          "example": "DRIVER"
+                        },
+                        "cancelledAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "noShowFeeEarned": {
+                          "type": "integer",
+                          "example": 500,
+                          "description": "Indemnité no-show créditée sur le wallet EARNINGS du driver (FCFA). 0 si annulation normale."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Statut non annulable ou driver non assigné"
           }
         }
       }
@@ -17699,7 +20002,8 @@
         "tags": [
           "Ride — Driver"
         ],
-        "summary": "Get ride details",
+        "summary": "Détails complets d'une course (driver)",
+        "description": "Retourne l'état complet de la course côté driver, incluant les infos passager, le breakdown financier et les gains.\n\nIdentique à la vue passager mais expose en plus :\n- `driverEarnings` : gains nets du driver (FCFA) après commission plateforme\n- `platformCommission` : commission plateforme (FCFA)\n\nFallback HTTP quand le WebSocket est indisponible.",
         "security": [
           {
             "bearerAuth": []
@@ -17717,10 +20021,29 @@
         ],
         "responses": {
           "200": {
-            "description": "Ride details"
+            "description": "Détail complet de la course",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DriverRideDetail"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Course assignée à un autre driver"
           },
           "404": {
-            "description": "Not found"
+            "description": "Course introuvable"
           }
         }
       }
@@ -17730,7 +20053,8 @@
         "tags": [
           "Ride — Driver"
         ],
-        "summary": "Rate the passenger",
+        "summary": "Noter le passager",
+        "description": "Soumet la note et le commentaire du driver pour le passager.\n\nPeut être appelé quand `status=COMPLETED` ou `status=RATED`. Une seule notation par driver par course.",
         "security": [
           {
             "bearerAuth": []
@@ -17758,7 +20082,39 @@
         },
         "responses": {
           "200": {
-            "description": "Rating submitted"
+            "description": "Notation soumise",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rideId": {
+                          "type": "string"
+                        },
+                        "rideNumber": {
+                          "type": "string",
+                          "example": "RD-20260312-0042"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "RATED"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Note invalide (hors 1–5), course non complétée, ou déjà notée"
           }
         }
       }
@@ -17768,8 +20124,8 @@
         "tags": [
           "Ride — Passenger"
         ],
-        "summary": "Request a new dropoff mid-ride",
-        "description": "Only possible while the ride is IN_PROGRESS. Only one pending request at a time.",
+        "summary": "Demander un changement de destination en cours de route",
+        "description": "Envoie une demande de nouveau dropoff au chauffeur pendant la course.\n\n**Conditions** :\n- `status=IN_PROGRESS` obligatoire\n- Une seule demande en attente à la fois (rejeté si `pendingDestinationChange` déjà actif)\n\nLe chauffeur reçoit la demande via WebSocket (`ride:destination_change_requested`) et peut **accepter** (`PATCH .../accept`) ou **rejeter** (`PATCH .../reject`).",
         "security": [
           {
             "bearerAuth": []
@@ -17816,10 +20172,49 @@
         },
         "responses": {
           "200": {
-            "description": "Request sent to driver"
+            "description": "Demande envoyée au chauffeur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rideId": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "ID interne de la demande de changement"
+                        },
+                        "newEstimatedDistanceKm": {
+                          "type": "number",
+                          "example": 7.2,
+                          "description": "Nouvelle distance estimée jusqu'au nouveau dropoff (km)"
+                        },
+                        "newEstimatedDurationMin": {
+                          "type": "integer",
+                          "example": 20,
+                          "description": "Nouvelle durée estimée (minutes)"
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "Demande envoyée au chauffeur."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Invalid state or duplicate pending request"
+            "description": "Course non IN_PROGRESS ou demande en attente existante"
           }
         }
       }
@@ -17829,7 +20224,8 @@
         "tags": [
           "Ride — Driver"
         ],
-        "summary": "Accept passenger destination change",
+        "summary": "Accepter le changement de destination",
+        "description": "Confirme la nouvelle destination proposée par le passager.\n\nLe dropoff de la course est mis à jour, l'estimation de distance/durée est recalculée, et le WebSocket émet `ride:destination_change_accepted` au passager.",
         "security": [
           {
             "bearerAuth": []
@@ -17847,10 +20243,57 @@
         ],
         "responses": {
           "200": {
-            "description": "New dropoff confirmed, ride continues to new destination"
+            "description": "Nouveau dropoff confirmé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rideId": {
+                          "type": "string"
+                        },
+                        "newDropoff": {
+                          "type": "object",
+                          "properties": {
+                            "latitude": {
+                              "type": "number",
+                              "example": 6.37
+                            },
+                            "longitude": {
+                              "type": "number",
+                              "example": 2.39
+                            },
+                            "address": {
+                              "type": "string",
+                              "nullable": true,
+                              "example": "Carrefour Godomey"
+                            }
+                          }
+                        },
+                        "newEstimatedDistanceKm": {
+                          "type": "number",
+                          "example": 7.2
+                        },
+                        "newEstimatedDurationMin": {
+                          "type": "integer",
+                          "example": 20
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "No pending request or wrong driver"
+            "description": "Aucune demande en attente ou driver non assigné"
           }
         }
       }
@@ -17860,7 +20303,8 @@
         "tags": [
           "Ride — Driver"
         ],
-        "summary": "Reject passenger destination change",
+        "summary": "Refuser le changement de destination",
+        "description": "Rejette la demande de nouvelle destination du passager.\n\nLa course continue vers le dropoff original. Le WebSocket émet `ride:destination_change_rejected` au passager avec la raison du refus.",
         "security": [
           {
             "bearerAuth": []
@@ -17885,7 +20329,7 @@
                 "properties": {
                   "reason": {
                     "type": "string",
-                    "example": "Too far from current route"
+                    "example": "Trop loin de mon itinéraire actuel"
                   }
                 }
               }
@@ -17894,10 +20338,35 @@
         },
         "responses": {
           "200": {
-            "description": "Rejection confirmed, continuing to original dropoff"
+            "description": "Refus confirmé — continuation vers le dropoff original",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rideId": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "Changement de destination refusé."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "No pending request or wrong driver"
+            "description": "Aucune demande en attente ou driver non assigné"
           }
         }
       }
@@ -18069,7 +20538,7 @@
         }
       }
     },
-    "/api/passenger/rides/nearby-drivers": {
+    "/api/passengers/rides/nearby-drivers": {
       "get": {
         "tags": [
           "Ride — Passenger"
@@ -19783,7 +22252,29 @@
         ],
         "responses": {
           "200": {
-            "description": "Arrivée au pickup confirmée"
+            "description": "Arrivée au pickup confirmée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Pickup arrival confirmed"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Statut invalide"
@@ -19885,7 +22376,29 @@
         ],
         "responses": {
           "200": {
-            "description": "Arrivée au dropoff confirmée"
+            "description": "Arrivée au dropoff confirmée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Delivery arrival confirmed"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Statut invalide"
@@ -19943,7 +22456,29 @@
         },
         "responses": {
           "200": {
-            "description": "OTP validé avec succès"
+            "description": "OTP validé avec succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "OTP validated successfully"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "OTP invalide ou statut incorrect"
@@ -20007,7 +22542,29 @@
         },
         "responses": {
           "200": {
-            "description": "Livraison complétée avec succès"
+            "description": "Livraison complétée avec succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Delivery completed successfully"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "- OTP non validé (otpVerifiedAt manquant)\n- Photo ou finalPrice manquant\n- Statut invalide"
@@ -20070,7 +22627,29 @@
         },
         "responses": {
           "200": {
-            "description": "Échec de collecte signalé"
+            "description": "Échec de collecte signalé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Pickup failure reported"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Statut invalide"
@@ -20127,7 +22706,29 @@
         },
         "responses": {
           "200": {
-            "description": "Échec de livraison signalé"
+            "description": "Échec de livraison signalé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Delivery failure reported"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Statut invalide"
@@ -20165,7 +22766,29 @@
         ],
         "responses": {
           "200": {
-            "description": "Retour démarré"
+            "description": "Retour démarré",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Return started"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Statut invalide (pas DELIVERY_FAILED)"
@@ -20203,7 +22826,29 @@
         ],
         "responses": {
           "200": {
-            "description": "Retour terminé"
+            "description": "Retour terminé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Return completed"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Statut invalide (pas RETURN_IN_PROGRESS)"
@@ -20297,7 +22942,29 @@
         },
         "responses": {
           "200": {
-            "description": "Commande annulée"
+            "description": "Commande annulée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Order cancelled"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Statut non annulable"
@@ -20439,7 +23106,29 @@
         },
         "responses": {
           "200": {
-            "description": "Commande annulée"
+            "description": "Commande annulée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Order cancelled"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Statut non annulable (traitement actif en cours)"
@@ -20732,6 +23421,7 @@
                 "PENDING",
                 "AVAILABLE",
                 "ASSIGNED",
+                "EN_CONTRAT",
                 "MAINTENANCE",
                 "RETIRED",
                 "REJECTED"
@@ -21741,6 +24431,7 @@
                 "PENDING",
                 "AVAILABLE",
                 "ASSIGNED",
+                "EN_CONTRAT",
                 "MAINTENANCE",
                 "RETIRED",
                 "REJECTED"
@@ -21946,6 +24637,7 @@
                 "PENDING",
                 "AVAILABLE",
                 "ASSIGNED",
+                "EN_CONTRAT",
                 "MAINTENANCE",
                 "RETIRED",
                 "REJECTED"
@@ -23191,6 +25883,35 @@
             "description": "ID du véhicule"
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "example": "Changement de pneus avant",
+                    "description": "Description du problème / raison de la maintenance"
+                  },
+                  "estimatedCost": {
+                    "type": "integer",
+                    "example": 150000,
+                    "description": "Coût estimé de la maintenance (centimes XOF, optionnel)"
+                  }
+                }
+              },
+              "example": {
+                "reason": "Changement de pneus avant",
+                "estimatedCost": 150000
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Véhicule en maintenance"
@@ -23340,11 +26061,17 @@
                     "type": "number",
                     "example": 15000,
                     "description": "Kilométrage actuel du véhicule"
+                  },
+                  "actualCost": {
+                    "type": "integer",
+                    "example": 130000,
+                    "description": "Coût réel de la maintenance (centimes XOF, optionnel)"
                   }
                 }
               },
               "example": {
-                "mileage": 15000
+                "mileage": 15000,
+                "actualCost": 130000
               }
             }
           }
@@ -23649,7 +26376,8 @@
                   "driverId",
                   "vehicleId",
                   "dateDebut",
-                  "dureeMois"
+                  "dureeMois",
+                  "montantCaution"
                 ],
                 "properties": {
                   "driverId": {
@@ -23681,13 +26409,19 @@
                       "HEBDOMADAIRE",
                       "MENSUEL"
                     ],
-                    "description": "Fréquence des échéances (par défaut MENSUEL)"
+                    "description": "Fréquence des échéances (par défaut JOURNALIER)"
                   },
                   "marginPct": {
                     "type": "number",
                     "minimum": 0,
                     "example": 10,
                     "description": "Marge appliquée au montant total (optionnel)"
+                  },
+                  "montantCaution": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 500000,
+                    "description": "Caution de garantie (centimes XOF) — obligatoire, séparée du prix de vente"
                   },
                   "notes": {
                     "type": "string",
@@ -23701,7 +26435,8 @@
                 "dateDebut": "2026-07-01",
                 "dureeMois": 12,
                 "frequenceEcheances": "MENSUEL",
-                "marginPct": 10
+                "marginPct": 10,
+                "montantCaution": 500000
               }
             }
           }
@@ -24258,7 +26993,8 @@
                 "INSTALLMENT_UNPAID",
                 "DRIVER_BLOCKED",
                 "DRIVER_UNBLOCKED",
-                "MANUAL_PAYMENT_RECORDED"
+                "MANUAL_PAYMENT_RECORDED",
+                "CAUTION_RESTITUEE"
               ]
             },
             "description": "Filtrer par type d'action"
@@ -24329,7 +27065,8 @@
                                   "INSTALLMENT_UNPAID",
                                   "DRIVER_BLOCKED",
                                   "DRIVER_UNBLOCKED",
-                                  "MANUAL_PAYMENT_RECORDED"
+                                  "MANUAL_PAYMENT_RECORDED",
+                                  "CAUTION_RESTITUEE"
                                 ]
                               },
                               "performedBy": {
@@ -26995,6 +29732,583 @@
         }
       }
     },
+    "/api/drivers/referrals/my-pending": {
+      "get": {
+        "tags": [
+          "Driver - Referrals"
+        ],
+        "summary": "Get my pending referral (as referred)",
+        "description": "Returns the pending referral for the authenticated driver (as referred/filleul). Returns null if driver was not referred or referral already validated.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending referral returned successfully (or null)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "referralId": {
+                          "type": "string",
+                          "example": "uuid-123"
+                        },
+                        "referrerId": {
+                          "type": "string",
+                          "example": "uuid-456"
+                        },
+                        "referralCode": {
+                          "type": "string",
+                          "example": "ABC123"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "PENDING"
+                        },
+                        "referrerReward": {
+                          "type": "number",
+                          "example": 500
+                        },
+                        "referredReward": {
+                          "type": "number",
+                          "example": 500
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          }
+        }
+      }
+    },
+    "/api/drivers/referrals/apply": {
+      "post": {
+        "tags": [
+          "Driver - Referrals"
+        ],
+        "summary": "Apply referral code",
+        "description": "Applies a referral code during driver registration or profile creation. Creates a referral relationship between the referrer (parrain) and the authenticated driver (filleul).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "referralCode"
+                ],
+                "properties": {
+                  "referralCode": {
+                    "type": "string",
+                    "example": "ABC123",
+                    "description": "Referral code from parrain (format: 3 letters + 3 digits)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Referral code applied successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "referralId": {
+                          "type": "string",
+                          "example": "uuid-123"
+                        },
+                        "referrerReward": {
+                          "type": "number",
+                          "example": 500
+                        },
+                        "referredReward": {
+                          "type": "number",
+                          "example": 500
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "PENDING"
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "Code de parrainage appliqué avec succès"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Code invalide ou utilisateur déjà parrainé"
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "404": {
+            "description": "Code de parrainage inexistant"
+          },
+          "409": {
+            "description": "Conflit (utilisateur déjà parrainé ou limites atteintes)"
+          }
+        }
+      }
+    },
+    "/api/drivers/referrals/validate": {
+      "post": {
+        "tags": [
+          "Driver - Referrals"
+        ],
+        "summary": "Validate referral",
+        "description": "Validates the referral for the authenticated driver when validation conditions are met (e.g., 5 rides completed). Triggers reward distribution to both referrer and referred driver.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Referral validated successfully, rewards distributed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "referralId": {
+                          "type": "string",
+                          "example": "uuid-123"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "VALIDATED"
+                        },
+                        "validatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "referrerReward": {
+                          "type": "number",
+                          "example": 500
+                        },
+                        "referredReward": {
+                          "type": "number",
+                          "example": 500
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "Parrainage validé avec succès. Récompenses distribuées."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parrainage déjà validé ou statut invalide"
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "404": {
+            "description": "Aucun parrainage trouvé pour ce chauffeur"
+          }
+        }
+      }
+    },
+    "/api/partners/referrals": {
+      "get": {
+        "tags": [
+          "Partner - Referrals"
+        ],
+        "summary": "Get my referrals (as referrer)",
+        "description": "Returns list of all users referred by the authenticated partner (as referrer/parrain). Includes status, reward amounts, and validation date.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of referrals returned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "referrals": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "referralId": {
+                                "type": "string",
+                                "example": "uuid-123"
+                              },
+                              "referrerId": {
+                                "type": "string",
+                                "example": "uuid-456"
+                              },
+                              "referredUserId": {
+                                "type": "string",
+                                "example": "uuid-789"
+                              },
+                              "referredName": {
+                                "type": "string",
+                                "example": "Jean Dupont"
+                              },
+                              "referralCode": {
+                                "type": "string",
+                                "example": "ABC123"
+                              },
+                              "referralType": {
+                                "type": "string",
+                                "enum": [
+                                  "PASSENGER",
+                                  "DRIVER_STANDARD",
+                                  "DRIVER_PREMIUM",
+                                  "DRIVER_VIP",
+                                  "PARTNER"
+                                ],
+                                "example": "PARTNER"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "PENDING",
+                                  "VALIDATED",
+                                  "EXPIRED"
+                                ],
+                                "example": "PENDING"
+                              },
+                              "referrerReward": {
+                                "type": "number",
+                                "example": 1000
+                              },
+                              "referredReward": {
+                                "type": "number",
+                                "example": 1000
+                              },
+                              "validatedAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "nullable": true
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "updatedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "example": 3
+                        },
+                        "totalPending": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "totalValidated": {
+                          "type": "integer",
+                          "example": 2
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          }
+        }
+      }
+    },
+    "/api/partners/referrals/my-pending": {
+      "get": {
+        "tags": [
+          "Partner - Referrals"
+        ],
+        "summary": "Get my pending referral (as referred)",
+        "description": "Returns the pending referral for the authenticated partner (as referred/filleul). Returns null if partner was not referred or referral already validated.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending referral returned successfully (or null)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "referralId": {
+                          "type": "string",
+                          "example": "uuid-123"
+                        },
+                        "referrerId": {
+                          "type": "string",
+                          "example": "uuid-456"
+                        },
+                        "referralCode": {
+                          "type": "string",
+                          "example": "ABC123"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "PENDING"
+                        },
+                        "referrerReward": {
+                          "type": "number",
+                          "example": 1000
+                        },
+                        "referredReward": {
+                          "type": "number",
+                          "example": 1000
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          }
+        }
+      }
+    },
+    "/api/partners/referrals/apply": {
+      "post": {
+        "tags": [
+          "Partner - Referrals"
+        ],
+        "summary": "Apply referral code",
+        "description": "Applies a referral code during partner registration or profile creation. Creates a referral relationship between the referrer (parrain) and the authenticated partner (filleul).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "referralCode"
+                ],
+                "properties": {
+                  "referralCode": {
+                    "type": "string",
+                    "example": "ABC123",
+                    "description": "Referral code from parrain (format: 3 letters + 3 digits)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Referral code applied successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "referralId": {
+                          "type": "string",
+                          "example": "uuid-123"
+                        },
+                        "referrerReward": {
+                          "type": "number",
+                          "example": 1000
+                        },
+                        "referredReward": {
+                          "type": "number",
+                          "example": 1000
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "PENDING"
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "Code de parrainage appliqué avec succès"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Code invalide ou partenaire déjà parrainé"
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "404": {
+            "description": "Code de parrainage inexistant"
+          },
+          "409": {
+            "description": "Conflit (partenaire déjà parrainé ou limites atteintes)"
+          }
+        }
+      }
+    },
+    "/api/partners/referrals/validate": {
+      "post": {
+        "tags": [
+          "Partner - Referrals"
+        ],
+        "summary": "Validate referral",
+        "description": "Validates the referral for the authenticated partner when validation conditions are met. Triggers reward distribution to both referrer and referred partner.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Referral validated successfully, rewards distributed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "referralId": {
+                          "type": "string",
+                          "example": "uuid-123"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "VALIDATED"
+                        },
+                        "validatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "referrerReward": {
+                          "type": "number",
+                          "example": 1000
+                        },
+                        "referredReward": {
+                          "type": "number",
+                          "example": 1000
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "Parrainage validé avec succès. Récompenses distribuées."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parrainage déjà validé ou statut invalide"
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "404": {
+            "description": "Aucun parrainage trouvé pour ce partenaire"
+          }
+        }
+      }
+    },
     "/api/admin/pricing/profiles": {
       "post": {
         "tags": [
@@ -27019,7 +30333,9 @@
                   "strategy",
                   "components",
                   "commissionRate",
-                  "driverShareRate"
+                  "driverShareRate",
+                  "noShowMinutes",
+                  "noShowFee"
                 ],
                 "properties": {
                   "serviceKey": {
@@ -27064,6 +30380,16 @@
                   "driverShareRate": {
                     "type": "number",
                     "example": 0.82
+                  },
+                  "noShowMinutes": {
+                    "type": "integer",
+                    "example": 5,
+                    "description": "Délai en minutes avant qu'un no-show est déclenché. Strictement positif."
+                  },
+                  "noShowFee": {
+                    "type": "integer",
+                    "example": 50000,
+                    "description": "Montant en centimes XOF facturé au passager en cas de no-show (ex : 50000 = 500 FCFA)."
                   }
                 }
               },
@@ -27387,6 +30713,16 @@
                   "driverShareRate": {
                     "type": "number",
                     "example": 0.8
+                  },
+                  "noShowMinutes": {
+                    "type": "integer",
+                    "example": 7,
+                    "description": "Délai no-show en minutes (optionnel). Strictement positif."
+                  },
+                  "noShowFee": {
+                    "type": "integer",
+                    "example": 75000,
+                    "description": "Montant no-show en centimes XOF (optionnel). >= 0."
                   }
                 }
               }

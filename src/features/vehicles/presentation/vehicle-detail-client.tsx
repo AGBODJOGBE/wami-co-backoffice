@@ -53,6 +53,7 @@ import {
   VehicleCategoryModal,
   VehicleEditModal,
   VehicleMaintenanceCompleteModal,
+  VehicleMaintenanceStartModal,
   VehicleRejectModal,
   VehicleSimpleConfirm,
   VehicleVerifyModal,
@@ -166,6 +167,7 @@ export interface VehicleDetailClientProps {
   documents?: import("@/features/documents/domain/document").DocumentMetadata[];
   documentsError?: string;
   assignedDriver?: import("@/features/drivers/domain/admin-driver").AdminDriver;
+  drivers?: import("@/features/drivers/domain/admin-driver").AdminDriver[];
   /** Map adminUserId → full AdminProfile. Lets us render rich info
    * (name + role + phone) for the connected admin, with a graceful
    * fallback for others until /api/admin/admins ships. */
@@ -179,6 +181,7 @@ export function VehicleDetailClient({
   documents = [],
   documentsError,
   assignedDriver,
+  drivers = [],
   adminProfiles = {},
   connectedAdminId,
 }: VehicleDetailClientProps) {
@@ -190,6 +193,7 @@ export function VehicleDetailClient({
   const [rejectOpen, setRejectOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [maintenanceStartOpen, setMaintenanceStartOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [confirm, setConfirm] = useState<SimpleConfirmKind | null>(null);
 
@@ -458,12 +462,18 @@ export function VehicleDetailClient({
       <VehicleAssignModal
         open={assignOpen}
         vehicle={vehicle}
+        drivers={drivers}
         onClose={() => setAssignOpen(false)}
       />
       <VehicleCategoryModal
         open={categoryOpen}
         vehicle={vehicle}
         onClose={() => setCategoryOpen(false)}
+      />
+      <VehicleMaintenanceStartModal
+        open={maintenanceStartOpen}
+        vehicle={vehicle}
+        onClose={() => setMaintenanceStartOpen(false)}
       />
       <VehicleMaintenanceCompleteModal
         open={completeOpen}
@@ -521,14 +531,14 @@ export function VehicleDetailClient({
         });
       }
     }
-    if (vehicle.status === "AVAILABLE") {
+    if (vehicle.ownership === "PLATFORM" && vehicle.status === "AVAILABLE" && !vehicle.assignedToDriverId) {
       lifecycle.push({
         label: "Mettre en maintenance",
         icon: Wrench,
-        onSelect: () => setConfirm("startMaintenance"),
+        onSelect: () => setMaintenanceStartOpen(true),
       });
     }
-    if (vehicle.status === "MAINTENANCE") {
+    if (vehicle.ownership === "PLATFORM" && vehicle.status === "MAINTENANCE") {
       lifecycle.push({
         label: "Terminer la maintenance",
         icon: WrenchIcon,

@@ -6,7 +6,6 @@ import {
   Calendar,
   Star,
   Users,
-  Wallet,
 } from "lucide-react";
 import { Avatar } from "@/shared/ui/avatar";
 import { Badge } from "@/shared/ui/badge";
@@ -18,7 +17,6 @@ import { DropdownMenu } from "@/shared/ui/dropdown-menu";
 import { PageHeader } from "@/shared/ui/page-header";
 import { SearchField } from "@/shared/ui/search-field";
 import { StatCard } from "@/features/dashboard/presentation/components/stat-card";
-import { formatXof } from "@/shared/lib/format";
 import type { PassengerRow } from "./store";
 
 const CITY_OPTIONS = [
@@ -67,7 +65,6 @@ export function PassengersPage({ initialPassengers, total }: PassengersPageProps
     });
   }, [initialPassengers, search, city, status]);
 
-  const totalWallet = initialPassengers.reduce((sum, p) => sum + p.walletBalance, 0);
   const suspendedCount = initialPassengers.filter((p) => p.isSuspended).length;
 
   const columns: ColumnDef<PassengerRow>[] = [
@@ -112,21 +109,6 @@ export function PassengersPage({ initialPassengers, total }: PassengersPageProps
       ),
     },
     {
-      key: "wallet",
-      header: "Wallet",
-      align: "right",
-      sortAccessor: (row) => row.walletBalance,
-      filter: {
-        accessor: (row) => row.walletBalance,
-        def: { kind: "number", unit: "FCFA" },
-      },
-      render: (row) => (
-        <span className="font-mono text-sm text-[color:var(--foreground)]">
-          {formatXof(row.walletBalance)}
-        </span>
-      ),
-    },
-    {
       key: "rides",
       header: "Courses",
       align: "right",
@@ -160,16 +142,6 @@ export function PassengersPage({ initialPassengers, total }: PassengersPageProps
         <span className="inline-flex items-center gap-1 text-sm text-[color:var(--foreground)]">
           <Star className="size-3.5 fill-[color:var(--secondary)] text-[color:var(--secondary)]" />
           {row.rating.toFixed(1)}
-        </span>
-      ),
-    },
-    {
-      key: "lastActivity",
-      header: "Dernière activité",
-      sortAccessor: (row) => row.lastActivity,
-      render: (row) => (
-        <span className="text-xs text-[color:var(--muted-foreground)]">
-          {row.lastActivity}
         </span>
       ),
     },
@@ -247,14 +219,6 @@ export function PassengersPage({ initialPassengers, total }: PassengersPageProps
           helper="non suspendus"
           icon={Calendar}
           tone="success"
-        />
-        <StatCard
-          label="Wallet total"
-          value={formatXof(totalWallet)}
-          trend={{ value: "agrégé", direction: "flat" }}
-          helper="solde main + bonus"
-          icon={Wallet}
-          tone="secondary"
         />
         <StatCard
           label="Comptes suspendus"

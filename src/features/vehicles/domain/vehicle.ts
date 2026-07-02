@@ -1,14 +1,30 @@
 export type VehicleType = "MOTO" | "TRICYCLE" | "CAR";
 
+export interface MaintenanceRecord {
+  reason: string;
+  startedAt: string;
+  completedAt: string;
+  estimatedCost?: number;
+  actualCost?: number;
+}
+
+export interface CurrentMaintenance {
+  reason: string;
+  startedAt: string;
+  estimatedCost?: number;
+}
+
 export type VehicleCategory = "ECO" | "STANDARD" | "PREMIUM" | "VIP";
 
 export type VehicleStatus =
   | "PENDING"
   | "AVAILABLE"
   | "ASSIGNED"
+  | "EN_CONTRAT"
   | "MAINTENANCE"
   | "RETIRED"
-  | "REJECTED";
+  | "REJECTED"
+  | "SOLD";
 
 export type VehicleOwnership = "DRIVER" | "PLATFORM";
 
@@ -32,9 +48,11 @@ export const VEHICLE_STATUS_META: Record<
   PENDING: { label: "En attente", tone: "warning" },
   AVAILABLE: { label: "Disponible", tone: "success" },
   ASSIGNED: { label: "Assigné", tone: "primary" },
+  EN_CONTRAT: { label: "En contrat", tone: "info" },
   MAINTENANCE: { label: "Maintenance", tone: "info" },
   RETIRED: { label: "Retiré", tone: "neutral" },
   REJECTED: { label: "Rejeté", tone: "danger" },
+  SOLD: { label: "Vendu", tone: "neutral" },
 };
 
 export const VEHICLE_OWNERSHIP_LABELS: Record<VehicleOwnership, string> = {
@@ -72,8 +90,16 @@ export interface VehicleSummary {
   purchasePrice?: number | null;
   /** Returned by detail endpoint — current book value (FCFA). */
   currentValue?: number | null;
+  /** Maintenance en cours (si status === MAINTENANCE). */
+  currentMaintenance?: CurrentMaintenance | null;
+  /** Historique des maintenances terminées. */
+  maintenanceHistory?: MaintenanceRecord[];
   createdAt: string;
   updatedAt: string;
+  /** Nombre de contrats location-vente liés à ce véhicule. */
+  contractCount?: number;
+  /** True si un contrat actif est en cours sur ce véhicule. */
+  hasActiveContract?: boolean;
 }
 
 export interface VehicleListResult {
@@ -92,7 +118,6 @@ export interface VehicleListQuery {
 }
 
 export interface CreatePlatformVehicleInput {
-  vehicleId: string; // UUID v4 — backend requires explicit ID (Mongoose schema uses UUID, not ObjectId)
   type: VehicleType;
   category: VehicleCategory;
   make: string;

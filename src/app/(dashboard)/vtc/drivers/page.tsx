@@ -1,5 +1,6 @@
 import {
   listAdminDrivers,
+  listOnlineDrivers,
   listPendingDrivers,
 } from "@/features/drivers/application/api";
 import { listAdminRides } from "@/features/rides/application/api";
@@ -9,10 +10,11 @@ import { PageHeader } from "@/shared/ui/page-header";
 export const dynamic = "force-dynamic";
 
 export default async function VtcDriversPage() {
-  const [pendingRes, allRes, ridesRes] = await Promise.allSettled([
+  const [pendingRes, allRes, ridesRes, onlineRes] = await Promise.allSettled([
     listPendingDrivers(),
     listAdminDrivers(),
     listAdminRides(),
+    listOnlineDrivers(),
   ]);
 
   const pending =
@@ -47,10 +49,19 @@ export default async function VtcDriversPage() {
     }
   }
 
-  // Patch totalRides with the real count
+  // Set des driverIds réellement connectés (app ouverte + GPS actif)
+  // Réversible : supprimer ces 2 lignes + isOnline dans le map suffit à revenir en arrière
+  const onlineDriverIds = new Set(
+    onlineRes.status === "fulfilled"
+      ? onlineRes.value.drivers.map((d) => d.driverId)
+      : [],
+  );
+
+  // Patch totalRides + isOnline
   const patchedDrivers = allRaw.drivers.map((d) => ({
     ...d,
     totalRides: rideCountByDriverId.get(d.driverId) ?? d.totalRides,
+    isOnline: onlineDriverIds.size > 0 ? onlineDriverIds.has(d.driverId) : undefined,
   }));
 
   // Approved drivers tab

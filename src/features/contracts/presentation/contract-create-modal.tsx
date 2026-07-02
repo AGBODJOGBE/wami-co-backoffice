@@ -6,12 +6,18 @@ import { Combobox } from "@/shared/ui/combobox";
 import { Input } from "@/shared/ui/input";
 import { Modal } from "@/shared/ui/modal";
 import { Select } from "@/shared/ui/select";
+import { Spinner } from "@/shared/ui/spinner";
 import { Textarea } from "@/shared/ui/textarea";
 import { toast } from "@/shared/ui/toast";
 import type { AdminDriver } from "@/features/drivers/domain/admin-driver";
-import type { VehicleSummary } from "@/features/vehicles/domain/vehicle";
+import {
+  VEHICLE_CATEGORY_LABELS,
+  VEHICLE_TYPE_LABELS,
+  type VehicleSummary,
+} from "@/features/vehicles/domain/vehicle";
 import { createContractAction } from "../application/actions";
 import {
+  formatXof,
   PAYMENT_FREQUENCY_OPTIONS,
   type CreateContractInput,
   type PaymentFrequency,
@@ -26,6 +32,7 @@ function defaultForm(): CreateContractInput {
     vehicleId: "",
     dateDebut: today,
     dureeMois: 24,
+    montantCaution: 0,
     frequenceEcheances: "MENSUEL",
     marginPct: 20,
     notes: "",
@@ -51,11 +58,30 @@ export function ContractCreateModal({
 }: ContractCreateModalProps) {
   const [form, setForm] = useState<CreateContractInput>(defaultForm());
   const [pending, start] = useTransition();
+  const [vehicleDetail, setVehicleDetail] = useState<VehicleSummary | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   // Reset on open
   useEffect(() => {
-    if (open) setForm(defaultForm());
+    if (open) {
+      setForm(defaultForm());
+      setVehicleDetail(null);
+    }
   }, [open]);
+
+  // Fetch vehicle detail when vehicleId changes
+  useEffect(() => {
+    if (!form.vehicleId) { setVehicleDetail(null); return; }
+    setLoadingDetail(true);
+    fetch(`/api/_proxy/vehicles/${form.vehicleId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        const data = json?.data ?? json;
+        setVehicleDetail(data as VehicleSummary);
+      })
+      .catch(() => setVehicleDetail(null))
+      .finally(() => setLoadingDetail(false));
+  }, [form.vehicleId]);
 
   function set<K extends keyof CreateContractInput>(
     key: K,
@@ -68,7 +94,7 @@ export function ContractCreateModal({
   const driverOptions = useMemo(
     () =>
       drivers
-        .filter((d) => !d.isApproved && !d.isVehicleOwner)
+        .filter((d) => !d.isApproved && !d.isVehicleOwner && d.status !== "SUSPENDED")
         .map((d) => ({
           value: d.driverId,
           label: `${d.firstName} ${d.lastName}`.trim() || d.driverId,
@@ -92,6 +118,7 @@ export function ContractCreateModal({
         (v) =>
           v.ownership === "PLATFORM" &&
           v.isVerified &&
+          v.status === "AVAILABLE" &&
           !v.assignedToDriverId,
       )
       .map((v) => ({
@@ -118,6 +145,26 @@ export function ContractCreateModal({
     return d.toLocaleDateString("fr-FR");
   }, [form.dateDebut, form.dureeMois]);
 
+  // ── Simulation financière ──────────────────────────────────────────────────
+  const simulation = useMemo(() => {
+    const purchasePrice = vehicleDetail?.purchasePrice;
+    const marginPct = form.marginPct ?? 20;
+    if (!purchasePrice || purchasePrice <= 0 || form.dureeMois < 1) return null;
+
+    const montantTotal = Math.round(purchasePrice * (1 + marginPct / 100));
+
+    const nbEcheances =
+      form.frequenceEcheances === "JOURNALIER"
+        ? form.dureeMois * 30
+        : form.frequenceEcheances === "HEBDOMADAIRE"
+          ? form.dureeMois * 4
+          : form.dureeMois;
+
+    const montantEcheance = Math.round(montantTotal / nbEcheances);
+
+    return { montantTotal, montantEcheance, nbEcheances };
+  }, [vehicleDetail?.purchasePrice, form.marginPct, form.dureeMois, form.frequenceEcheances]);
+
   // ── Validation & submit ───────────────────────────────────────────────────
   function submit() {
     if (!form.driverId) {
@@ -132,11 +179,18 @@ export function ContractCreateModal({
       toast({ kind: "error", title: "Durée invalide", description: "La durée doit être d'au moins 1 mois." });
       return;
     }
+    if (!form.montantCaution || form.montantCaution < 1) {
+      toast({ kind: "error", title: "Caution requise", description: "Le montant de la caution est obligatoire (min 1 FCFA)." });
+      return;
+    }
 
     start(async () => {
       const payload: CreateContractInput = {
         ...form,
-        notes: form.notes?.trim() || undefined,
+        dureeMois:      Math.floor(form.dureeMois) || 1,
+        montantCaution: Math.floor(form.montantCaution) || 0,
+        marginPct:      form.marginPct !== undefined ? (isNaN(form.marginPct) ? 20 : form.marginPct) : undefined,
+        notes:          form.notes?.trim() || undefined,
       };
       const r = await createContractAction(payload);
       if (r.ok) {
@@ -229,38 +283,81 @@ export function ContractCreateModal({
           {/* Vehicle info card */}
           {selectedVehicle ? (
             <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/40 px-4 py-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">
-                Informations du véhicule
-              </p>
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">
+                  Informations du véhicule
+                </p>
+                {loadingDetail && <Spinner size="sm" />}
+              </div>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
                 <div>
                   <dt className="text-xs text-[color:var(--muted-foreground)]">Marque</dt>
-                  <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.make}</dd>
+                  <dd className="font-medium">{selectedVehicle.make}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-[color:var(--muted-foreground)]">Modèle</dt>
-                  <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.model}</dd>
+                  <dd className="font-medium">{selectedVehicle.model}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-[color:var(--muted-foreground)]">Année</dt>
-                  <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.year}</dd>
+                  <dd className="font-medium">{selectedVehicle.year}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-[color:var(--muted-foreground)]">Immatriculation</dt>
-                  <dd className="font-mono font-medium text-[color:var(--foreground)]">
-                    {selectedVehicle.licensePlate}
-                  </dd>
+                  <dd className="font-mono font-medium">{selectedVehicle.licensePlate}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-[color:var(--muted-foreground)]">Type</dt>
-                  <dd className="font-medium text-[color:var(--foreground)]">{selectedVehicle.type}</dd>
+                  <dd className="font-medium">{VEHICLE_TYPE_LABELS[selectedVehicle.type] ?? selectedVehicle.type}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-[color:var(--muted-foreground)]">Catégorie</dt>
-                  <dd className="font-medium text-[color:var(--foreground)]">
-                    {selectedVehicle.category ?? "—"}
+                  <dd className="font-medium">
+                    {selectedVehicle.category ? VEHICLE_CATEGORY_LABELS[selectedVehicle.category] : "—"}
                   </dd>
                 </div>
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Couleur</dt>
+                  <dd className="font-medium">{selectedVehicle.color ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Sièges</dt>
+                  <dd className="font-medium">{selectedVehicle.seats ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Kilométrage</dt>
+                  <dd className="font-medium">
+                    {selectedVehicle.mileage != null
+                      ? `${selectedVehicle.mileage.toLocaleString("fr-FR")} km`
+                      : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Prochaine maint.</dt>
+                  <dd className="font-medium">
+                    {selectedVehicle.nextMaintenanceDate
+                      ? new Date(selectedVehicle.nextMaintenanceDate).toLocaleDateString("fr-FR")
+                      : "—"}
+                  </dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Prix d'achat</dt>
+                  <dd className="text-base font-bold text-[color:var(--foreground)]">
+                    {loadingDetail
+                      ? "…"
+                      : vehicleDetail?.purchasePrice != null
+                        ? formatXof(vehicleDetail.purchasePrice)
+                        : "—"}
+                  </dd>
+                </div>
+                {vehicleDetail?.currentValue != null && (
+                  <div className="col-span-2">
+                    <dt className="text-xs text-[color:var(--muted-foreground)]">Valeur actuelle</dt>
+                    <dd className="font-medium text-[color:var(--foreground)]">
+                      {formatXof(vehicleDetail.currentValue)}
+                    </dd>
+                  </div>
+                )}
               </dl>
             </div>
           ) : null}
@@ -299,14 +396,23 @@ export function ContractCreateModal({
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
+              label="Caution de garantie (FCFA) *"
+              type="number"
+              min={1}
+              value={form.montantCaution}
+              onChange={(e) => set("montantCaution", Math.floor(Number(e.target.value)) || 0)}
+              hint="Montant de la caution séparé du prix de vente."
+              required
+            />
+            <Input
               label="Marge (%)"
               type="number"
               min={0}
               max={200}
-              step={1}
+              step={0.01}
               value={form.marginPct ?? 20}
-              onChange={(e) => set("marginPct", Number(e.target.value))}
-              hint="Ex : 20 pour 20%. Le backend calcule montantTotal = prix_achat × (1 + marge/100)."
+              onChange={(e) => { const v = parseFloat(e.target.value); set("marginPct", isNaN(v) ? 0 : v); }}
+              hint="Ex : 12.5 pour 12,5%. montantTotal = prix_achat × (1 + marge/100)."
             />
             <Select
               label="Fréquence des échéances"
@@ -318,7 +424,46 @@ export function ContractCreateModal({
               }
             />
           </div>
+
+          {/* ── Simulation montant total ─────────────────────────────── */}
+          {simulation ? (
+            <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/40 px-4 py-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">
+                Simulation (estimation)
+              </p>
+              <dl className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Montant total</dt>
+                  <dd className="text-base font-bold text-[color:var(--foreground)]">
+                    {formatXof(simulation.montantTotal)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Par échéance</dt>
+                  <dd className="text-base font-bold text-[color:var(--foreground)]">
+                    {formatXof(simulation.montantEcheance)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[color:var(--muted-foreground)]">Nb. échéances</dt>
+                  <dd className="text-base font-bold text-[color:var(--foreground)]">
+                    {simulation.nbEcheances}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          ) : vehicleDetail && !vehicleDetail.purchasePrice ? (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-600/40 dark:bg-amber-500/10">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
+                ⚠ Prix d'achat manquant
+              </p>
+              <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-500">
+                Ce véhicule n'a pas de prix d'achat défini. La création du contrat échouera.
+              </p>
+            </div>
+          ) : null}
         </div>
+
 
         {/* ── Notes ──────────────────────────────────────────────────────── */}
         <div className="flex flex-col gap-3">

@@ -79,6 +79,7 @@ export interface SidebarProps {
   onClose: () => void;
   adminRoleName?: string;
   adminPermissions?: readonly string[];
+  pendingDriversCount?: number;
 }
 
 export function Sidebar({
@@ -86,6 +87,7 @@ export function Sidebar({
   onClose,
   adminRoleName = "",
   adminPermissions = [],
+  pendingDriversCount = 0,
 }: SidebarProps) {
   const pathname = usePathname();
   const ctx = { roleName: adminRoleName, permissions: adminPermissions };
@@ -232,6 +234,11 @@ export function Sidebar({
                                 child={child}
                                 isActive={child.href === activeHref}
                                 onClick={onClose}
+                                badge={
+                                  child.href === "/vtc/drivers" && pendingDriversCount > 0
+                                    ? pendingDriversCount
+                                    : undefined
+                                }
                               />
                             ))}
                           </ul>
@@ -307,10 +314,12 @@ function SidebarLeafLink({
   child,
   isActive,
   onClick,
+  badge,
 }: {
   child: NavLeaf;
   isActive: boolean;
   onClick: () => void;
+  badge?: number;
 }) {
   const active = isActive;
   const LeafIcon = child.icon;
@@ -334,8 +343,14 @@ function SidebarLeafLink({
             )}
           />
         ) : null}
-        <span>{child.label}</span>
-        <StatusDot source={child.dataSource} />
+        <span className="flex-1">{child.label}</span>
+        {badge !== undefined ? (
+          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-none text-white">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        ) : (
+          <StatusDot source={child.dataSource} />
+        )}
       </Link>
     </li>
   );

@@ -87,14 +87,18 @@ export interface Contract {
   dateDebut: string;
   dateFin?: string | null;
   dureeMois: number;
+  prixAchat?: number;
   montantTotal: number;
   apport: number;
   tauxInteret: number;
   frequencePaiement: PaymentFrequency;
   montantMensuel?: number;
+  montantPaye?: number;
   montantRestant?: number;
   echeancesTotal?: number;
   echeancesPayees?: number;
+  montantCaution?: number;
+  cautionRestituee?: boolean;
   createdAt: string;
   updatedAt: string;
   breakReason?: string | null;
@@ -193,6 +197,8 @@ export interface CreateContractInput {
   vehicleId: string;
   dateDebut: string;
   dureeMois: number;
+  /** Caution de garantie en XOF — obligatoire */
+  montantCaution: number;
   /** Défaut backend : MENSUEL */
   frequenceEcheances?: PaymentFrequency;
   /** Marge en % (ex: 20 pour 20%). Backend calcule montantTotal = purchasePrice * (1 + marginPct/100) */

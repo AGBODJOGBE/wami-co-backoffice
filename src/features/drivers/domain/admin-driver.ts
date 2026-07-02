@@ -75,6 +75,13 @@ export interface AdminDriver {
   isDocumentsVerified?: boolean;
   vehicle?: DriverVehicleSummary | null;
   createdAt: string;
+  /**
+   * Enrichi côté serveur en croisant GET /api/admin/drivers/online.
+   * true = app ouverte + GPS actif en ce moment.
+   * undefined = données online non disponibles (fallback gracieux).
+   * Réversible : supprimer l'enrichissement dans page.tsx suffit à revenir en arrière.
+   */
+  isOnline?: boolean;
 }
 
 export interface AdminDriversResult {

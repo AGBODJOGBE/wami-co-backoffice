@@ -86,16 +86,19 @@ export function AdminDriversListClient({
   }, [drivers, search, statusF, catF]);
 
   const stats = useMemo(() => {
-    const online = drivers.filter(
-      (d) => d.status === "AVAILABLE" || d.status === "ONLINE" || d.status === "BUSY",
-    ).length;
+    // isOnline = app ouverte + GPS (source: /online). Si undefined → données non dispo.
+    const hasOnlineData = drivers.some((d) => d.isOnline !== undefined);
+    const online = hasOnlineData
+      ? drivers.filter((d) => d.isOnline === true).length
+      : drivers.filter((d) => d.status === "AVAILABLE" || d.status === "ONLINE" || d.status === "BUSY").length;
+    const available = drivers.filter((d) => d.status === "AVAILABLE").length;
     const busy = drivers.filter((d) => d.status === "BUSY").length;
     const suspended = drivers.filter((d) => d.status === "SUSPENDED").length;
     const avgRating =
       drivers.length > 0
         ? drivers.reduce((s, d) => s + (d.rating ?? 0), 0) / drivers.length
         : 0;
-    return { online, busy, suspended, avgRating };
+    return { online, available, busy, suspended, avgRating, hasOnlineData };
   }, [drivers]);
 
   const columns: ColumnDef<AdminDriver>[] = [
@@ -126,7 +129,17 @@ export function AdminDriversListClient({
           label: r.status,
           tone: "neutral" as const,
         };
-        return <Badge tone={m.tone}>{m.label}</Badge>;
+        return (
+          <div className="flex flex-col gap-1">
+            <Badge tone={m.tone}>{m.label}</Badge>
+            {r.isOnline !== undefined && (
+              <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${r.isOnline ? "text-emerald-600 dark:text-emerald-400" : "text-[color:var(--muted-foreground)]"}`}>
+                <span className={`size-1.5 rounded-full ${r.isOnline ? "bg-emerald-500" : "bg-gray-400"}`} />
+                {r.isOnline ? "Connecté" : "Hors connexion"}
+              </span>
+            )}
+          </div>
+        );
       },
     },
     {
@@ -256,10 +269,10 @@ export function AdminDriversListClient({
     <div className="flex flex-col gap-6">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Drivers actifs"
+          label={stats.hasOnlineData ? "Connectés (temps réel)" : "Drivers actifs"}
           value={String(stats.online)}
-          trend={{ value: `${stats.busy} en course`, direction: "flat" }}
-          helper={`${drivers.length} au total`}
+          trend={{ value: `${stats.available} statut AVAILABLE`, direction: "flat" }}
+          helper={stats.hasOnlineData ? "app ouverte + GPS actif" : `${drivers.length} au total`}
           icon={Bike}
           tone="success"
         />

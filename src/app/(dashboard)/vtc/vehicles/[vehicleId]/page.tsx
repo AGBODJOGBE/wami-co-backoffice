@@ -40,19 +40,17 @@ export default async function VtcVehicleDetailPage({
     );
   }
 
-  // Fan-out: vehicle documents + assigned driver info.
+  // Fan-out: vehicle documents + all drivers (for assign combobox + assigned driver info).
   const [docsRes, driversRes] = await Promise.allSettled([
     listDocumentsByOwner(vehicleId, "VEHICLE"),
-    vehicle.assignedToDriverId ? listAdminDrivers() : Promise.resolve(null),
+    listAdminDrivers(),
   ]);
 
+  const allDrivers = driversRes.status === "fulfilled" ? driversRes.value.drivers : [];
+
   let assignedDriver: AdminDriver | undefined;
-  if (
-    vehicle.assignedToDriverId &&
-    driversRes.status === "fulfilled" &&
-    driversRes.value
-  ) {
-    assignedDriver = driversRes.value.drivers.find(
+  if (vehicle.assignedToDriverId) {
+    assignedDriver = allDrivers.find(
       (d) => d.driverId === vehicle.assignedToDriverId,
     );
   }
@@ -92,6 +90,7 @@ export default async function VtcVehicleDetailPage({
       documents={documents}
       documentsError={documentsError}
       assignedDriver={assignedDriver}
+      drivers={allDrivers}
       adminProfiles={adminProfiles}
       connectedAdminId={me?.userId}
     />

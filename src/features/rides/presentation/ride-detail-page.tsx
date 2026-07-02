@@ -57,8 +57,10 @@ export function RideDetailPage({ rideId }: { rideId: string }) {
 
   const meta = RIDE_STATUS_META[ride.status];
   const finalPrice = ride.finalPrice ?? ride.estimatedPrice;
-  const driverEarnings = Math.round(finalPrice * 0.82);
-  const platformFee = finalPrice - driverEarnings;
+  // Commission plateforme : 17% — chauffeur reçoit 83%
+  const PLATFORM_COMMISSION_PCT = 0.17;
+  const platformFee = Math.round(finalPrice * PLATFORM_COMMISSION_PCT);
+  const driverEarnings = finalPrice - platformFee;
 
   return (
     <div className="flex flex-col gap-6">

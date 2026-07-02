@@ -144,7 +144,7 @@ export function AdminRidesListClient({
     ).length;
     const totalRevenue = rides
       .filter((r) => COMPLETED_STATUSES.includes(r.status))
-      .reduce((s, r) => s + (r.finalPrice || r.estimatedPrice || 0), 0);
+      .reduce((s, r) => s + (r.pricing?.finalPrice || r.pricing?.estimatedPrice || 0), 0);
     const cancelRate =
       rides.length > 0 ? (cancelled / rides.length) * 100 : 0;
     const avgFinal =
@@ -152,7 +152,7 @@ export function AdminRidesListClient({
         ? rides
             .filter((r) => COMPLETED_STATUSES.includes(r.status))
             .reduce(
-              (s, r) => s + (r.finalPrice || r.estimatedPrice || 0),
+              (s, r) => s + (r.pricing?.finalPrice || r.pricing?.estimatedPrice || 0),
               0,
             ) / completed
         : 0;
@@ -239,19 +239,30 @@ export function AdminRidesListClient({
       key: "price",
       header: "Prix",
       align: "right",
-      sortAccessor: (r) => r.finalPrice || r.estimatedPrice,
-      render: (r) => (
-        <div className="flex flex-col items-end leading-tight">
-          <span className="text-sm font-semibold">
-            {formatXof(r.finalPrice || r.estimatedPrice)}
-          </span>
-          {r.finalPrice && r.estimatedPrice && r.finalPrice !== r.estimatedPrice ? (
-            <span className="text-[10px] text-[color:var(--muted-foreground)]">
-              est. {formatXof(r.estimatedPrice)}
+      sortAccessor: (r) => r.pricing?.finalPrice ?? r.pricing?.estimatedPrice ?? 0,
+      render: (r) => {
+        const final = r.pricing?.finalPrice;
+        const estimated = r.pricing?.estimatedPrice;
+        const display = final ?? estimated;
+        const surge = r.pricing?.surgeMultiplier ?? 1;
+        return (
+          <div className="flex flex-col items-end leading-tight">
+            <span className="text-sm font-semibold">
+              {display != null && !isNaN(display) ? formatXof(display) : "—"}
             </span>
-          ) : null}
-        </div>
-      ),
+            {final != null && estimated != null && final !== estimated ? (
+              <span className="text-[10px] text-[color:var(--muted-foreground)]">
+                est. {formatXof(estimated)}
+              </span>
+            ) : null}
+            {surge > 1 ? (
+              <span className="text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                Surge ×{surge}
+              </span>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       key: "createdAt",
@@ -339,8 +350,8 @@ export function AdminRidesListClient({
                     { key: "passengerPhone", header: "Tél passager", value: (r) => r.passenger?.phoneNumber ?? "" },
                     { key: "driver", header: "Driver", value: (r) => fullParty(r.driver) },
                     { key: "driverPhone", header: "Tél driver", value: (r) => r.driver?.phoneNumber ?? "" },
-                    { key: "estimated", header: "Estimé", value: (r) => r.estimatedPrice },
-                    { key: "final", header: "Final", value: (r) => r.finalPrice },
+                    { key: "estimated", header: "Estimé", value: (r) => r.pricing?.estimatedPrice ?? "" },
+                    { key: "final", header: "Final", value: (r) => r.pricing?.finalPrice ?? "" },
                     { key: "createdAt", header: "Créée", value: (r) => r.createdAt },
                     { key: "completedAt", header: "Terminée", value: (r) => r.completedAt ?? "" },
                   ],

@@ -9,6 +9,7 @@ import {
   CreditCard,
   FileText,
   Gauge,
+  Gift,
   LayoutDashboard,
   ListChecks,
   Megaphone,
@@ -20,7 +21,9 @@ import {
   Tag,
   TrendingUp,
   UserCheck,
+  UserPlus,
   Users,
+  Wallet,
 } from "lucide-react";
 import type { DataSource } from "@/shared/ui/data-source-badge";
 
@@ -209,6 +212,36 @@ export const navSections: NavSection[] = [
         dataSource: "live",
       },
       {
+        label: "Parrainage",
+        icon: Gift,
+        children: [
+          {
+            href: "/referrals",
+            label: "Tous les parrainages",
+            icon: Users,
+            dataSource: "live",
+          },
+          {
+            href: "/referrals/parrains",
+            label: "Parrains",
+            icon: UserCheck,
+            dataSource: "live",
+          },
+          {
+            href: "/referrals/filleuls",
+            label: "Filleuls",
+            icon: UserPlus,
+            dataSource: "live",
+          },
+          {
+            href: "/referrals/config",
+            label: "Configuration",
+            icon: Settings,
+            dataSource: "live",
+          },
+        ],
+      },
+      {
         href: "/notifications",
         label: "Notifications push",
         icon: Megaphone,
@@ -226,10 +259,22 @@ export const navSections: NavSection[] = [
         dataSource: "live",
       },
       {
-        href: "/wallet",
         label: "Wallet & transactions",
         icon: CreditCard,
-        dataSource: "mock",
+        children: [
+          {
+            href: "/wallet",
+            label: "Wallets",
+            icon: Wallet,
+            dataSource: "live",
+          },
+          {
+            href: "/wallet/transactions",
+            label: "Transactions",
+            icon: TrendingUp,
+            dataSource: "live",
+          },
+        ],
       },
     ],
   },

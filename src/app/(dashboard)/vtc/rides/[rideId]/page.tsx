@@ -14,7 +14,10 @@ export default async function VtcRideDetailPage({
 
   try {
     const ride = await getAdminRide(rideId);
-    return <RideDetailClient ride={ride} />;
+
+    return (
+      <RideDetailClient ride={ride} />
+    );
   } catch (error) {
     const message =
       error instanceof ApiError

@@ -48,11 +48,17 @@ import {
   VehicleCreateModal,
   VehicleEditModal,
   VehicleMaintenanceCompleteModal,
+  VehicleMaintenanceStartModal,
   VehicleRejectModal,
   VehicleSimpleConfirm,
   VehicleVerifyModal,
   type SimpleConfirmKind,
 } from "./vehicle-modals";
+import {
+  VehicleBulkCreateModal,
+  TVS_TRICYCLE_CONFIG,
+  TVS_CAR_CONFIG,
+} from "./vehicle-bulk-create-modal";
 
 const STATUS_OPTIONS = [
   { value: "ALL", label: "Tous statuts" },
@@ -108,15 +114,15 @@ function insuranceBadge(iso: string | null | undefined) {
 export interface VehiclesListClientProps {
   vehicles: VehicleSummary[];
   total: number;
-  /** Map driverId → "Firstname Lastname" for inline display in the
-   * "Driver" column. Filled server-side from GET /api/admin/drivers. */
   driverNames?: Record<string, string>;
+  drivers?: import("@/features/drivers/domain/admin-driver").AdminDriver[];
 }
 
 export function VehiclesListClient({
   vehicles,
   total,
   driverNames = {},
+  drivers = [],
 }: VehiclesListClientProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
@@ -129,6 +135,8 @@ export function VehiclesListClient({
   const [verified, setVerified] = useState("ALL");
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [bulkTricycleOpen, setBulkTricycleOpen] = useState(false);
+  const [bulkCarOpen, setBulkCarOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<VehicleSummary | null>(null);
   const [verifyTarget, setVerifyTarget] = useState<VehicleSummary | null>(null);
   const [rejectTarget, setRejectTarget] = useState<VehicleSummary | null>(null);
@@ -139,6 +147,7 @@ export function VehiclesListClient({
   const [completeTarget, setCompleteTarget] = useState<VehicleSummary | null>(
     null,
   );
+  const [maintenanceStartTarget, setMaintenanceStartTarget] = useState<VehicleSummary | null>(null);
   const [confirm, setConfirm] = useState<{
     kind: SimpleConfirmKind | null;
     vehicle: VehicleSummary | null;
@@ -347,11 +356,11 @@ export function VehiclesListClient({
         });
       }
     }
-    if (row.status === "AVAILABLE") {
+    if (row.ownership === "PLATFORM" && row.status === "AVAILABLE" && !row.assignedToDriverId) {
       items.push({
         label: "Mettre en maintenance",
         icon: Wrench,
-        onSelect: () => setConfirm({ kind: "startMaintenance", vehicle: row }),
+        onSelect: () => setMaintenanceStartTarget(row),
       });
     }
     if (row.status === "MAINTENANCE") {
@@ -447,7 +456,7 @@ export function VehiclesListClient({
               <Download className="size-4" />
               Export CSV
             </Button>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
+<Button size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="size-4" />
               Nouveau véhicule
             </Button>
@@ -546,6 +555,16 @@ export function VehiclesListClient({
         open={createOpen}
         onClose={() => setCreateOpen(false)}
       />
+      <VehicleBulkCreateModal
+        open={bulkTricycleOpen}
+        onClose={() => setBulkTricycleOpen(false)}
+        config={TVS_TRICYCLE_CONFIG}
+      />
+      <VehicleBulkCreateModal
+        open={bulkCarOpen}
+        onClose={() => setBulkCarOpen(false)}
+        config={TVS_CAR_CONFIG}
+      />
       <VehicleEditModal
         open={!!editTarget}
         vehicle={editTarget}
@@ -564,12 +583,18 @@ export function VehiclesListClient({
       <VehicleAssignModal
         open={!!assignTarget}
         vehicle={assignTarget}
+        drivers={drivers}
         onClose={() => setAssignTarget(null)}
       />
       <VehicleCategoryModal
         open={!!categoryTarget}
         vehicle={categoryTarget}
         onClose={() => setCategoryTarget(null)}
+      />
+      <VehicleMaintenanceStartModal
+        open={!!maintenanceStartTarget}
+        vehicle={maintenanceStartTarget}
+        onClose={() => setMaintenanceStartTarget(null)}
       />
       <VehicleMaintenanceCompleteModal
         open={!!completeTarget}

@@ -35,13 +35,15 @@ import {
   type WalletCreditType,
   type WalletDebitType,
 } from "./application/actions";
-import type { AdminWallet } from "./domain/wallet";
+import type { AdminWallet, Withdrawal } from "./domain/wallet";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface WalletLivePageProps {
   wallets: AdminWallet[];
   rides: AdminRide[];
+  withdrawals?: Withdrawal[];
+  withdrawalsTotal?: number;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -891,7 +893,12 @@ function DebitWalletModal({
 
 // ─── Page principale ──────────────────────────────────────────────────────────
 
-export function WalletLivePage({ wallets, rides }: WalletLivePageProps) {
+export function WalletLivePage({
+  wallets,
+  rides,
+  withdrawals = [],
+  withdrawalsTotal = 0,
+}: WalletLivePageProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [creditOpen, setCreditOpen] = useState(false);
@@ -1009,19 +1016,80 @@ export function WalletLivePage({ wallets, rides }: WalletLivePageProps) {
           {
             value: "withdrawals",
             label: "Retraits",
-            badge: undefined,
-            content: (
-              <Card className="flex flex-col items-center justify-center gap-3 p-12 text-center">
-                <Banknote className="size-10 opacity-30" />
-                <p className="text-sm font-medium text-[color:var(--foreground)]">
-                  Aucun retrait en attente
-                </p>
-                <p className="max-w-sm text-xs text-[color:var(--muted-foreground)]">
-                  L&apos;endpoint de gestion des retraits n&apos;est pas encore disponible côté backend.
-                  Les retraits apparaîtront ici dès qu&apos;il sera activé.
-                </p>
-              </Card>
-            ),
+            badge:
+              withdrawalsTotal > 0
+                ? { count: withdrawalsTotal, tone: "warning" as const }
+                : undefined,
+            content:
+              withdrawals.length === 0 ? (
+                <Card className="flex flex-col items-center justify-center gap-3 p-12 text-center">
+                  <Banknote className="size-10 opacity-30" />
+                  <p className="text-sm font-medium text-[color:var(--foreground)]">
+                    Aucun retrait en cours
+                  </p>
+                  <p className="max-w-sm text-xs text-[color:var(--muted-foreground)]">
+                    Les demandes de retrait des chauffeurs et passagers apparaîtront ici.
+                  </p>
+                </Card>
+              ) : (
+                <Card className="overflow-hidden p-0">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-y border-[color:var(--border)] text-left text-xs uppercase tracking-wide text-[color:var(--muted-foreground)]">
+                        <th className="px-5 py-2.5 font-medium">Propriétaire</th>
+                        <th className="px-5 py-2.5 text-right font-medium">Montant</th>
+                        <th className="px-5 py-2.5 font-medium">Statut</th>
+                        <th className="px-5 py-2.5 font-medium">Demandé le</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[color:var(--border)]">
+                      {withdrawals.map((w) => (
+                        <tr key={w.withdrawalId}>
+                          <td className="px-5 py-3">
+                            <div className="flex flex-col leading-tight">
+                              <span className="text-sm text-[color:var(--foreground)]">
+                                {w.ownerName || "—"}
+                              </span>
+                              {w.ownerPhone ? (
+                                <span className="font-mono text-[10px] text-[color:var(--muted-foreground)]">
+                                  {w.ownerPhone}
+                                </span>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="px-5 py-3 text-right font-mono font-medium text-[color:var(--foreground)]">
+                            {formatXof(w.amount)}
+                          </td>
+                          <td className="px-5 py-3">
+                            <Badge
+                              tone={
+                                w.status === "COMPLETED"
+                                  ? "success"
+                                  : w.status === "APPROVED"
+                                    ? "info"
+                                    : w.status === "REJECTED"
+                                      ? "danger"
+                                      : "warning"
+                              }
+                            >
+                              {w.status === "PENDING"
+                                ? "En attente"
+                                : w.status === "APPROVED"
+                                  ? "Approuvé"
+                                  : w.status === "REJECTED"
+                                    ? "Rejeté"
+                                    : "Complété"}
+                            </Badge>
+                          </td>
+                          <td className="px-5 py-3 text-xs text-[color:var(--muted-foreground)]">
+                            {formatDate(w.requestedAt)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Card>
+              ),
           },
           {
             value: "reconciliation",

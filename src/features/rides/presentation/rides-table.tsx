@@ -132,23 +132,27 @@ export function RidesTable({ rows, total }: RidesTableProps) {
       key: "price",
       header: "Prix",
       align: "right",
-      sortAccessor: (row) => row.finalPrice ?? row.estimatedPrice,
+      sortAccessor: (row) => row.pricing?.finalPrice ?? row.pricing?.estimatedPrice ?? 0,
       filter: {
-        accessor: (row) => row.finalPrice ?? row.estimatedPrice,
+        accessor: (row) => row.pricing?.finalPrice ?? row.pricing?.estimatedPrice ?? 0,
         def: { kind: "number", unit: "FCFA" },
       },
-      render: (row) => (
+      render: (row) => {
+        const price = row.pricing?.finalPrice ?? row.pricing?.estimatedPrice;
+        const surge = row.pricing?.surgeMultiplier ?? 1;
+        return (
         <div className="flex flex-col items-end leading-tight">
           <span className="font-mono text-sm text-[color:var(--foreground)]">
-            {formatXof(row.finalPrice ?? row.estimatedPrice)}
+            {price != null && !isNaN(price) ? formatXof(price) : "—"}
           </span>
-          {row.surgeMultiplier > 1 ? (
+          {surge > 1 ? (
             <span className="text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
-              Surge ×{row.surgeMultiplier}
+              Surge ×{surge}
             </span>
           ) : null}
         </div>
-      ),
+        );
+      },
     },
     {
       key: "status",

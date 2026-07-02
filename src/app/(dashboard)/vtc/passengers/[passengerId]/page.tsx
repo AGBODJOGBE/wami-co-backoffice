@@ -35,14 +35,21 @@ export default async function VtcPassengerDetailPage({
     ? rides.filter((r) => r.passenger?.phoneNumber === passenger.phone)
     : [];
 
-  // Find the passenger's PAYMENT wallet via profileId from a matching ride
-  const profileId = passengerRides[0]?.passenger?.passengerId ?? null;
-  const passengerWallet =
-    profileId
-      ? (wallets.find(
-          (w) => w.profileId === profileId && w.walletType === "PAYMENT",
-        ) ?? null)
-      : null;
+  // Wallet lookup: ownerPhone est le seul champ commun fiable car
+  // wallet.profileId = passengerId ≠ userId retourné par /api/admin/users
+  const passengerWallet = passenger
+    ? (wallets.find(
+        (w) => w.ownerPhone === passenger.phone && w.walletType === "PAYMENT",
+      ) ??
+      // Fallback: profileId depuis la première course si le phone ne matche pas
+      (passengerRides[0]?.passenger?.passengerId
+        ? wallets.find(
+            (w) =>
+              w.profileId === passengerRides[0]?.passenger?.passengerId &&
+              w.walletType === "PAYMENT",
+          ) ?? null
+        : null))
+    : null;
 
   return (
     <PassengerDetailPage

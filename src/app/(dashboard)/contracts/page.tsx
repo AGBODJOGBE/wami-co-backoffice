@@ -11,7 +11,7 @@ export default async function ContractsRoute() {
       listContracts({ limit: 100 }),
       listAdminDrivers(),
       listPendingDrivers(),
-      listVehicles({ ownership: "PLATFORM", limit: 200 }),
+      listVehicles({ ownership: "PLATFORM", status: "AVAILABLE", isVerified: true }),
       getContractKpis(),
     ]);
 

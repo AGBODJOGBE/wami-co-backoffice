@@ -24,6 +24,43 @@ export interface RidePartyRef {
   firstName: string;
   lastName: string;
   phoneNumber: string;
+  photo?: string | null;
+  rating?: number;
+  totalRides?: number;
+}
+
+export interface RideVehicleRef {
+  vehicleId: string;
+  make: string;
+  model: string;
+  color: string;
+  licensePlate: string;
+  type: string;
+  category: string | null;
+}
+
+export interface RideLocation {
+  latitude: number;
+  longitude: number;
+  address: string | null;
+}
+
+export interface RidePricing {
+  estimatedPrice: number;
+  finalPrice: number | null;
+  baseFare: number;
+  surgeMultiplier: number;
+  driverShareRate: number;
+  commissionRate: number;
+  waitingFee: number;
+  pauseFee: number | null;
+  driverEarnings: number | null;
+  platformCommission: number | null;
+  discountAmount: number | null;
+  promoCodeId: string | null;
+  walletAmountPaid: number | null;
+  cashAmountPaid: number | null;
+  cancellationFee: number;
 }
 
 export interface AdminRide {
@@ -31,21 +68,128 @@ export interface AdminRide {
   rideNumber: string;
   status: RideStatus | string;
   rideType: string;
+  pricingType?: string;
   vehicleType: string;
   paymentMethod: string;
   passenger?: RidePartyRef | null;
   driver?: RidePartyRef | null;
-  estimatedPrice: number;
-  finalPrice: number;
+  vehicle?: RideVehicleRef | null;
+  pickup?: RideLocation;
+  dropoff?: RideLocation;
+  pricing: RidePricing;
+  distance?: { estimatedMeters: number; actualMeters: number | null };
+  duration?: { estimatedSeconds: number; actualSeconds: number | null };
+  dispute?: { isDisputed: boolean; reason: string | null };
+  cancelledBy?: string | null;
+  cancellationReason?: string | null;
   scheduledAt?: string | null;
+  arrivedAt?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
+  cancelledAt?: string | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface AdminRidesResult {
   rides: AdminRide[];
   total: number;
+  page?: number;
+  limit?: number;
+}
+
+/** Full enriched ride returned by GET /api/admin/rides/:rideId (GetRideUseCase). */
+export interface RideDetail {
+  rideId: string;
+  rideNumber: string;
+  status: RideStatus | string;
+  rideType: string;
+  vehicleType: string;
+  paymentMethod: string;
+
+  passenger: {
+    passengerId: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber: string;
+    photoUrl: string | null;
+  };
+
+  driver: {
+    driverId: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber: string;
+    photoUrl: string | null;
+    rating: number;
+    totalRides: number;
+  } | null;
+
+  vehicle: {
+    vehicleId: string;
+    make: string;
+    model: string;
+    color: string;
+    licensePlate: string;
+    type: string;
+    category: string | null;
+  } | null;
+
+  pickup: { latitude: number; longitude: number; address: string | null };
+  dropoff: { latitude: number; longitude: number; address: string | null };
+
+  estimatedPrice: number;
+  finalPrice: number | null;
+  driverEarnings?: number | null;
+  surgeMultiplier: number;
+  discountAmount: number | null;
+
+  estimatedDistanceKm: number;
+  estimatedDurationMin: number;
+  actualDistanceMeters: number | null;
+  actualDurationSeconds: number | null;
+  actualPickup: { latitude: number; longitude: number } | null;
+  actualDropoff: { latitude: number; longitude: number } | null;
+  driverLocationEnRoute: { lat: number; lng: number } | null;
+
+  scheduledAt: string | null;
+  arrivedAt: string | null;
+  startedAt: string | null;
+  pausedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+
+  waitingDurationSeconds: number;
+  freeWaitingMinutes: number;
+  waitingFeeFcfa: number;
+
+  totalPausedSeconds: number;
+  pausesCount: number;
+  pauseHistory: Array<{
+    startedAt: string;
+    endedAt: string | null;
+    durationSeconds: number | null;
+  }>;
+  pauseFeeFcfa: number;
+
+  noShowMinutes: number | null;
+  noShowFee: number | null;
+
+  promoCodeId: string | null;
+  platformCommission: number | null;
+  walletAmountPaid: number | null;
+  cashAmountPaid: number | null;
+
+  cancelledBy: "PASSENGER" | "DRIVER" | "SYSTEM" | null;
+  cancelReason: string | null;
+  cancellationFeeAmount: number;
+
+  passengerRating: number | null;
+  driverRating: number | null;
+  passengerComment: string | null;
+  driverComment: string | null;
+  isFirstRideForPassenger: boolean;
 }
 
 export interface AdminRidesQuery {
@@ -53,6 +197,8 @@ export interface AdminRidesQuery {
   vehicleType?: string;
   fromDate?: string;
   toDate?: string;
+  page?: number;
+  limit?: number;
 }
 
 export const RIDE_STATUS_META: Record<

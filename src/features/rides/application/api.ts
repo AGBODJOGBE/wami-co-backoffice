@@ -6,6 +6,7 @@ import type {
   AdminRide,
   AdminRidesQuery,
   AdminRidesResult,
+  RideDetail,
 } from "../domain/admin-ride";
 
 /** GET /api/admin/rides — tolerates array, {rides,total}, {data} */
@@ -55,17 +56,15 @@ export async function listRidesByDriver(
 }
 
 /**
- * Single-ride lookup. The swagger doesn't expose GET /api/admin/rides/{id}
- * so we do a list-then-find — same trick we already use elsewhere.
- * Throws when the ride isn't in the list.
+ * Full enriched ride detail — GET /api/admin/rides/:rideId (GetRideUseCase).
+ * Returns the flat RideDetail shape with driver, vehicle, GPS, financials, etc.
  */
-export async function getAdminRide(rideId: string): Promise<AdminRide> {
-  const { rides } = await listAdminRides();
-  const ride = rides.find((r) => r.rideId === rideId);
-  if (!ride) {
-    throw new Error(
-      `Course introuvable : ${rideId}. Elle a peut-être été archivée.`,
-    );
+export async function getAdminRide(rideId: string): Promise<RideDetail> {
+  const raw = await apiFetch<unknown>(API_ROUTES.adminRides.detail(rideId));
+  if (raw && typeof raw === "object") {
+    const obj = raw as Record<string, unknown>;
+    if (obj.data) return obj.data as RideDetail;
+    return raw as RideDetail;
   }
-  return ride;
+  throw new Error(`Course introuvable : ${rideId}`);
 }

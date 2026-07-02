@@ -105,7 +105,7 @@ export function RecentRidesTable({
                       {ride.paymentMethod}
                     </td>
                     <td className="px-5 py-3 text-right font-mono text-[color:var(--foreground)]">
-                      {formatXof(ride.finalPrice || ride.estimatedPrice)}
+                      {(() => { const p = ride.pricing?.finalPrice ?? ride.pricing?.estimatedPrice; return p != null && !isNaN(p) ? formatXof(p) : "—"; })()}
                     </td>
                     <td className="px-5 py-3">
                       <Badge tone={meta.tone}>{meta.label}</Badge>

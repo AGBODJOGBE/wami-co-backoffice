@@ -11,6 +11,7 @@ export interface DashboardShellProps {
   adminRole: string;
   adminRoleName: string;
   adminPermissions: readonly string[];
+  pendingDriversCount?: number;
 }
 
 export function DashboardShell({
@@ -19,6 +20,7 @@ export function DashboardShell({
   adminRole,
   adminRoleName,
   adminPermissions,
+  pendingDriversCount = 0,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -32,6 +34,7 @@ export function DashboardShell({
         onClose={() => setSidebarOpen(false)}
         adminRoleName={adminRoleName}
         adminPermissions={adminPermissions}
+        pendingDriversCount={pendingDriversCount}
       />
       <div className="flex min-h-dvh flex-col lg:pl-72">
         <Topbar

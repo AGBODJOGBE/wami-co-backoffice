@@ -125,6 +125,8 @@ export const API_ROUTES = {
   adminRides: {
     /** GET — list every ride (filters: status, vehicleType, fromDate, toDate). */
     list: () => "/api/admin/rides",
+    /** GET — full enriched ride detail (driver, vehicle, GPS, financials…). */
+    detail: (rideId: string) => `/api/admin/rides/${rideId}`,
     /** PATCH — admin force a status transition (body: { status, reason }). */
     forceStatus: (rideId: string) => `/api/admin/rides/${rideId}/status`,
   },
@@ -159,7 +161,7 @@ export const API_ROUTES = {
 
   // ─── Admin: wallets ────────────────────────────────────────────────────────
   adminWallets: {
-    /** GET — list every wallet (filters not yet documented). */
+    /** GET — list every wallet. Query: walletType, status, page, limit. */
     list: () => "/api/admin/wallets",
     /** GET — full wallet detail (balance + metadata + owner). */
     detail: (walletId: string) => `/api/admin/wallets/${walletId}`,
@@ -167,13 +169,18 @@ export const API_ROUTES = {
     credit: (walletId: string) => `/api/wallets/${walletId}/credit`,
     /** POST — manually debit a wallet (admin only). Body: { balanceType, amount, type, description }. */
     debit: (walletId: string) => `/api/wallets/${walletId}/debit`,
+    /** GET — list withdrawal requests. Query: page, limit. */
+    withdrawals: () => "/api/admin/withdrawals",
+    /** GET — list all transactions (admin). Query: type, walletType, direction, page, limit. */
+    transactions: () => "/api/admin/transactions",
   },
 
   // ─── Admin: payments ───────────────────────────────────────────────────────
-  adminPayments: {
-    /** GET — list payment intents (admin observability). */
-    intents: () => "/api/admin/payments/intents",
-  },
+  // adminPayments.intents → GET /api/admin/payments/intents — ❌ 500 côté backend,
+  // permission non configurée. Ne pas utiliser tant que le backend n'est pas corrigé.
+  // adminPayments: {
+  //   intents: () => "/api/admin/payments/intents",
+  // },
 
   // ─── Vehicles ──────────────────────────────────────────────────────────────
   vehicles: {
@@ -250,6 +257,36 @@ export const API_ROUTES = {
     /** POST — débloquer manuellement un chauffeur suspendu pour impayés */
     unblockDriver: (driverId: string) =>
       `/api/admin/contracts/drivers/${driverId}/unblock`,
+  },
+
+  // ─── Admin: parrainage ────────────────────────────────────────────────────
+  adminReferrals: {
+    /** GET — stats globales du programme. */
+    stats: () => "/api/admin/referrals/stats",
+    /** GET — liste tous les parrainages. Query: status, referralType, dateFrom, dateTo, page, limit. */
+    list: () => "/api/admin/referrals",
+    /** GET — liste des filleuls (referred). */
+    filleuls: () => "/api/admin/referrals/filleuls",
+    /** GET — liste des parrains (referrers). */
+    parrains: () => "/api/admin/referrals/parrains",
+    /** POST — valider manuellement un parrainage. */
+    validate: (referralId: string) => `/api/admin/referrals/${referralId}/validate`,
+    /** POST — expirer manuellement un parrainage. */
+    expire: (referralId: string) => `/api/admin/referrals/${referralId}/expire`,
+    /** GET — liste toutes les configs. */
+    configs: () => "/api/admin/referrals/config",
+    /** GET — config active. */
+    activeConfig: () => "/api/admin/referrals/config/active",
+    /** POST — créer une config. */
+    createConfig: () => "/api/admin/referrals/config",
+    /** PUT — mettre à jour une config. */
+    updateConfig: (id: string) => `/api/admin/referrals/config/${id}`,
+    /** POST — activer une config. */
+    activateConfig: (id: string) => `/api/admin/referrals/config/${id}/activate`,
+    /** POST — désactiver une config. */
+    deactivateConfig: (id: string) => `/api/admin/referrals/config/${id}/deactivate`,
+    /** DELETE — supprimer une config. */
+    deleteConfig: (id: string) => `/api/admin/referrals/config/${id}`,
   },
 
   appConfig: {

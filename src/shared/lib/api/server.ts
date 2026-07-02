@@ -13,6 +13,8 @@ interface RequestOptions extends Omit<RequestInit, "body"> {
    */
   authenticated?: boolean;
   query?: Record<string, string | number | boolean | undefined>;
+  /** If true, suppresses console.error on failure (still throws). */
+  silent?: boolean;
 }
 
 function buildUrl(path: string, query?: RequestOptions["query"]) {
@@ -43,7 +45,7 @@ function redactBody(body: unknown): unknown {
 
 export async function apiFetch<T>(
   path: string,
-  { body, authenticated = true, query, headers, ...init }: RequestOptions = {},
+  { body, authenticated = true, query, silent = false, headers, ...init }: RequestOptions = {},
 ): Promise<T> {
   const finalHeaders = new Headers(headers);
   finalHeaders.set("Accept", "application/json");
@@ -132,7 +134,7 @@ export async function apiFetch<T>(
       const causeDetail = cause
         ? ` cause=${code} ${(cause as { message?: string }).message ?? ""}`.trim()
         : "";
-      console.error(
+      if (!silent) console.error(
         `[apiFetch] ✗ ${method} ${url} — gave up after ${attempt} attempt${attempt > 1 ? "s" : ""} (${Date.now() - startedAt}ms): ${detail}${causeDetail ? ` | ${causeDetail}` : ""}`,
       );
       throw new ApiError(
@@ -189,7 +191,7 @@ export async function apiFetch<T>(
       !payload && rawText
         ? ` rawBody=${JSON.stringify(rawText.slice(0, 500))}`
         : "";
-    console.error(
+    if (!silent) console.error(
       `[apiFetch] ✗ ${method} ${url} — ${response.status} ${response.statusText} (${ms}ms): ${message}${errorsPart}${rawPart}`,
     );
     throw new ApiError(message, response.status, errors);

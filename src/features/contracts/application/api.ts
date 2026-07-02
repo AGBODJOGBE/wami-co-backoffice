@@ -14,17 +14,18 @@ import type {
 // ─── Field mappings (API → domain) ───────────────────────────────────────────
 
 const STATUT_MAP: Record<string, ContractStatus> = {
-  ACTIF: "ACTIVE",
-  ROMPU: "BROKEN",
-  SOLDE: "COMPLETED",
-  TERMINE: "TERMINATED",
+  ACTIF:      "ACTIVE",
+  SUSPENDU:   "ACTIVE",   // suspendu = toujours actif mais driver bloqué
+  ROMPU:      "BROKEN",
+  SOLDE:      "COMPLETED",
+  TERMINE:    "TERMINATED",
   EN_ATTENTE: "PENDING",
   // passthrough for already-normalised values
-  ACTIVE: "ACTIVE",
-  BROKEN: "BROKEN",
-  COMPLETED: "COMPLETED",
-  TERMINATED: "TERMINATED",
-  PENDING: "PENDING",
+  ACTIVE:      "ACTIVE",
+  BROKEN:      "BROKEN",
+  COMPLETED:   "COMPLETED",
+  TERMINATED:  "TERMINATED",
+  PENDING:     "PENDING",
 };
 
 // Backend uses French frequency values — keep as-is
@@ -70,6 +71,7 @@ function normalizeContract(raw: unknown): Contract {
     status,
     driver,
     vehicle,
+    prixAchat: (c.purchasePriceSnapshot ?? undefined) as number | undefined,
     dateDebut: (c.dateDebut ?? "") as string,
     dateFin: (c.dateFin ?? c.dateFinPrevue ?? null) as string | null,
     dureeMois: (c.dureeMois ?? 0) as number,
@@ -78,12 +80,15 @@ function normalizeContract(raw: unknown): Contract {
     tauxInteret: (c.marginPct ?? c.tauxInteret ?? 0) as number,
     frequencePaiement,
     montantMensuel: (c.montantMensuel ?? c.montantEcheance) as number | undefined,
+    montantPaye: (c.montantPaye ?? undefined) as number | undefined,
     montantRestant: (c.montantRestant) as number | undefined,
     echeancesTotal: (c.echeancesTotal ?? c.nbEcheances) as number | undefined,
     echeancesPayees: (c.echeancesPayees ?? c.nbPaies) as number | undefined,
     createdAt: (c.createdAt ?? "") as string,
     updatedAt: (c.updatedAt ?? "") as string,
-    breakReason: (c.breakReason ?? c.motifRupture ?? null) as string | null,
+    breakReason: (c.brokenReason ?? c.breakReason ?? c.motifRupture ?? null) as string | null,
+    montantCaution: (c.montantCaution ?? undefined) as number | undefined,
+    cautionRestituee: (c.cautionRestituee ?? undefined) as boolean | undefined,
   };
 }
 
@@ -151,18 +156,18 @@ function normalizeInstallments(raw: unknown): ContractInstallment[] {
 export interface ListContractsParams {
   page?: number;
   limit?: number;
+  /** Valeurs acceptées par le backend : ACTIF | SUSPENDU | TERMINE | ROMPU */
   status?: ContractStatus | "";
   driverId?: string;
-  search?: string;
+  vehicleId?: string;
 }
 
-// Backend uses French statut values
+// Frontend status → backend statut query param
 const STATUS_TO_STATUT: Record<string, string> = {
-  ACTIVE: "ACTIF",
-  BROKEN: "ROMPU",
-  COMPLETED: "SOLDE",
+  ACTIVE:     "ACTIF",
+  BROKEN:     "ROMPU",
   TERMINATED: "TERMINE",
-  PENDING: "EN_ATTENTE",
+  // COMPLETED et PENDING non supportés comme filtre par le backend
 };
 
 export async function listContracts(
@@ -172,10 +177,12 @@ export async function listContracts(
     page: params?.page ?? 1,
     limit: params?.limit ?? 20,
   };
-  // Backend expects French statut param, not English status
-  if (params?.status) query.statut = STATUS_TO_STATUT[params.status] ?? params.status;
+  if (params?.status) {
+    const mapped = STATUS_TO_STATUT[params.status];
+    if (mapped) query.statut = mapped;
+  }
   if (params?.driverId) query.driverId = params.driverId;
-  if (params?.search) query.search = params.search;
+  if (params?.vehicleId) query.vehicleId = params.vehicleId;
 
   const raw = await apiFetch<unknown>(API_ROUTES.adminContracts.list(), { query });
   return normalizeList(raw);

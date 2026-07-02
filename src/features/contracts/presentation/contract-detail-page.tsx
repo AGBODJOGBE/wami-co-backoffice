@@ -52,7 +52,7 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
   const [payingId, setPayingId] = useState<string | null>(null);
   const [unblocking, startUnblock] = useTransition();
 
-  const canBreak = contract.status === "ACTIVE" || contract.status === "PENDING";
+  const canBreak = contract.status === "ACTIVE";
 
   function handleManualPayment(installmentId: string) {
     setPayingId(installmentId);
@@ -102,22 +102,25 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
   ];
 
   const financialInfo: InfoRow[] = [
-    { label: "Montant total", value: formatXof(contract.montantTotal) },
-    { label: "Apport initial", value: formatXof(contract.apport) },
     {
-      label: "Capital financé",
-      value: formatXof(contract.montantTotal - contract.apport),
+      label: "Prix d'achat",
+      value: contract.prixAchat != null ? formatXof(contract.prixAchat) : "—",
     },
     {
       label: "Taux / Marge",
       value: `${contract.tauxInteret} %`,
     },
+    { label: "Montant total", value: formatXof(contract.montantTotal) },
     {
       label: "Montant par échéance",
       value:
         contract.montantMensuel != null
           ? formatXof(contract.montantMensuel)
           : "—",
+    },
+    {
+      label: "Montant payé",
+      value: contract.montantPaye != null ? formatXof(contract.montantPaye) : "—",
     },
     {
       label: "Restant à payer",
@@ -127,11 +130,21 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
           : "—",
     },
     {
-      label: "Progression",
+      label: "Nb. échéances",
       value:
-        contract.echeancesTotal != null && contract.echeancesPayees != null
-          ? `${contract.echeancesPayees} / ${contract.echeancesTotal} échéances`
+        contract.echeancesTotal != null
+          ? String(contract.echeancesTotal)
           : "—",
+    },
+    {
+      label: "Caution",
+      value: contract.montantCaution != null ? formatXof(contract.montantCaution) : "—",
+    },
+    {
+      label: "Caution restituée",
+      value: contract.cautionRestituee != null
+        ? (contract.cautionRestituee ? "Oui" : "Non")
+        : "—",
     },
   ];
 
@@ -287,15 +300,17 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
         subtitle={`Contrat #${contract.contractId.slice(0, 8)} · Créé le ${formatDate(contract.createdAt)}`}
         actions={
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleUnblock}
-              disabled={unblocking}
-            >
-              {unblocking ? <Spinner size="sm" /> : <Unlock className="size-4" />}
-              Débloquer le chauffeur
-            </Button>
+            {contract.status === "ACTIVE" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleUnblock}
+                disabled={unblocking}
+              >
+                {unblocking ? <Spinner size="sm" /> : <Unlock className="size-4" />}
+                Débloquer le chauffeur
+              </Button>
+            )}
             {canBreak ? (
               <Button
                 variant="danger"
