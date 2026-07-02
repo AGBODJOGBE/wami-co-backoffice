@@ -334,7 +334,7 @@ export function PassengerDetailPage({
                               {VEHICLE_TYPE_LABELS[ride.vehicleType as keyof typeof VEHICLE_TYPE_LABELS] ?? ride.vehicleType}
                             </td>
                             <td className="px-5 py-3 text-right font-mono text-sm text-[color:var(--foreground)]">
-                              {formatXof(ride.finalPrice ?? ride.estimatedPrice)}
+                              {formatXof(ride.pricing.finalPrice ?? ride.pricing.estimatedPrice)}
                             </td>
                             <td className="px-5 py-3 text-xs text-[color:var(--muted-foreground)]">
                               {formatDate(ride.createdAt)}
