@@ -83,10 +83,10 @@ function OverviewTab({ wallets, rides }: { wallets: AdminWallet[]; rides: AdminR
       const key = r.paymentMethod || "UNKNOWN";
       if (!map[key]) map[key] = { count: 0, volume: 0, completed: 0 };
       map[key].count++;
-      map[key].volume += r.estimatedPrice ?? 0;
+      map[key].volume += r.pricing.estimatedPrice ?? 0;
       if (["COMPLETED", "RATED"].includes(r.status)) {
         map[key].completed++;
-        map[key].volume += (r.finalPrice ?? r.estimatedPrice ?? 0) - (r.estimatedPrice ?? 0);
+        map[key].volume += (r.pricing.finalPrice ?? r.pricing.estimatedPrice ?? 0) - (r.pricing.estimatedPrice ?? 0);
       }
     }
     return map;
@@ -471,10 +471,10 @@ function TransactionsTab({ rides }: { rides: AdminRide[] }) {
       key: "amount",
       header: "Montant",
       align: "right",
-      sortAccessor: (row) => row.finalPrice ?? row.estimatedPrice,
+      sortAccessor: (row) => row.pricing.finalPrice ?? row.pricing.estimatedPrice,
       render: (row) => {
-        const amount = row.finalPrice ?? row.estimatedPrice ?? 0;
-        const isEstimate = row.finalPrice == null;
+        const amount = row.pricing.finalPrice ?? row.pricing.estimatedPrice ?? 0;
+        const isEstimate = row.pricing.finalPrice == null;
         return (
           <div className="text-right">
             <span className="font-mono text-sm font-medium text-[color:var(--foreground)]">
@@ -515,7 +515,7 @@ function TransactionsTab({ rides }: { rides: AdminRide[] }) {
   // Volume réel des courses terminées
   const completedVolume = rides
     .filter((r) => ["COMPLETED", "RATED"].includes(r.status))
-    .reduce((s, r) => s + (r.finalPrice ?? r.estimatedPrice ?? 0), 0);
+    .reduce((s, r) => s + (r.pricing.finalPrice ?? r.pricing.estimatedPrice ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -912,7 +912,7 @@ export function WalletLivePage({
 
   const completedRides = rides.filter((r) => ["COMPLETED", "RATED"].includes(r.status));
   const totalRideVolume = completedRides.reduce(
-    (s, r) => s + (r.finalPrice ?? r.estimatedPrice ?? 0),
+    (s, r) => s + (r.pricing.finalPrice ?? r.pricing.estimatedPrice ?? 0),
     0,
   );
 
@@ -1116,7 +1116,7 @@ export function WalletLivePage({
                       {(["CASH", "WALLET", "MOBILE_MONEY", "CARD"] as const).map((method) => {
                         const methodRides = rides.filter((r) => r.paymentMethod === method);
                         const done = methodRides.filter((r) => ["COMPLETED", "RATED"].includes(r.status));
-                        const vol = methodRides.reduce((s, r) => s + (r.estimatedPrice ?? 0), 0);
+                        const vol = methodRides.reduce((s, r) => s + (r.pricing.estimatedPrice ?? 0), 0);
                         const meta = PAYMENT_METHOD_META[method];
                         return (
                           <tr key={method}>

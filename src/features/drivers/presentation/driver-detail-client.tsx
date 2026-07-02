@@ -506,7 +506,7 @@ export function DriverDetailClient({
                       <div className="flex flex-col items-end gap-1">
                         <Badge tone={meta.tone}>{meta.label}</Badge>
                         <span className="text-sm font-semibold text-[color:var(--foreground)]">
-                          {formatXof(r.finalPrice || r.estimatedPrice)}
+                          {formatXof(r.pricing.finalPrice || r.pricing.estimatedPrice)}
                         </span>
                       </div>
                     </li>
