@@ -232,7 +232,7 @@ export function ParrainsListClient({ referrals, total }: ParrainsListClientProps
       </section>
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[color:var(--border)] bg-white p-3 dark:bg-[color:var(--muted)]">
-        <SearchField value={search} onChange={setSearch} placeholder="ID parrain, code…" className="w-56" />
+        <SearchField value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ID parrain, code…" className="w-56" />
         <Combobox value={type} onChange={setType} options={TYPE_OPTIONS} className="w-48" />
         <span className="ml-auto text-xs text-[color:var(--muted-foreground)]">
           {filtered.length} parrain{filtered.length !== 1 ? "s" : ""}

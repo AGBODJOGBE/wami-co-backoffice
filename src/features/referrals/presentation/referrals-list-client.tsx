@@ -303,7 +303,7 @@ export function ReferralsListClient({
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[color:var(--border)] bg-white p-3 dark:bg-[color:var(--muted)]">
         <SearchField
           value={search}
-          onChange={setSearch}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="Code, filleul, ID…"
           className="w-56"
         />

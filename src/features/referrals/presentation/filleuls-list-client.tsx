@@ -201,7 +201,7 @@ export function FilleulsListClient({ referrals, total }: FilleulsListClientProps
       </section>
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[color:var(--border)] bg-white p-3 dark:bg-[color:var(--muted)]">
-        <SearchField value={search} onChange={setSearch} placeholder="Nom, code, ID filleul…" className="w-56" />
+        <SearchField value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nom, code, ID filleul…" className="w-56" />
         <Combobox value={status} onChange={setStatus} options={STATUS_OPTIONS} className="w-44" />
         <span className="ml-auto text-xs text-[color:var(--muted-foreground)]">
           {filtered.length} résultat{filtered.length !== 1 ? "s" : ""}
