@@ -59,7 +59,7 @@ function aggregateRides(rides: AdminRide[]): RideKpi {
   for (const r of rides) {
     if (IN_PROGRESS_STATUSES.has(r.status)) inProgress += 1;
     if (REVENUE_STATUSES.has(r.status)) {
-      revenue += r.finalPrice || r.estimatedPrice || 0;
+      revenue += r.pricing.finalPrice || r.pricing.estimatedPrice || 0;
     }
   }
   return { total: rides.length, inProgress, revenue };
