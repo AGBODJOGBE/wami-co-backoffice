@@ -172,7 +172,7 @@ export function AdminDriversListClient({
               {r.vehicle.licensePlate}
             </span>
             <span className="mt-0.5 text-[10px] font-medium text-[color:var(--primary)]">
-              {r.vehicle.vehicleType}
+              {r.category}
             </span>
           </div>
         ) : (
