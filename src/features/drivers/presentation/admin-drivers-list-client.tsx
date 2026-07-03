@@ -171,6 +171,9 @@ export function AdminDriversListClient({
             <span className="font-mono text-[10px] uppercase text-[color:var(--muted-foreground)]">
               {r.vehicle.licensePlate}
             </span>
+            <span className="mt-0.5 text-[10px] font-medium text-[color:var(--primary)]">
+              {r.vehicle.vehicleType}
+            </span>
           </div>
         ) : (
           <span className="text-xs italic text-[color:var(--muted-foreground)]">
