@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  Clock,
+  MapPin,
   Pencil,
   Plus,
   RefreshCw,
@@ -12,12 +14,6 @@ import {
 } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/shared/ui/card";
 import { ConfirmModal } from "@/shared/ui/confirm-modal";
 import { Spinner } from "@/shared/ui/spinner";
 import { toast } from "@/shared/ui/toast";
@@ -32,14 +28,16 @@ import { SurgeRuleModal } from "./surge-rule-modal";
 
 function notify(result: ActionResult<unknown>, successTitle: string) {
   if (result.ok) {
-    toast({
-      kind: "success",
-      title: successTitle,
-      description: result.message,
-    });
+    toast({ kind: "success", title: successTitle, description: result.message });
   } else {
     toast({ kind: "error", title: "Échec", description: result.message });
   }
+}
+
+function multiplierTone(m: number): "info" | "warning" | "danger" {
+  if (m >= 2.0) return "danger";
+  if (m >= 1.5) return "warning";
+  return "info";
 }
 
 export interface SurgeRulesSectionProps {
@@ -64,143 +62,81 @@ export function SurgeRulesSection({ rules, error }: SurgeRulesSectionProps) {
     });
   }
 
-  const sorted = [...rules].sort(
-    (a, b) => (b.priority ?? 0) - (a.priority ?? 0),
-  );
+  const activeCount = rules.filter((r) => r.isActive !== false).length;
+  const sorted = [...rules].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Zap className="size-5 text-[color:var(--secondary)]" />
-            <CardTitle>Règles de surge ({rules.length})</CardTitle>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => startRefresh(() => router.refresh())}
-              disabled={refreshing}
-            >
-              {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
-              Rafraîchir
-            </Button>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" />
-              Nouvelle règle
-            </Button>
+    <div className="flex flex-col gap-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Zap className="size-5 text-[color:var(--primary)]" />
+          <div>
+            <h2 className="text-base font-semibold text-[color:var(--foreground)]">
+              Règles de surge
+            </h2>
+            <p className="text-xs text-[color:var(--muted-foreground)]">
+              {activeCount} active{activeCount !== 1 ? "s" : ""} sur {rules.length} règle{rules.length !== 1 ? "s" : ""}
+            </p>
           </div>
         </div>
-        <DevNote>
-          ⚠️ Bug backend confirmé : <code>POST /api/admin/surge-rules</code> échoue avec
-          {" "}<em>Cast to ObjectId failed</em> — le schéma Mongoose génère un UUID v4 comme{" "}
-          <code>_id</code> alors que MongoDB attend un ObjectId. À corriger dans le backend
-          (model SurgeRule, champ <code>_id</code>).
-        </DevNote>
-      </CardHeader>
-      <CardContent>
-        {error ? (
-          <p className="text-sm text-[color:var(--danger)]">{error}</p>
-        ) : sorted.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <AlertTriangle className="size-8 text-[color:var(--muted-foreground)]" />
-            <p className="text-sm text-[color:var(--muted-foreground)]">
-              Aucune règle de surge active.
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => startRefresh(() => router.refresh())}
+            disabled={refreshing}
+          >
+            {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
+            Rafraîchir
+          </Button>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="size-4" />
+            Nouvelle règle
+          </Button>
+        </div>
+      </div>
+
+      <DevNote>
+        ⚠️ Bug backend confirmé : <code>POST /api/admin/surge-rules</code> échoue avec{" "}
+        <em>Cast to ObjectId failed</em> — le schéma Mongoose génère un UUID v4 comme{" "}
+        <code>_id</code> alors que MongoDB attend un ObjectId. À corriger dans le backend
+        (model SurgeRule, champ <code>_id</code>).
+      </DevNote>
+
+      {error && (
+        <div className="rounded-xl border border-[color:var(--danger)]/30 bg-[color:var(--danger)]/10 px-4 py-3 text-sm text-[color:var(--danger)]">
+          {error}
+        </div>
+      )}
+
+      {/* Rules list */}
+      {sorted.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[color:var(--border)] py-12 text-center">
+          <AlertTriangle className="size-8 text-[color:var(--muted-foreground)]" />
+          <div>
+            <p className="text-sm font-medium text-[color:var(--foreground)]">Aucune règle de surge</p>
+            <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">
+              Les règles de surge multiplient automatiquement les tarifs selon des conditions.
             </p>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              Créer la première règle
-            </Button>
           </div>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {sorted.map((rule) => (
-              <li
-                key={rule.id}
-                className="flex flex-col gap-2 rounded-lg border border-[color:var(--border)] bg-[color:var(--background)] p-4 sm:flex-row sm:items-start sm:justify-between"
-              >
-                <div className="flex flex-col gap-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-[color:var(--foreground)]">
-                      {rule.name}
-                    </span>
-                    <Badge tone="info">×{rule.multiplier}</Badge>
-                    <Badge tone="neutral">priorité {rule.priority}</Badge>
-                    {rule.isActive === false ? (
-                      <Badge tone="danger">Désactivée</Badge>
-                    ) : (
-                      <Badge tone="success">Active</Badge>
-                    )}
-                  </div>
-                  {rule.description ? (
-                    <p className="text-xs text-[color:var(--muted-foreground)]">
-                      {rule.description}
-                    </p>
-                  ) : null}
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[color:var(--muted-foreground)]">
-                    {rule.vehicleTypes && rule.vehicleTypes.length > 0 ? (
-                      <span>Véhicules : {rule.vehicleTypes.join(", ")}</span>
-                    ) : (
-                      <span>Tous véhicules</span>
-                    )}
-                    {rule.timeWindows && rule.timeWindows.length > 0 ? (
-                      <span>
-                        {rule.timeWindows
-                          .map(
-                            (w) =>
-                              `${String(w.startHour).padStart(2, "0")}h-${String(w.endHour).padStart(2, "0")}h${
-                                w.daysOfWeek && w.daysOfWeek.length > 0
-                                  ? " (" +
-                                    w.daysOfWeek
-                                      .map((d) => DAYS_OF_WEEK_LABELS[d])
-                                      .join(",") +
-                                    ")"
-                                  : ""
-                              }`,
-                          )
-                          .join(" · ")}
-                      </span>
-                    ) : (
-                      <span>24h/24</span>
-                    )}
-                    {rule.zones && rule.zones.length > 0 ? (
-                      <span>
-                        Zones : {rule.zones.map((z) => z.name).join(", ")}
-                      </span>
-                    ) : (
-                      <span>Toutes zones</span>
-                    )}
-                    {rule.specialDates && rule.specialDates.length > 0 ? (
-                      <span>
-                        Dates spéciales :{" "}
-                        {rule.specialDates.map((d) => formatDate(d)).join(", ")}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditTarget(rule)}
-                  >
-                    <Pencil className="size-4" />
-                    Modifier
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDeleteTarget(rule)}
-                  >
-                    <Trash2 className="size-4" />
-                    Supprimer
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="size-4" />
+            Créer la première règle
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {sorted.map((rule) => (
+            <SurgeRuleCard
+              key={rule.id}
+              rule={rule}
+              onEdit={() => setEditTarget(rule)}
+              onDelete={() => setDeleteTarget(rule)}
+            />
+          ))}
+        </div>
+      )}
 
       <SurgeRuleModal
         open={createOpen || !!editTarget}
@@ -210,6 +146,7 @@ export function SurgeRulesSection({ rules, error }: SurgeRulesSectionProps) {
           setEditTarget(null);
         }}
       />
+
       <ConfirmModal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -228,6 +165,137 @@ export function SurgeRulesSection({ rules, error }: SurgeRulesSectionProps) {
         tone="danger"
         isLoading={deleting}
       />
-    </Card>
+    </div>
+  );
+}
+
+// ─── SurgeRuleCard ────────────────────────────────────────────────────────────
+
+function SurgeRuleCard({
+  rule,
+  onEdit,
+  onDelete,
+}: {
+  rule: SurgeRule;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const isActive = rule.isActive !== false;
+
+  return (
+    <div
+      className={`rounded-xl border p-4 transition-colors ${
+        isActive
+          ? "border-[color:var(--primary)]/30 bg-[color:var(--background)]"
+          : "border-[color:var(--border)] bg-[color:var(--muted)]/20"
+      }`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        {/* Left: multiplier + info */}
+        <div className="flex items-start gap-4">
+          {/* Multiplier display */}
+          <div className="flex flex-col items-center rounded-xl border border-[color:var(--border)] bg-[color:var(--muted)]/40 px-4 py-2.5 text-center">
+            <span className="text-xl font-black text-[color:var(--foreground)]">
+              ×{rule.multiplier}
+            </span>
+            <span className="text-[10px] font-medium uppercase tracking-wider text-[color:var(--muted-foreground)]">
+              surge
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-[color:var(--foreground)]">
+                {rule.name}
+              </span>
+              <Badge tone={multiplierTone(rule.multiplier)}>
+                ×{rule.multiplier}
+              </Badge>
+              <Badge tone="neutral">priorité {rule.priority}</Badge>
+              {isActive ? (
+                <Badge tone="success">Active</Badge>
+              ) : (
+                <Badge tone="danger">Désactivée</Badge>
+              )}
+            </div>
+
+            {rule.description && (
+              <p className="text-xs text-[color:var(--muted-foreground)]">
+                {rule.description}
+              </p>
+            )}
+
+            {/* Metadata row */}
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[color:var(--muted-foreground)]">
+              {/* Vehicles */}
+              <span className="flex items-center gap-1">
+                <span className="font-medium text-[color:var(--foreground)]">
+                  {rule.vehicleTypes && rule.vehicleTypes.length > 0
+                    ? rule.vehicleTypes.join(", ")
+                    : "Tous véhicules"}
+                </span>
+              </span>
+
+              {/* Time windows */}
+              {rule.timeWindows && rule.timeWindows.length > 0 ? (
+                <span className="flex items-center gap-1">
+                  <Clock className="size-3 shrink-0" />
+                  {rule.timeWindows
+                    .map(
+                      (w) =>
+                        `${String(w.startHour).padStart(2, "0")}h–${String(w.endHour).padStart(2, "0")}h${
+                          w.daysOfWeek && w.daysOfWeek.length > 0
+                            ? " (" +
+                              w.daysOfWeek
+                                .map((d) => DAYS_OF_WEEK_LABELS[d])
+                                .join(", ") +
+                              ")"
+                            : ""
+                        }`,
+                    )
+                    .join(" · ")}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <Clock className="size-3 shrink-0" />
+                  24h/24
+                </span>
+              )}
+
+              {/* Zones */}
+              {rule.zones && rule.zones.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="size-3 shrink-0" />
+                  {rule.zones.map((z) => z.name).join(", ")}
+                </span>
+              )}
+
+              {/* Special dates */}
+              {rule.specialDates && rule.specialDates.length > 0 && (
+                <span>
+                  Dates : {rule.specialDates.map((d) => formatDate(d)).join(", ")}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            <Pencil className="size-4" />
+            Modifier
+          </Button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="rounded-lg p-2 text-[color:var(--muted-foreground)] transition-colors hover:bg-[color:var(--muted)] hover:text-[color:var(--danger)]"
+            title="Supprimer"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

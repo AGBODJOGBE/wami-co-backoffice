@@ -15,13 +15,14 @@ import type {
 
 const STATUT_MAP: Record<string, ContractStatus> = {
   ACTIF:      "ACTIVE",
-  SUSPENDU:   "ACTIVE",   // suspendu = toujours actif mais driver bloqué
+  SUSPENDU:   "SUSPENDED", // driver bloqué pour impayés — statut distinct
   ROMPU:      "BROKEN",
   SOLDE:      "COMPLETED",
   TERMINE:    "TERMINATED",
   EN_ATTENTE: "PENDING",
   // passthrough for already-normalised values
   ACTIVE:      "ACTIVE",
+  SUSPENDED:   "SUSPENDED",
   BROKEN:      "BROKEN",
   COMPLETED:   "COMPLETED",
   TERMINATED:  "TERMINATED",
@@ -84,6 +85,7 @@ function normalizeContract(raw: unknown): Contract {
     montantRestant: (c.montantRestant) as number | undefined,
     echeancesTotal: (c.echeancesTotal ?? c.nbEcheances) as number | undefined,
     echeancesPayees: (c.echeancesPayees ?? c.nbPaies) as number | undefined,
+    nbImpayes: (c.nbImpayes ?? undefined) as number | undefined,
     createdAt: (c.createdAt ?? "") as string,
     updatedAt: (c.updatedAt ?? "") as string,
     breakReason: (c.brokenReason ?? c.breakReason ?? c.motifRupture ?? null) as string | null,

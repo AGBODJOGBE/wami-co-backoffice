@@ -1,5 +1,6 @@
 import {
   listAdminDrivers,
+  listDriverUsers,
   listOnlineDrivers,
   listPendingDrivers,
 } from "@/features/drivers/application/api";
@@ -10,13 +11,20 @@ import { PageHeader } from "@/shared/ui/page-header";
 export const dynamic = "force-dynamic";
 
 export default async function VtcDriversPage() {
-  const [pendingRes, allRes, ridesRes, onlineRes] = await Promise.allSettled([
-    listPendingDrivers(),
-    listAdminDrivers(),
-    listAdminRides(),
-    listOnlineDrivers(),
-  ]);
+  const [pendingRes, allRes, ridesRes, onlineRes, driverUsersRes] =
+    await Promise.allSettled([
+      listPendingDrivers(),
+      listAdminDrivers(),
+      listAdminRides(),
+      listOnlineDrivers(),
+      listDriverUsers(),
+    ]);
 
+  // ── Users map (userId → name/phone) for enrichment ────────────────────────
+  const driverUsersMap =
+    driverUsersRes.status === "fulfilled" ? driverUsersRes.value : new Map();
+
+  // ── Pending drivers ────────────────────────────────────────────────────────
   const pending =
     pendingRes.status === "fulfilled"
       ? pendingRes.value
@@ -28,6 +36,7 @@ export default async function VtcDriversPage() {
         : "Erreur de chargement."
       : undefined;
 
+  // ── Approved drivers (rich list) ───────────────────────────────────────────
   const allRaw =
     allRes.status === "fulfilled" ? allRes.value : { drivers: [], total: 0 };
   const allError =
@@ -37,7 +46,7 @@ export default async function VtcDriversPage() {
         : "Erreur de chargement."
       : undefined;
 
-  // Count real completed rides per driver (backend totalRides is unreliable)
+  // ── Rides: count per driver ────────────────────────────────────────────────
   const rides = ridesRes.status === "fulfilled" ? ridesRes.value.rides : [];
   const rideCountByDriverId = new Map<string, number>();
   for (const r of rides) {
@@ -49,42 +58,70 @@ export default async function VtcDriversPage() {
     }
   }
 
-  // Set des driverIds réellement connectés (app ouverte + GPS actif)
-  // Réversible : supprimer ces 2 lignes + isOnline dans le map suffit à revenir en arrière
+  // ── Online driver ids ──────────────────────────────────────────────────────
   const onlineDriverIds = new Set(
     onlineRes.status === "fulfilled"
       ? onlineRes.value.drivers.map((d) => d.driverId)
       : [],
   );
 
-  // Patch totalRides + isOnline
+  // ── Patch rich list with real ride counts + online status ──────────────────
   const patchedDrivers = allRaw.drivers.map((d) => ({
     ...d,
+    // Fill missing names from users map when rich list has placeholder values
+    firstName:
+      d.firstName && d.firstName !== "Driver"
+        ? d.firstName
+        : (driverUsersMap.get(d.userId)?.firstName ?? d.firstName),
+    lastName:
+      d.lastName ||
+      (driverUsersMap.get(d.userId)?.lastName ?? d.lastName),
+    phoneNumber:
+      d.phoneNumber ||
+      (driverUsersMap.get(d.userId)?.phoneNumber ?? d.phoneNumber),
     totalRides: rideCountByDriverId.get(d.driverId) ?? d.totalRides,
     isOnline: onlineDriverIds.size > 0 ? onlineDriverIds.has(d.driverId) : undefined,
   }));
 
-  // Approved drivers tab
+  // ── Approved tab ───────────────────────────────────────────────────────────
   const approvedDrivers = patchedDrivers.filter((d) => d.isApproved);
   const all = { drivers: approvedDrivers, total: approvedDrivers.length };
 
-  // Pending = not approved from /drivers (rich data with name/phone)
-  // + any from /pending not already in the rich list
-  const notApprovedFromRich = patchedDrivers.filter((d) => !d.isApproved);
+  // ── Pending enrichment ─────────────────────────────────────────────────────
+  // Priority: rich list (patchedDrivers) → users map → raw pending data
   const richDriverIds = new Set(patchedDrivers.map((d) => d.driverId));
-
-  // Enrich /pending rows that aren't already in the rich list
   const byDriverId = new Map(patchedDrivers.map((d) => [d.driverId, d]));
+
+  const notApprovedFromRich = patchedDrivers.filter((d) => !d.isApproved);
+
   const extraPending = pending.drivers
     .filter((p) => !richDriverIds.has(p.driverId))
     .map((p) => {
+      // Try rich list first, then users map by userId
       const rich = byDriverId.get(p.driverId);
-      return rich
-        ? { ...p, firstName: rich.firstName, lastName: rich.lastName, phoneNumber: rich.phoneNumber, photoUrl: rich.photoUrl }
-        : p;
+      const fromUsers = driverUsersMap.get(p.userId);
+
+      return {
+        ...p,
+        firstName:
+          rich?.firstName ??
+          fromUsers?.firstName ??
+          p.firstName ??
+          "",
+        lastName:
+          rich?.lastName ??
+          fromUsers?.lastName ??
+          p.lastName ??
+          "",
+        phoneNumber:
+          rich?.phoneNumber ??
+          fromUsers?.phoneNumber ??
+          p.phoneNumber ??
+          "",
+        photoUrl: rich?.photoUrl ?? p.photoUrl ?? null,
+      };
     });
 
-  // Merge: rich non-approved + extra pending (cast to PendingDriver shape)
   const enrichedPending = [
     ...notApprovedFromRich.map((d) => ({
       driverId: d.driverId,

@@ -21,7 +21,7 @@ export interface TimedPackageOption {
 
 export interface ComponentCondition {
   field: string;
-  operator: "eq" | "gt" | "lt";
+  operator: "eq" | "gt" | "lt" | "gte" | "lte";
   value: unknown;
 }
 
@@ -40,7 +40,10 @@ export type PricingComponentType =
   | "FIXED_SURCHARGE"
   | "MULTIPLIER"
   | "MINIMUM_FARE"
-  | "PERCENTAGE_FEE";
+  | "PERCENTAGE_FEE"
+  | "ZONE_MATRIX_PRICE"
+  | "COD_FEE"
+  | "INSURANCE_FEE";
 
 export interface PricingComponent {
   type: PricingComponentType;
@@ -48,12 +51,16 @@ export interface PricingComponent {
   label: string;
   /** Used by: FLAT_FEE, MINIMUM_FARE, PER_MINUTE, PER_KG (base), PER_UNIT, WAITING_FEE (rate), FIXED_SURCHARGE */
   value?: number;
-  /** Used by: MULTIPLIER, PERCENTAGE_FEE */
+  /** Used by: MULTIPLIER (static coefficient), PERCENTAGE_FEE (rate 0→1), COD_FEE, INSURANCE_FEE */
   rate?: number;
+  /** Used by: MULTIPLIER — key to read dynamic rate from context (e.g. "surgeMultiplier"). Overrides `rate` when present. */
+  rateFromContext?: string;
   /** Used by: PER_KG (free weight before charging) */
   threshold?: number;
   /** Used by: WAITING_FEE (minutes before billing starts) */
   freeUnits?: number;
+  /** Used by: COD_FEE, INSURANCE_FEE — minimum guaranteed fee amount in centimes */
+  minimum?: number;
   /** Used by: PER_KM_TIER */
   tiers?: KmTier[];
   /** Used by: PER_ZONE, DISTANCE_ZONE */
@@ -78,6 +85,8 @@ export interface PricingProfile {
   components: PricingComponent[];
   commissionRate: number;
   driverShareRate: number;
+  noShowMinutes: number;
+  noShowFee: number;
   isActive: boolean;
   version: number;
   activatedAt: string | null;
@@ -97,6 +106,8 @@ export interface CreatePricingProfileInput {
   components: PricingComponent[];
   commissionRate: number;
   driverShareRate: number;
+  noShowMinutes: number;
+  noShowFee: number;
 }
 
 export type PatchPricingProfileInput = Partial<CreatePricingProfileInput>;
@@ -117,19 +128,22 @@ export const STRATEGY_LABELS: Record<PricingStrategy, string> = {
 };
 
 export const COMPONENT_TYPE_LABELS: Record<PricingComponentType, string> = {
-  TIMED_PACKAGE: "Forfait temporel",
-  FLAT_FEE: "Frais fixe",
-  PER_KM_TIER: "Paliers kilométriques",
-  PER_MINUTE: "Par minute",
-  PER_KG: "Par kg",
-  PER_ZONE: "Par zone",
-  DISTANCE_ZONE: "Zone de distance",
-  PER_UNIT: "Par unité",
-  WAITING_FEE: "Frais d'attente",
-  FIXED_SURCHARGE: "Supplément fixe",
-  MULTIPLIER: "Multiplicateur",
-  MINIMUM_FARE: "Tarif minimum",
-  PERCENTAGE_FEE: "Commission %",
+  TIMED_PACKAGE:    "Forfait temporel",
+  FLAT_FEE:         "Frais fixe",
+  PER_KM_TIER:      "Paliers kilométriques",
+  PER_MINUTE:       "Par minute",
+  PER_KG:           "Par kg",
+  PER_ZONE:         "Par zone",
+  DISTANCE_ZONE:    "Zone de distance",
+  PER_UNIT:         "Par unité",
+  WAITING_FEE:      "Frais d'attente",
+  FIXED_SURCHARGE:  "Supplément fixe",
+  MULTIPLIER:       "Multiplicateur",
+  MINIMUM_FARE:     "Tarif minimum",
+  PERCENTAGE_FEE:   "Commission %",
+  ZONE_MATRIX_PRICE:"Prix matrice zone",
+  COD_FEE:          "Frais remboursement (COD)",
+  INSURANCE_FEE:    "Frais assurance colis",
 };
 
 export const SERVICE_KEY_OPTIONS = (
@@ -170,6 +184,9 @@ const RIDE_BASE_COMPONENTS = (
   { type: "PERCENTAGE_FEE", key: "commission", label: "Commission plateforme", rate: commissionRate },
 ];
 
+/** Default no-show config shared across all RIDE vehicle templates */
+const RIDE_NO_SHOW_DEFAULTS = { noShowMinutes: 5, noShowFee: 50000 } as const;
+
 export const RIDE_VEHICLE_TEMPLATES: Record<string, CreatePricingProfileInput> = {
   MOTO: {
     serviceKey: "RIDE",
@@ -179,6 +196,7 @@ export const RIDE_VEHICLE_TEMPLATES: Record<string, CreatePricingProfileInput> =
     strategy: "PER_KM",
     commissionRate: 0.18,
     driverShareRate: 0.82,
+    ...RIDE_NO_SHOW_DEFAULTS,
     components: RIDE_BASE_COMPONENTS(
       200,
       [{ upTo: 10, pricePerKm: 150 }, { upTo: 20, pricePerKm: 120 }, { upTo: null, pricePerKm: 100 }],
@@ -193,6 +211,7 @@ export const RIDE_VEHICLE_TEMPLATES: Record<string, CreatePricingProfileInput> =
     strategy: "PER_KM",
     commissionRate: 0.18,
     driverShareRate: 0.82,
+    ...RIDE_NO_SHOW_DEFAULTS,
     components: RIDE_BASE_COMPONENTS(
       250,
       [{ upTo: 10, pricePerKm: 130 }, { upTo: 20, pricePerKm: 110 }, { upTo: null, pricePerKm: 90 }],
@@ -207,6 +226,7 @@ export const RIDE_VEHICLE_TEMPLATES: Record<string, CreatePricingProfileInput> =
     strategy: "PER_KM",
     commissionRate: 0.18,
     driverShareRate: 0.82,
+    ...RIDE_NO_SHOW_DEFAULTS,
     components: RIDE_BASE_COMPONENTS(
       150,
       [{ upTo: 10, pricePerKm: 100 }, { upTo: 20, pricePerKm: 85 }, { upTo: null, pricePerKm: 70 }],
@@ -221,6 +241,7 @@ export const RIDE_VEHICLE_TEMPLATES: Record<string, CreatePricingProfileInput> =
     strategy: "PER_KM",
     commissionRate: 0.20,
     driverShareRate: 0.80,
+    ...RIDE_NO_SHOW_DEFAULTS,
     components: RIDE_BASE_COMPONENTS(
       400,
       [{ upTo: 10, pricePerKm: 200 }, { upTo: 20, pricePerKm: 170 }, { upTo: null, pricePerKm: 150 }],
@@ -235,6 +256,7 @@ export const RIDE_VEHICLE_TEMPLATES: Record<string, CreatePricingProfileInput> =
     strategy: "PER_KM",
     commissionRate: 0.20,
     driverShareRate: 0.80,
+    ...RIDE_NO_SHOW_DEFAULTS,
     components: RIDE_BASE_COMPONENTS(
       600,
       [{ upTo: 10, pricePerKm: 280 }, { upTo: 20, pricePerKm: 240 }, { upTo: null, pricePerKm: 200 }],
@@ -249,6 +271,7 @@ export const RIDE_VEHICLE_TEMPLATES: Record<string, CreatePricingProfileInput> =
     strategy: "PER_KM",
     commissionRate: 0.22,
     driverShareRate: 0.78,
+    ...RIDE_NO_SHOW_DEFAULTS,
     components: RIDE_BASE_COMPONENTS(
       1000,
       [{ upTo: 10, pricePerKm: 400 }, { upTo: 20, pricePerKm: 350 }, { upTo: null, pricePerKm: 300 }],
@@ -263,6 +286,7 @@ export const RIDE_VEHICLE_TEMPLATES: Record<string, CreatePricingProfileInput> =
     strategy: "PER_KM",
     commissionRate: 0.20,
     driverShareRate: 0.80,
+    ...RIDE_NO_SHOW_DEFAULTS,
     components: RIDE_BASE_COMPONENTS(
       800,
       [{ upTo: 10, pricePerKm: 300 }, { upTo: 20, pricePerKm: 260 }, { upTo: null, pricePerKm: 220 }],

@@ -7,15 +7,16 @@ import type {
   AdminTransactionsResult,
   AdminWallet,
   AdminWalletsResult,
+  PlatformRevenue,
   WithdrawalsResult,
 } from "../domain/wallet";
+
+// ─── Wallets ──────────────────────────────────────────────────────────────────
 
 export function getAdminWallet(walletId: string): Promise<AdminWallet> {
   return apiFetch<AdminWallet>(API_ROUTES.adminWallets.detail(walletId));
 }
 
-/** GET /api/admin/wallets — tolerates array, {wallets,total}, {data}.
- *  Supports optional filters: walletType, status, page, limit. */
 export async function listAdminWallets(filters?: {
   walletType?: string;
   status?: string;
@@ -26,9 +27,9 @@ export async function listAdminWallets(filters?: {
   if (filters) {
     const params = new URLSearchParams();
     if (filters.walletType) params.set("walletType", filters.walletType);
-    if (filters.status) params.set("status", filters.status);
-    if (filters.page != null) params.set("page", String(filters.page));
-    if (filters.limit != null) params.set("limit", String(filters.limit));
+    if (filters.status)     params.set("status",     filters.status);
+    if (filters.page   != null) params.set("page",  String(filters.page));
+    if (filters.limit  != null) params.set("limit", String(filters.limit));
     const qs = params.toString();
     if (qs) url = `${url}?${qs}`;
   }
@@ -55,49 +56,52 @@ export async function listAdminWallets(filters?: {
   return { wallets: [], total: 0 };
 }
 
-/**
- * Find a wallet by profileId (driverId or passengerId).
- * The backend does not expose a profileId query param yet, so we fetch all
- * wallets and filter in memory. When the backend adds the param, replace the
- * body with: `apiFetch(list() + "?profileId=" + profileId)`.
- */
 export async function findWalletByProfile(
   profileId: string,
 ): Promise<AdminWallet | undefined> {
   if (!profileId) return undefined;
-  // TODO: when backend supports ?profileId=, call listAdminWallets({ profileId })
   const { wallets } = await listAdminWallets();
   return wallets.find((w) => w.profileId === profileId);
 }
 
+// ─── Transactions ─────────────────────────────────────────────────────────────
+
 export interface TransactionFilters {
-  type?: string;
+  walletId?:  string;
+  type?:      string;
   walletType?: string;
   direction?: string;
-  page?: number;
-  limit?: number;
+  status?:    string;
+  fromDate?:  string;
+  toDate?:    string;
+  page?:      number;
+  limit?:     number;
 }
 
-/** GET /api/admin/transactions — returns paginated admin transactions. */
 export async function listAdminTransactions(
   filters: TransactionFilters = {},
 ): Promise<AdminTransactionsResult> {
-  const raw = await apiFetch<unknown>(API_ROUTES.adminWallets.transactions(), {
-    query: {
-      type: filters.type,
-      walletType: filters.walletType,
-      direction: filters.direction,
-      page: filters.page,
-      limit: filters.limit ?? 100,
-    },
-  });
+  const query: Record<string, string | number | undefined> = {
+    page:  filters.page  ?? 1,
+    limit: filters.limit ?? 100,
+  };
+  if (filters.walletId)   query.walletId   = filters.walletId;
+  if (filters.type)       query.type       = filters.type;
+  if (filters.walletType) query.walletType  = filters.walletType;
+  if (filters.direction)  query.direction  = filters.direction;
+  if (filters.status)     query.status     = filters.status;
+  if (filters.fromDate)   query.fromDate   = filters.fromDate;
+  if (filters.toDate)     query.toDate     = filters.toDate;
+
+  const raw = await apiFetch<unknown>(API_ROUTES.adminWallets.transactions(), { query });
+
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     const obj = raw as Record<string, unknown>;
     if (Array.isArray(obj.transactions)) {
       return {
         transactions: obj.transactions as AdminTransaction[],
         total: (obj.total as number | undefined) ?? obj.transactions.length,
-        page: (obj.page as number | undefined) ?? filters.page ?? 1,
+        page:  (obj.page  as number | undefined) ?? filters.page  ?? 1,
         limit: (obj.limit as number | undefined) ?? filters.limit ?? 100,
       };
     }
@@ -108,23 +112,74 @@ export async function listAdminTransactions(
   return { transactions: [], total: 0, page: 1, limit: 100 };
 }
 
-/** GET /api/admin/withdrawals — returns withdrawal requests (currently empty). */
+// ─── Withdrawals ──────────────────────────────────────────────────────────────
+
+export interface WithdrawalFilters {
+  status?:   string;
+  method?:   string;
+  fromDate?: string;
+  toDate?:   string;
+  page?:     number;
+  limit?:    number;
+}
+
 export async function listWithdrawals(
-  page = 1,
-  limit = 50,
+  filters: WithdrawalFilters | number = {},
+  legacyLimit?: number,
 ): Promise<WithdrawalsResult> {
-  const url = `${API_ROUTES.adminWallets.withdrawals()}?page=${page}&limit=${limit}`;
+  // Backward-compat: old callers used listWithdrawals(page, limit)
+  let f: WithdrawalFilters;
+  if (typeof filters === "number") {
+    f = { page: filters, limit: legacyLimit ?? 50 };
+  } else {
+    f = filters;
+  }
+
+  const params = new URLSearchParams();
+  if (f.status)   params.set("status",   f.status);
+  if (f.method)   params.set("method",   f.method);
+  if (f.fromDate) params.set("fromDate", f.fromDate);
+  if (f.toDate)   params.set("toDate",   f.toDate);
+  params.set("page",  String(f.page  ?? 1));
+  params.set("limit", String(f.limit ?? 50));
+
+  const url = `${API_ROUTES.adminWallets.withdrawals()}?${params.toString()}`;
   const raw = await apiFetch<unknown>(url);
+
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     const obj = raw as Record<string, unknown>;
     if (Array.isArray(obj.withdrawals)) {
       return {
         withdrawals: obj.withdrawals as WithdrawalsResult["withdrawals"],
         total: (obj.total as number | undefined) ?? obj.withdrawals.length,
-        page: (obj.page as number | undefined) ?? page,
-        limit: (obj.limit as number | undefined) ?? limit,
+        page:  (obj.page  as number | undefined) ?? f.page  ?? 1,
+        limit: (obj.limit as number | undefined) ?? f.limit ?? 50,
       };
     }
   }
-  return { withdrawals: [], total: 0, page, limit };
+  return { withdrawals: [], total: 0, page: f.page ?? 1, limit: f.limit ?? 50 };
+}
+
+// ─── Platform revenue ─────────────────────────────────────────────────────────
+
+export async function getPlatformRevenue(
+  from?: string,
+  to?: string,
+): Promise<PlatformRevenue | null> {
+  try {
+    let url = API_ROUTES.adminPlatform.revenue();
+    const params = new URLSearchParams();
+    if (from) params.set("fromDate", from);
+    if (to)   params.set("toDate",   to);
+    const qs = params.toString();
+    if (qs) url = `${url}?${qs}`;
+
+    const raw = await apiFetch<unknown>(url);
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      return raw as PlatformRevenue;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }

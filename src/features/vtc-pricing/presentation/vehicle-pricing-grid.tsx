@@ -22,6 +22,7 @@ import {
 const VEHICLE_ORDER: RideVehicleType[] = [
   "MOTO",
   "TRICYCLE",
+  "ECO",
   "STANDARD",
   "CONFORT",
   "VIP",
@@ -56,7 +57,7 @@ function ComponentDetail({ c }: { c: PricingComponent }) {
   }
 
   return (
-    <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--muted)]/40 px-3 py-2 text-xs">
+    <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/30 px-3 py-2 text-xs">
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium text-[color:var(--foreground)]">{c.label}</span>
         <Badge tone="neutral">{COMPONENT_TYPE_LABELS[c.type]}</Badge>
@@ -73,7 +74,6 @@ function ComponentDetail({ c }: { c: PricingComponent }) {
         </dl>
       )}
 
-      {/* PER_KM_TIER tiers */}
       {c.tiers && c.tiers.length > 0 && (
         <table className="mt-1.5 w-full text-[11px]">
           <thead>
@@ -99,7 +99,6 @@ function ComponentDetail({ c }: { c: PricingComponent }) {
         </table>
       )}
 
-      {/* DISTANCE_ZONE / PER_ZONE zones */}
       {c.zones && c.zones.length > 0 && (
         <table className="mt-1.5 w-full text-[11px]">
           <thead>
@@ -124,7 +123,6 @@ function ComponentDetail({ c }: { c: PricingComponent }) {
         </table>
       )}
 
-      {/* TIMED_PACKAGE packages */}
       {c.packages && c.packages.length > 0 && (
         <table className="mt-1.5 w-full text-[11px]">
           <thead>
@@ -157,15 +155,18 @@ function ProfileCard({ profile }: { profile: PricingProfile }) {
   const components = profile.components ?? [];
   return (
     <div
-      className={`rounded-lg border p-4 ${
+      className={`rounded-xl border p-3 transition-colors ${
         profile.isActive
-          ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10"
+          ? "border-[color:var(--primary)]/30 bg-[color:var(--muted)]/30"
           : "border-[color:var(--border)] bg-[color:var(--background)]"
       }`}
     >
       {/* Header */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold text-[color:var(--foreground)]">
+      <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
+        {profile.isActive && (
+          <span className="inline-block size-2 rounded-full bg-[color:var(--primary)]" />
+        )}
+        <span className="text-xs font-semibold text-[color:var(--foreground)]">
           {profile.name}
         </span>
         {profile.isActive ? (
@@ -178,7 +179,7 @@ function ProfileCard({ profile }: { profile: PricingProfile }) {
       </div>
 
       {/* Rates */}
-      <div className="mb-3 flex flex-wrap gap-4 text-xs text-[color:var(--muted-foreground)]">
+      <div className="mb-2.5 flex flex-wrap gap-3 text-[11px] text-[color:var(--muted-foreground)]">
         <span>
           Commission :{" "}
           <strong className="text-[color:var(--foreground)]">
@@ -199,7 +200,7 @@ function ProfileCard({ profile }: { profile: PricingProfile }) {
           Aucune composante tarifaire.
         </p>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5">
           {components.map((c, i) => (
             <ComponentDetail key={`${c.key}-${i}`} c={c} />
           ))}
@@ -224,23 +225,30 @@ function VehicleColumn({
   return (
     <Card className="flex flex-col">
       <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <Car className="size-4 text-[color:var(--secondary)]" />
-          <CardTitle className="text-base">
-            {RIDE_VEHICLE_LABELS[vehicleType]}
-          </CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Car className="size-4 text-[color:var(--primary)]" />
+            <CardTitle className="text-sm">
+              {RIDE_VEHICLE_LABELS[vehicleType]}
+            </CardTitle>
+          </div>
           {active ? (
-            <Badge tone="success">1 actif</Badge>
+            <Badge tone="success">Actif</Badge>
           ) : (
-            <Badge tone="danger">Aucun actif</Badge>
+            <Badge tone="danger">Non configuré</Badge>
           )}
         </div>
+        {profiles.length > 0 && (
+          <p className="text-[11px] text-[color:var(--muted-foreground)]">
+            {profiles.length} version{profiles.length > 1 ? "s" : ""}
+          </p>
+        )}
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-3">
+      <CardContent className="flex flex-col gap-2.5">
         {profiles.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-6 text-center">
-            <p className="text-sm text-[color:var(--muted-foreground)]">
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-[color:var(--border)] py-6 text-center">
+            <p className="text-xs text-[color:var(--muted-foreground)]">
               Aucun tarif configuré.
             </p>
           </div>
@@ -250,8 +258,8 @@ function VehicleColumn({
             {inactive.length > 0 && (
               <details className="group">
                 <summary className="cursor-pointer select-none text-xs text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]">
-                  {inactive.length} version{inactive.length > 1 ? "s" : ""}{" "}
-                  inactive{inactive.length > 1 ? "s" : ""}
+                  {inactive.length} version{inactive.length > 1 ? "s" : ""} archivée
+                  {inactive.length > 1 ? "s" : ""}
                 </summary>
                 <div className="mt-2 flex flex-col gap-2">
                   {inactive.map((p) => (
@@ -274,39 +282,39 @@ export interface VehiclePricingGridProps {
   error?: string;
 }
 
-export function VehiclePricingGrid({
-  profiles,
-  error,
-}: VehiclePricingGridProps) {
-  // Filter RIDE profiles only, group by vehicleType
+export function VehiclePricingGrid({ profiles, error }: VehiclePricingGridProps) {
   const rideProfiles = profiles.filter((p) => p.serviceKey === "RIDE");
+  const configuredCount = VEHICLE_ORDER.filter((v) =>
+    rideProfiles.some((p) => (p.vehicleType ?? "").toUpperCase() === v),
+  ).length;
 
-  const byVehicle = VEHICLE_ORDER.reduce<
-    Record<string, PricingProfile[]>
-  >((acc, v) => {
-    acc[v] = rideProfiles.filter(
-      (p) => (p.vehicleType ?? "").toUpperCase() === v,
-    );
-    return acc;
-  }, {});
-
-  // Vehicles with no match from API but in our known list stay as empty
-  const totalProfiles = rideProfiles.length;
+  const byVehicle = VEHICLE_ORDER.reduce<Record<string, PricingProfile[]>>(
+    (acc, v) => {
+      acc[v] = rideProfiles.filter(
+        (p) => (p.vehicleType ?? "").toUpperCase() === v,
+      );
+      return acc;
+    },
+    {},
+  );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <Car className="size-5 text-[color:var(--primary)]" />
         <div>
-          <p className="text-sm text-[color:var(--muted-foreground)]">
-            {totalProfiles} profil{totalProfiles !== 1 ? "s" : ""} RIDE —
-            groupés par catégorie de véhicule
+          <h2 className="text-base font-semibold text-[color:var(--foreground)]">
+            Tarifs par véhicule
+          </h2>
+          <p className="text-xs text-[color:var(--muted-foreground)]">
+            {configuredCount}/{VEHICLE_ORDER.length} catégories configurées — {rideProfiles.length} profil{rideProfiles.length !== 1 ? "s" : ""} RIDE au total
           </p>
         </div>
       </div>
 
       {error && (
-        <div className="rounded-md border border-[color:var(--danger)]/30 bg-[color:var(--danger)]/10 px-3 py-2 text-sm text-[color:var(--danger)]">
+        <div className="rounded-xl border border-[color:var(--danger)]/30 bg-[color:var(--danger)]/10 px-4 py-3 text-sm text-[color:var(--danger)]">
           {error}
         </div>
       )}

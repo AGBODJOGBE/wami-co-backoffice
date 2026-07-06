@@ -97,6 +97,18 @@ export const API_ROUTES = {
       `/api/admin/pricing/profiles/${id}/deactivate`,
   },
 
+  // ─── Admin: pricing zones ──────────────────────────────────────────────────
+  adminPricingZones: {
+    /** GET — list pricing zones. Query: serviceKey? */
+    list: () => "/api/admin/pricing/zones",
+    /** POST — create a zone. Body: { serviceKey, code, name, type }. */
+    create: () => "/api/admin/pricing/zones",
+    /** PATCH — update a zone (name, type, isActive). Code is immutable. */
+    update: (id: string) => `/api/admin/pricing/zones/${id}`,
+    /** DELETE — delete a zone. */
+    remove: (id: string) => `/api/admin/pricing/zones/${id}`,
+  },
+
   // ─── Admin: promo codes ────────────────────────────────────────────────────
   adminPromos: {
     /** POST — create a promo code. */
@@ -254,6 +266,10 @@ export const API_ROUTES = {
       `/api/admin/contracts/installments/${installmentId}/manual-payment`,
     /** POST — résilier un contrat. Body: { reason } */
     break: (id: string) => `/api/admin/contracts/${id}/break`,
+    /** POST — suspendre un contrat actif. Body: { reason? } */
+    suspend: (id: string) => `/api/admin/contracts/${id}/suspend`,
+    /** POST — reprendre un contrat suspendu. Body: {} */
+    resume: (id: string) => `/api/admin/contracts/${id}/resume`,
     /** POST — débloquer manuellement un chauffeur suspendu pour impayés */
     unblockDriver: (driverId: string) =>
       `/api/admin/contracts/drivers/${driverId}/unblock`,
@@ -289,12 +305,27 @@ export const API_ROUTES = {
     deleteConfig: (id: string) => `/api/admin/referrals/config/${id}`,
   },
 
+  // ─── Admin: wallet PLATFORM revenue ──────────────────────────────────────────
+  adminPlatform: {
+    /** GET — solde wallet PLATFORM + décomposition des revenus par source.
+     *  Query params (optionnels): fromDate (ISO), toDate (ISO). */
+    revenue: () => "/api/admin/platform/revenue",
+  },
+
   appConfig: {
     /** GET — list all mobile app version configs. */
     list: () => "/api/app-config",
     /** PUT — create or update a version config for a given appType × platform. */
     upsert: (appType: string, platform: string) =>
       `/api/app-config/${appType}/${platform}`,
+  },
+
+  // ─── System config (clés dynamiques en base) ──────────────────────────────
+  systemConfig: {
+    /** GET  — lire une clé de config système (ex: PAYMENT_TOLERANCE_DAYS) */
+    get: (key: string) => `/api/app-config/config/${key}`,
+    /** PUT  — mettre à jour une clé. Body: { value: string }. Rôle: SUPER_ADMIN */
+    update: (key: string) => `/api/app-config/config/${key}`,
   },
 
   // ─── Admin: users (passengers, drivers by role) ────────────────────────────

@@ -3,6 +3,7 @@
 export type ContractStatus =
   | "PENDING"
   | "ACTIVE"
+  | "SUSPENDED"
   | "COMPLETED"
   | "BROKEN"
   | "TERMINATED";
@@ -10,6 +11,7 @@ export type ContractStatus =
 export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
   PENDING: "En attente",
   ACTIVE: "Actif",
+  SUSPENDED: "Suspendu",
   COMPLETED: "Soldé",
   BROKEN: "Résilié",
   TERMINATED: "Terminé",
@@ -21,6 +23,7 @@ export const CONTRACT_STATUS_TONES: Record<
 > = {
   PENDING: "warning",
   ACTIVE: "success",
+  SUSPENDED: "danger",
   COMPLETED: "info",
   BROKEN: "danger",
   TERMINATED: "neutral",
@@ -99,6 +102,8 @@ export interface Contract {
   echeancesPayees?: number;
   montantCaution?: number;
   cautionRestituee?: boolean;
+  /** Nombre d'échéances passées en statut IMPAYEE (non réglées dans la fenêtre de tolérance). */
+  nbImpayes?: number;
   createdAt: string;
   updatedAt: string;
   breakReason?: string | null;

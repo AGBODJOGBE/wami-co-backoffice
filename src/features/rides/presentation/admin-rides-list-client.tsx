@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
@@ -98,6 +98,8 @@ export interface AdminRidesListClientProps {
   error?: string;
 }
 
+const PAGE_SIZE = 50;
+
 export function AdminRidesListClient({
   rides,
   total,
@@ -109,6 +111,7 @@ export function AdminRidesListClient({
   const [statusF, setStatusF] = useState("ALL");
   const [vehicleF, setVehicleF] = useState("ALL");
   const [paymentF, setPaymentF] = useState("ALL");
+  const [page, setPage] = useState(1);
   const [interventionOpen, setInterventionOpen] = useState(false);
   /** When a row "Modifier statut" is clicked, we pre-fill the modal with
    *  that specific ride so the admin doesn't have to paste a UUID. */
@@ -128,6 +131,9 @@ export function AdminRidesListClient({
       return true;
     });
   }, [rides, search, statusF, vehicleF, paymentF]);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => { setPage(1); }, [search, statusF, vehicleF, paymentF]);
 
   const stats = useMemo(() => {
     const inProgress = rides.filter((r) =>
@@ -298,16 +304,27 @@ export function AdminRidesListClient({
   ];
 
   function renderTable(rows: AdminRide[]) {
+    const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const pageRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
     return (
       <Card className="overflow-hidden p-0">
         <DataTable
-          rows={rows}
+          rows={pageRows}
           columns={columns}
           rowKey={(r) => r.rideId}
           rowHref={(r) => `/vtc/rides/${r.rideId}`}
           defaultSort={{ key: "createdAt", direction: "desc" }}
         />
-        <PaginationFooter total={total} shown={rows.length} />
+        <PaginationFooter
+          total={rows.length}
+          shown={pageRows.length}
+          page={safePage}
+          totalPages={totalPages}
+          onPrev={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        />
       </Card>
     );
   }
@@ -380,13 +397,13 @@ export function AdminRidesListClient({
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Courses du jour"
-          value={String(total)}
+          label="Total courses"
+          value={rides.length.toLocaleString("fr-FR")}
           trend={{
             value: `${stats.inProgress} en cours`,
             direction: "flat",
           }}
-          helper={`${stats.pending} en attente`}
+          helper={`${stats.pending} en attente · ${total} en base`}
           icon={Car}
           tone="primary"
         />

@@ -5,7 +5,7 @@ import {
   listRoles,
 } from "@/features/rbac/application/api";
 import { RbacSection } from "@/features/rbac/presentation/rbac-section";
-import { listAdminUsers, listAppConfigs } from "@/features/settings/application/api";
+import { listAdminUsers, listAppConfigs, getSystemConfig } from "@/features/settings/application/api";
 import { AdminsTab } from "@/features/settings/presentation/admins-tab";
 import { PlatformTab } from "@/features/settings/presentation/platform-tab";
 import { SettingsPage as MockSettingsPage } from "@/features/settings/settings-page";
@@ -15,13 +15,14 @@ import { Tabs } from "@/shared/ui/tabs";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPageRoute() {
-  const [meRes, rolesRes, catalogRes, adminsRes, appConfigRes] =
+  const [meRes, rolesRes, catalogRes, adminsRes, appConfigRes, toleranceRes] =
     await Promise.allSettled([
       getMyPermissions(),
       listRoles(),
       listPermissionsByModule(),
       listAdminUsers(),
       listAppConfigs(),
+      getSystemConfig("PAYMENT_TOLERANCE_DAYS"),
     ]);
 
   const errMsg = (e: unknown) =>
@@ -33,6 +34,7 @@ export default async function SettingsPageRoute() {
   const rawAdmins = adminsRes.status === "fulfilled" ? adminsRes.value.users : [];
   const adminsTotal = adminsRes.status === "fulfilled" ? adminsRes.value.total : 0;
   const appConfigs = appConfigRes.status === "fulfilled" ? appConfigRes.value : [];
+  const toleranceConfig = toleranceRes.status === "fulfilled" ? toleranceRes.value : null;
 
   // Enrich admin list: inject adminId where known.
   // We only know the mapping userId↔adminId for the logged-in user (from session cookie).
@@ -130,6 +132,7 @@ export default async function SettingsPageRoute() {
                 error={
                   appConfigRes.status === "rejected" ? errMsg(appConfigRes.reason) : undefined
                 }
+                toleranceConfig={toleranceConfig}
               />
             ),
           },

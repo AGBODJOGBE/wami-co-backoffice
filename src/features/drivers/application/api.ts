@@ -15,12 +15,78 @@ export function listPendingDrivers(): Promise<PendingDriversResult> {
   return apiFetch<PendingDriversResult>(API_ROUTES.adminDrivers.pending());
 }
 
+/** Minimal user shape returned by GET /api/admin/users */
+interface DriverUserRow {
+  id?: string;
+  userId?: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber?: string;
+  phone?: string;
+  role?: string;
+  isActive?: boolean;
+  createdAt?: string;
+}
+
+export interface DriverUserSummary {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+/**
+ * Fetches all driver users from GET /api/admin/users.
+ * Used as fallback when /api/admin/drivers fails (e.g., expired-doc bug).
+ * Returns a map keyed by userId for fast lookup.
+ */
+export async function listDriverUsers(): Promise<Map<string, DriverUserSummary>> {
+  try {
+    const raw = await apiFetch<unknown>(API_ROUTES.adminUsers.list(), {
+      silent: true,
+    });
+
+    let users: DriverUserRow[] = [];
+    if (Array.isArray(raw)) {
+      users = raw as DriverUserRow[];
+    } else if (raw && typeof raw === "object") {
+      const obj = raw as Record<string, unknown>;
+      if (Array.isArray(obj.users)) users = obj.users as DriverUserRow[];
+      else if (Array.isArray(obj.items)) users = obj.items as DriverUserRow[];
+      else if (Array.isArray(obj.data)) users = obj.data as DriverUserRow[];
+    }
+
+    const map = new Map<string, DriverUserSummary>();
+    for (const u of users) {
+      if (u.role !== "DRIVER" && u.role !== undefined) continue;
+      const uid = u.id ?? u.userId ?? "";
+      if (!uid) continue;
+      map.set(uid, {
+        userId: uid,
+        firstName: u.firstName ?? "",
+        lastName: u.lastName ?? "",
+        phoneNumber: u.phoneNumber ?? u.phone ?? "",
+        isActive: u.isActive ?? true,
+        createdAt: u.createdAt ?? "",
+      });
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
 /** GET /api/admin/drivers — tolerates array vs {drivers,total} vs {data} */
 export async function listAdminDrivers(
   query: { status?: AdminDriverStatus } = {},
 ): Promise<AdminDriversResult> {
+  // silent: true — backend returns 400 when any driver has an expired document;
+  // the error is already surfaced in the UI via Promise.allSettled in the page.
   const raw = await apiFetch<unknown>(API_ROUTES.adminDrivers.list(), {
     query: { status: query.status },
+    silent: true,
   });
   if (Array.isArray(raw)) {
     return { drivers: raw as AdminDriver[], total: raw.length };

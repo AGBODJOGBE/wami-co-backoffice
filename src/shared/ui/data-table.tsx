@@ -37,6 +37,7 @@ export interface DataTableProps<TRow> {
   rows: TRow[];
   rowKey: (row: TRow) => string;
   emptyMessage?: string;
+  emptyState?: ReactNode;
   rowClassName?: string;
   /** Generate a destination URL when a row is clicked (excluding clicks on buttons / links / dropdowns). */
   rowHref?: (row: TRow) => string;
@@ -54,6 +55,7 @@ export function DataTable<TRow>({
   rows,
   rowKey,
   emptyMessage = "Aucun résultat.",
+  emptyState,
   rowClassName,
   rowHref,
   onRowClick,
@@ -189,11 +191,12 @@ export function DataTable<TRow>({
         <tbody>
           {visible.length === 0 ? (
             <tr>
-              <td
-                colSpan={columns.length}
-                className="px-5 py-12 text-center text-sm text-[color:var(--muted-foreground)]"
-              >
-                {emptyMessage}
+              <td colSpan={columns.length}>
+                {emptyState ?? (
+                  <p className="px-5 py-12 text-center text-sm text-[color:var(--muted-foreground)]">
+                    {emptyMessage}
+                  </p>
+                )}
               </td>
             </tr>
           ) : (
@@ -234,9 +237,24 @@ export function DataTable<TRow>({
 export function PaginationFooter({
   total,
   shown,
+  page,
+  totalPages,
+  onPrev,
+  onNext,
   className,
   ...props
-}: { total: number; shown: number } & HTMLAttributes<HTMLDivElement>) {
+}: {
+  total: number;
+  shown: number;
+  page?: number;
+  totalPages?: number;
+  onPrev?: () => void;
+  onNext?: () => void;
+} & HTMLAttributes<HTMLDivElement>) {
+  const hasPagination = onPrev !== undefined && onNext !== undefined;
+  const isPrevDisabled = !hasPagination || (page ?? 1) <= 1;
+  const isNextDisabled = !hasPagination || (page ?? 1) >= (totalPages ?? 1);
+
   return (
     <div
       className={cn(
@@ -246,19 +264,25 @@ export function PaginationFooter({
       {...props}
     >
       <span>
-        {shown} sur {total} résultats
+        {shown} sur {total} résultat{total !== 1 ? "s" : ""}
+        {hasPagination && totalPages && totalPages > 1
+          ? ` — page ${page ?? 1} / ${totalPages}`
+          : null}
       </span>
       <div className="flex items-center gap-1">
         <button
           type="button"
-          className="rounded-md px-3 py-1.5 hover:bg-[color:var(--muted)] disabled:opacity-50"
-          disabled
+          onClick={onPrev}
+          disabled={isPrevDisabled}
+          className="rounded-md px-3 py-1.5 hover:bg-[color:var(--muted)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           Précédent
         </button>
         <button
           type="button"
-          className="rounded-md px-3 py-1.5 hover:bg-[color:var(--muted)]"
+          onClick={onNext}
+          disabled={isNextDisabled}
+          className="rounded-md px-3 py-1.5 hover:bg-[color:var(--muted)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           Suivant
         </button>

@@ -3,35 +3,35 @@ import {
   getPricingProfile,
   listPricingProfiles,
 } from "@/features/vtc-pricing/application/pricing-profiles-api";
+import { listPricingZones } from "@/features/vtc-pricing/application/pricing-zones-api";
 import { PricingTabs } from "@/features/vtc-pricing/presentation/pricing-tabs";
 
 export const dynamic = "force-dynamic";
 
 export default async function VtcPricingPageRoute() {
-  const [surgeRes, profilesRes] = await Promise.allSettled([
+  const [surgeRes, profilesRes, zonesRes] = await Promise.allSettled([
     listSurgeRules(),
     listPricingProfiles(),
+    listPricingZones(),
   ]);
 
-  const surgeRules = surgeRes.status === "fulfilled" ? surgeRes.value : [];
-  const surgeError =
-    surgeRes.status === "rejected"
-      ? surgeRes.reason instanceof Error
-        ? surgeRes.reason.message
-        : "Erreur de chargement."
-      : undefined;
+  const surgeRules  = surgeRes.status  === "fulfilled" ? surgeRes.value  : [];
+  const surgeError  = surgeRes.status  === "rejected"
+    ? (surgeRes.reason instanceof Error ? surgeRes.reason.message : "Erreur de chargement.")
+    : undefined;
 
-  const lightProfiles =
-    profilesRes.status === "fulfilled" ? profilesRes.value : [];
-  const profilesError =
-    profilesRes.status === "rejected"
-      ? profilesRes.reason instanceof Error
-        ? profilesRes.reason.message
-        : "Erreur de chargement."
-      : undefined;
+  const lightProfiles  = profilesRes.status === "fulfilled" ? profilesRes.value : [];
+  const profilesError  = profilesRes.status === "rejected"
+    ? (profilesRes.reason instanceof Error ? profilesRes.reason.message : "Erreur de chargement.")
+    : undefined;
 
-  // Fetch all profile details server-side in parallel so client components
-  // receive complete data (with components) without needing client-side proxy calls.
+  const zones      = zonesRes.status === "fulfilled" ? zonesRes.value : [];
+  const zonesError = zonesRes.status === "rejected"
+    ? (zonesRes.reason instanceof Error ? zonesRes.reason.message : "Erreur de chargement des zones.")
+    : undefined;
+
+  // Fetch all profile details in parallel so client components receive
+  // complete data (with components) without extra client-side proxy calls.
   const detailResults = await Promise.allSettled(
     lightProfiles.map((p) => getPricingProfile(p.profileId)),
   );
@@ -47,6 +47,8 @@ export default async function VtcPricingPageRoute() {
       surgeError={surgeError}
       profiles={profiles}
       profilesError={profilesError}
+      zones={zones}
+      zonesError={zonesError}
     />
   );
 }

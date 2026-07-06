@@ -1,4 +1,6 @@
 import {
+  getPlatformRevenue,
+  listAdminTransactions,
   listAdminWallets,
   listWithdrawals,
 } from "@/features/wallet/application/api";
@@ -8,13 +10,22 @@ import { WalletLivePage } from "@/features/wallet/wallet-live-page";
 export const dynamic = "force-dynamic";
 
 export default async function WalletPageRoute() {
-  const [walletsRes, withdrawalsRes] = await Promise.allSettled([
-    listAdminWallets(),
-    listWithdrawals(),
-  ]);
+  const [walletsRes, transactionsRes, withdrawalsRes, platformRevenueRes] =
+    await Promise.allSettled([
+      listAdminWallets(),
+      listAdminTransactions({ limit: 100 }),
+      listWithdrawals({ limit: 50 }),
+      getPlatformRevenue(),
+    ]);
 
   const rawWallets =
     walletsRes.status === "fulfilled" ? walletsRes.value.wallets : [];
+
+  const transactions =
+    transactionsRes.status === "fulfilled"
+      ? transactionsRes.value.transactions
+      : [];
+
   const withdrawalsList =
     withdrawalsRes.status === "fulfilled"
       ? withdrawalsRes.value.withdrawals
@@ -22,10 +33,15 @@ export default async function WalletPageRoute() {
   const withdrawalsTotal =
     withdrawalsRes.status === "fulfilled" ? withdrawalsRes.value.total : 0;
 
-  // ownerName et ownerPhone sont déjà fournis par l'API wallet
+  const platformRevenue =
+    platformRevenueRes.status === "fulfilled"
+      ? platformRevenueRes.value
+      : null;
+
   const wallets = rawWallets.map((w) => ({
     ...w,
-    ownerName: w.ownerName || (w.walletType === "PLATFORM" ? "Plateforme ForYou" : ""),
+    ownerName:
+      w.ownerName || (w.walletType === "PLATFORM" ? "Plateforme ForYou" : ""),
   }));
 
   return (
@@ -34,14 +50,15 @@ export default async function WalletPageRoute() {
         eyebrow="Finance"
         title="Wallet & transactions"
         dataSource="live"
-        dataSourceHint="Wallets et courses branchés sur /api/admin/wallets et /api/admin/rides."
+        dataSourceHint="Wallets, transactions et retraits branchés sur /api/admin/wallets, /api/admin/transactions et /api/admin/withdrawals."
         description="Wallet utilisateurs, ajustements manuels, retraits."
       />
       <WalletLivePage
         wallets={wallets}
-        rides={[]}
+        transactions={transactions}
         withdrawals={withdrawalsList}
         withdrawalsTotal={withdrawalsTotal}
+        platformRevenue={platformRevenue ?? undefined}
       />
     </div>
   );

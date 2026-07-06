@@ -16,7 +16,8 @@ export interface CsvColumn<TRow> {
   value: (row: TRow) => string | number | boolean | null | undefined;
 }
 
-const NEEDS_QUOTING = /[",;\r\n]/;
+const SEP = ";";
+const NEEDS_QUOTING = /[";,\r\n]/;
 
 function quote(input: string): string {
   if (!NEEDS_QUOTING.test(input)) return input;
@@ -25,18 +26,21 @@ function quote(input: string): string {
 
 function stringify(v: ReturnType<CsvColumn<unknown>["value"]>): string {
   if (v === null || v === undefined) return "";
-  return String(v);
+  const s = String(v);
+  // Force Excel à traiter les grands nombres (tél, IDs) comme texte — évite la notation scientifique.
+  if (/^\+?\d{7,}$/.test(s)) return `="${s}"`;
+  return s;
 }
 
 export function buildCsv<TRow>(
   columns: readonly CsvColumn<TRow>[],
   rows: readonly TRow[],
 ): string {
-  const headerLine = columns.map((c) => quote(c.header)).join(",");
+  const headerLine = columns.map((c) => quote(c.header)).join(SEP);
   const lines = rows.map((row) =>
-    columns.map((c) => quote(stringify(c.value(row)))).join(","),
+    columns.map((c) => quote(stringify(c.value(row)))).join(SEP),
   );
-  // Prepend BOM so Excel correctly reads UTF-8 accents.
+  // BOM UTF-8 seul — sans sep= pour que Excel respecte l'encodage.
   return "﻿" + [headerLine, ...lines].join("\r\n");
 }
 

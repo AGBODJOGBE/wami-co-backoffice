@@ -50,6 +50,8 @@ export interface DriverStatusChangeResult {
 export interface DriverVehicleSummary {
   vehicleId: string;
   vehicleType: string;
+  /** Service level category of the vehicle: ECO | STANDARD | PREMIUM | VIP */
+  vehicleCategory: string | null;
   make: string;
   model: string;
   color: string;

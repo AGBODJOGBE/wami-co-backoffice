@@ -138,10 +138,20 @@ export interface UpdateVehicleInput {
   model?: string;
   year?: number;
   color?: string;
+  licensePlate?: string;
   seats?: number;
   registrationCardUrl?: string;
   insuranceUrl?: string;
   insuranceExpiryDate?: string;
+  type?: VehicleType;
+  category?: VehicleCategory;
+  status?: VehicleStatus;
+  ownership?: VehicleOwnership;
+  mileage?: number;
+  lastMaintenanceDate?: string;
+  nextMaintenanceDate?: string;
+  purchasePrice?: number;
+  currentValue?: number;
 }
 
 /** Return value from POST /verify. */

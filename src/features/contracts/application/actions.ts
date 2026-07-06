@@ -75,12 +75,50 @@ export async function unblockDriverAction(
   try {
     await apiFetch<unknown>(API_ROUTES.adminContracts.unblockDriver(driverId), {
       method: "POST",
+      body: { reason: "MANUAL_ADMIN" },
     });
     revalidatePath("/contracts");
     revalidatePath(`/contracts/${contractId}`);
     return { ok: true, message: "Chauffeur débloqué avec succès." };
   } catch (e) {
     return fail(e, "Impossible de débloquer le chauffeur.");
+  }
+}
+
+// ─── Suspend ──────────────────────────────────────────────────────────────────
+
+export async function suspendContractAction(
+  contractId: string,
+  reason?: string,
+): Promise<ActionResult> {
+  try {
+    await apiFetch<unknown>(API_ROUTES.adminContracts.suspend(contractId), {
+      method: "POST",
+      body: reason ? { reason } : {},
+    });
+    revalidatePath("/contracts");
+    revalidatePath(`/contracts/${contractId}`);
+    return { ok: true, message: "Contrat suspendu." };
+  } catch (e) {
+    return fail(e, "Impossible de suspendre le contrat.");
+  }
+}
+
+// ─── Resume ───────────────────────────────────────────────────────────────────
+
+export async function resumeContractAction(
+  contractId: string,
+): Promise<ActionResult> {
+  try {
+    await apiFetch<unknown>(API_ROUTES.adminContracts.resume(contractId), {
+      method: "POST",
+      body: {},
+    });
+    revalidatePath("/contracts");
+    revalidatePath(`/contracts/${contractId}`);
+    return { ok: true, message: "Contrat repris — statut Actif." };
+  } catch (e) {
+    return fail(e, "Impossible de reprendre le contrat.");
   }
 }
 

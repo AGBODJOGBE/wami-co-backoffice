@@ -78,3 +78,19 @@ export async function updateAdminRoleAction(
     return fail(e, "Mise à jour impossible.");
   }
 }
+
+export async function updateSystemConfigAction(
+  key: string,
+  value: string,
+): Promise<ActionResult> {
+  try {
+    await apiFetch<unknown>(API_ROUTES.systemConfig.update(key), {
+      method: "PUT",
+      body: { value },
+    });
+    revalidatePath("/settings");
+    return { ok: true, message: "Configuration mise à jour." };
+  } catch (e) {
+    return fail(e, "Impossible de mettre à jour la configuration.");
+  }
+}

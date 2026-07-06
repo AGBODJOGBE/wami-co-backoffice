@@ -3,34 +3,35 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
+  ArrowRight,
   Car as CarIcon,
+  CheckCircle2,
+  Clock,
+  Gauge,
   History,
   MapPin,
+  Navigation,
   Phone,
   RefreshCw,
+  ShieldCheck,
   ShieldX,
   Star,
+  TrendingUp,
   UserCircle,
   Wallet,
+  Zap,
 } from "lucide-react";
 import { Avatar } from "@/shared/ui/avatar";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/shared/ui/card";
-import {
-  DetailHeader,
-  InfoGrid,
-  type InfoRow,
-} from "@/shared/ui/detail-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { DetailHeader } from "@/shared/ui/detail-header";
 import { CopyableId } from "@/shared/ui/copy-button";
 import { DevNote } from "@/shared/ui/dev-note";
 import { Spinner } from "@/shared/ui/spinner";
-import { formatDateTime, formatXof } from "@/shared/lib/format";
+import { DocumentsList } from "@/features/documents/presentation/documents-list";
+import { formatDate, formatDateTime, formatXof } from "@/shared/lib/format";
 import {
   DriverInlineActionButton,
   SuspendDriverModal,
@@ -50,7 +51,6 @@ import {
   VEHICLE_TYPE_LABELS,
   type VehicleSummary,
 } from "@/features/vehicles/domain/vehicle";
-import { DocumentsList } from "@/features/documents/presentation/documents-list";
 import type { DocumentMetadata } from "@/features/documents/domain/document";
 import type { AdminWallet } from "@/features/wallet/domain/wallet";
 import {
@@ -58,6 +58,8 @@ import {
   rideStatusMeta,
   type AdminRide,
 } from "@/features/rides/domain/admin-ride";
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface DriverDetailClientProps {
   driverId: string;
@@ -70,16 +72,385 @@ export interface DriverDetailClientProps {
   documents: DocumentMetadata[];
   documentsError?: string;
   vehiclesError?: string;
-  /** Rich profile from GET /admin/drivers. When present, we show name/
-   * phone/photo/rating/totalRides instead of the UUID-only fallback. */
   enriched?: AdminDriver;
-  /** Real-time presence — when present the driver is online (GPS + ride). */
   online?: OnlineDriver;
-  /** Driver wallet — from GET /admin/wallets matched by profileId. */
   wallet?: AdminWallet;
-  /** Recent rides where this driver is the assigned driver. */
   recentRides?: AdminRide[];
 }
+
+// ─── MiniStat ─────────────────────────────────────────────────────────────────
+
+function MiniStat({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  accent,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-xl border px-4 py-3 ${
+        accent
+          ? "border-[color:var(--primary)]/30 bg-[color:var(--primary)]/5"
+          : "border-[color:var(--border)] bg-[color:var(--background)]"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+          {label}
+        </p>
+        {Icon && (
+          <Icon
+            className={`size-4 ${accent ? "text-[color:var(--primary)]" : "text-[color:var(--muted-foreground)]"}`}
+          />
+        )}
+      </div>
+      <div className="mt-1.5 text-sm font-bold text-[color:var(--foreground)]">
+        {value}
+      </div>
+      {sub && (
+        <p className="mt-0.5 text-[10px] text-[color:var(--muted-foreground)]">
+          {sub}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── OnlineBanner ─────────────────────────────────────────────────────────────
+
+function OnlineBanner({ online }: { online: OnlineDriver }) {
+  const headingLabel = [
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+    "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO",
+  ][Math.round(online.heading / 22.5) % 16];
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/8 px-4 py-3">
+      <div className="flex items-center gap-2">
+        <span className="relative flex size-2.5">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+          <span className="relative inline-flex size-2.5 rounded-full bg-emerald-500" />
+        </span>
+        <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+          En ligne maintenant
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-emerald-700/80 dark:text-emerald-400/80">
+        <span className="flex items-center gap-1">
+          <MapPin className="size-3" />
+          {online.latitude.toFixed(5)}, {online.longitude.toFixed(5)}
+        </span>
+        {online.speed > 0 && (
+          <span className="flex items-center gap-1">
+            <Gauge className="size-3" />
+            {Math.round(online.speed)} km/h
+          </span>
+        )}
+        {online.heading > 0 && (
+          <span className="flex items-center gap-1">
+            <Navigation className="size-3" />
+            {headingLabel}
+          </span>
+        )}
+        {online.isInRide && (
+          <Badge tone="primary">En course</Badge>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── VehicleCard ──────────────────────────────────────────────────────────────
+
+function VehicleCard({
+  vehicles,
+  vehiclesError,
+  enrichedVehicle,
+  onNavigate,
+}: {
+  vehicles: VehicleSummary[];
+  vehiclesError?: string;
+  enrichedVehicle?: AdminDriver["vehicle"];
+  onNavigate: (id: string) => void;
+}) {
+  if (vehiclesError) {
+    return (
+      <p className="text-sm text-[color:var(--danger)]">{vehiclesError}</p>
+    );
+  }
+
+  if (vehicles.length > 0) {
+    return (
+      <div className="flex flex-col divide-y divide-[color:var(--border)]">
+        {vehicles.map((v) => {
+          const sm = VEHICLE_STATUS_META[v.status];
+          return (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => onNavigate(v.id)}
+              className="group flex flex-col gap-1.5 py-3 text-left transition-colors first:pt-0 last:pb-0 hover:opacity-80"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-9 flex-shrink-0 items-center justify-center rounded-lg bg-[color:var(--primary)]/10">
+                    <CarIcon className="size-4 text-[color:var(--primary)]" />
+                  </div>
+                  <div className="flex flex-col leading-tight">
+                    <span className="text-sm font-semibold text-[color:var(--foreground)] group-hover:underline">
+                      {v.make} {v.model} {v.year}
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                      {v.licensePlate}
+                    </span>
+                  </div>
+                </div>
+                <Badge tone={sm.tone}>{sm.label}</Badge>
+              </div>
+              <div className="ml-11 flex flex-wrap items-center gap-1.5">
+                <Badge tone="neutral">{VEHICLE_TYPE_LABELS[v.type]}</Badge>
+                {v.category && (
+                  <Badge tone="primary">{VEHICLE_CATEGORY_LABELS[v.category]}</Badge>
+                )}
+                <Badge tone={v.ownership === "PLATFORM" ? "info" : "neutral"}>
+                  {VEHICLE_OWNERSHIP_LABELS[v.ownership]}
+                </Badge>
+              </div>
+              <div className="ml-11 flex items-center gap-1 text-[10px] text-[color:var(--primary)]">
+                <ArrowRight className="size-3" />
+                Voir le véhicule
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (enrichedVehicle) {
+    return (
+      <button
+        type="button"
+        onClick={() => onNavigate(enrichedVehicle.vehicleId)}
+        className="group flex flex-col gap-1.5 text-left transition-colors hover:opacity-80"
+      >
+        <div className="flex items-center gap-2">
+          <div className="flex size-9 flex-shrink-0 items-center justify-center rounded-lg bg-[color:var(--primary)]/10">
+            <CarIcon className="size-4 text-[color:var(--primary)]" />
+          </div>
+          <div className="flex flex-col leading-tight">
+            <span className="text-sm font-semibold text-[color:var(--foreground)] group-hover:underline">
+              {enrichedVehicle.make} {enrichedVehicle.model}
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-[color:var(--muted-foreground)]">
+              {enrichedVehicle.licensePlate}
+            </span>
+          </div>
+        </div>
+        <div className="ml-11 flex flex-wrap items-center gap-1.5 text-[11px] text-[color:var(--muted-foreground)]">
+          <span>{enrichedVehicle.vehicleType}</span>
+          <span>·</span>
+          <span>{enrichedVehicle.color}</span>
+          {enrichedVehicle.vehicleCategory && (
+            <>
+              <span>·</span>
+              <span className="font-medium text-[color:var(--primary)]">
+                {VEHICLE_CATEGORY_LABELS[enrichedVehicle.vehicleCategory as keyof typeof VEHICLE_CATEGORY_LABELS] ?? enrichedVehicle.vehicleCategory}
+              </span>
+            </>
+          )}
+        </div>
+        <div className="ml-11 flex items-center gap-1 text-[10px] text-[color:var(--primary)]">
+          <ArrowRight className="size-3" />
+          Voir le véhicule
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2 py-6 text-center">
+      <div className="flex size-12 items-center justify-center rounded-full bg-[color:var(--muted)]">
+        <CarIcon className="size-5 text-[color:var(--muted-foreground)]" />
+      </div>
+      <p className="text-sm text-[color:var(--muted-foreground)]">
+        Aucun véhicule rattaché
+      </p>
+    </div>
+  );
+}
+
+// ─── WalletCard ───────────────────────────────────────────────────────────────
+
+function WalletCard({ wallet }: { wallet?: AdminWallet }) {
+  if (!wallet) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-6 text-center">
+        <div className="flex size-12 items-center justify-center rounded-full bg-[color:var(--muted)]">
+          <Wallet className="size-5 text-[color:var(--muted-foreground)]" />
+        </div>
+        <p className="text-sm text-[color:var(--muted-foreground)]">
+          Aucun wallet rattaché
+        </p>
+      </div>
+    );
+  }
+
+  const total = wallet.totalBalance;
+  const pctMain = total > 0 ? (wallet.mainBalance / total) * 100 : 0;
+  const pctBonus = total > 0 ? (wallet.bonusBalance / total) * 100 : 0;
+  const pctRef = total > 0 ? (wallet.referralBalance / total) * 100 : 0;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Total */}
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+            Solde total
+          </span>
+          <span className="text-2xl font-bold tabular-nums text-[color:var(--foreground)]">
+            {formatXof(wallet.totalBalance)}
+          </span>
+        </div>
+        <Badge tone={wallet.status === "ACTIVE" ? "success" : "neutral"}>
+          {wallet.status === "ACTIVE" ? "Actif" : wallet.status}
+        </Badge>
+      </div>
+
+      {/* Visual bar */}
+      {total > 0 && (
+        <div className="flex h-2 w-full overflow-hidden rounded-full">
+          <div
+            className="bg-[color:var(--primary)] transition-all"
+            style={{ width: `${pctMain}%` }}
+          />
+          <div
+            className="bg-[color:var(--warning)] transition-all"
+            style={{ width: `${pctBonus}%` }}
+          />
+          <div
+            className="bg-emerald-500 transition-all"
+            style={{ width: `${pctRef}%` }}
+          />
+        </div>
+      )}
+
+      {/* Sub-balances */}
+      <dl className="flex flex-col gap-2 text-sm">
+        {[
+          {
+            label: "Principal",
+            value: wallet.mainBalance,
+            color: "bg-[color:var(--primary)]",
+          },
+          {
+            label: "Bonus",
+            value: wallet.bonusBalance,
+            color: "bg-[color:var(--warning)]",
+          },
+          {
+            label: "Parrainage",
+            value: wallet.referralBalance,
+            color: "bg-emerald-500",
+          },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="flex items-center justify-between gap-3">
+            <dt className="flex items-center gap-2 text-xs text-[color:var(--muted-foreground)]">
+              <span className={`size-2 rounded-full ${color}`} />
+              {label}
+            </dt>
+            <dd className="font-medium tabular-nums">{formatXof(value)}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className="flex items-center justify-between border-t border-[color:var(--border)] pt-3 text-[11px] text-[color:var(--muted-foreground)]">
+        <CopyableId id={wallet.walletId} prefix="Wallet" />
+        <span>{formatDate(wallet.createdAt)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── RidesCard ────────────────────────────────────────────────────────────────
+
+function RidesCard({ rides }: { rides: AdminRide[] }) {
+  if (rides.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-8 text-center">
+        <div className="flex size-12 items-center justify-center rounded-full bg-[color:var(--muted)]">
+          <History className="size-5 text-[color:var(--muted-foreground)]" />
+        </div>
+        <p className="text-sm text-[color:var(--muted-foreground)]">
+          Aucune course récente
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col divide-y divide-[color:var(--border)]">
+      {rides.map((r) => {
+        const meta = rideStatusMeta(r.status);
+        const price = r.pricing.finalPrice ?? r.pricing.estimatedPrice;
+        const earnings = r.pricing.driverEarnings;
+        const pickup = r.pickup?.address ?? null;
+        const dropoff = r.dropoff?.address ?? null;
+
+        return (
+          <div
+            key={r.rideId}
+            className="grid grid-cols-[1fr_auto] gap-x-3 py-3 first:pt-0 last:pb-0"
+          >
+            <div className="flex flex-col gap-0.5 overflow-hidden">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold text-[color:var(--foreground)]">
+                  {r.rideNumber}
+                </span>
+                <Badge tone={meta.tone}>{meta.label}</Badge>
+              </div>
+              {pickup && (
+                <div className="flex items-start gap-1 overflow-hidden text-[11px] text-[color:var(--muted-foreground)]">
+                  <MapPin className="mt-px size-3 flex-shrink-0 text-emerald-500" />
+                  <span className="truncate">{pickup}</span>
+                </div>
+              )}
+              {dropoff && (
+                <div className="flex items-start gap-1 overflow-hidden text-[11px] text-[color:var(--muted-foreground)]">
+                  <MapPin className="mt-px size-3 flex-shrink-0 text-[color:var(--danger)]" />
+                  <span className="truncate">{dropoff}</span>
+                </div>
+              )}
+              <span className="text-[10px] text-[color:var(--muted-foreground)]">
+                {fullParty(r.passenger ?? undefined)} · {formatDate(r.createdAt)}
+              </span>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-sm font-bold tabular-nums text-[color:var(--foreground)]">
+                {formatXof(price)}
+              </span>
+              {earnings != null && (
+                <span className="text-[10px] font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+                  +{formatXof(earnings)}
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── DriverDetailClient ───────────────────────────────────────────────────────
 
 export function DriverDetailClient({
   driverId,
@@ -100,89 +471,20 @@ export function DriverDetailClient({
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [suspendTarget, setSuspendTarget] = useState<DriverTarget | null>(null);
+
   const statusMeta = ADMIN_DRIVER_STATUS_META[status];
+  const displayName = enriched ? fullName(enriched) : `Driver #${driverId.slice(0, 8)}`;
 
-  const displayName = enriched
-    ? fullName(enriched)
-    : `Driver #${driverId.slice(0, 8)}`;
-  const headerAvatar = enriched ? (
-    <Avatar name={displayName} className="size-14 text-base" />
-  ) : (
-    <div className="flex size-14 items-center justify-center rounded-xl bg-[color:var(--primary-soft)] text-[color:var(--primary)]">
-      <UserCircle className="size-7" />
-    </div>
-  );
+  const pendingDocs = documents.filter((d) => d.status === "PENDING").length;
+  const isSuspended = status === "SUSPENDED";
 
-  const identityRows: InfoRow[] = enriched
-    ? [
-        {
-          label: "Téléphone",
-          value: (
-            <a
-              href={`tel:${enriched.phoneNumber}`}
-              className="inline-flex items-center gap-1 font-mono text-sm text-[color:var(--primary)] hover:underline"
-            >
-              <Phone className="size-3" />
-              {enriched.phoneNumber}
-            </a>
-          ),
-        },
-        {
-          label: "Catégorie",
-          value: (
-            <span>
-              {enriched.category}{" "}
-              <Badge tone="info" className="ml-1">
-                {enriched.driverType}
-              </Badge>
-            </span>
-          ),
-        },
-        {
-          label: "Note",
-          value: (
-            <span className="inline-flex items-center gap-1">
-              <Star className="size-3 fill-[color:var(--warning)] text-[color:var(--warning)]" />
-              {enriched.rating.toFixed(2)}
-            </span>
-          ),
-        },
-        {
-          label: "Courses totales",
-          value: (recentRides.length > enriched.totalRides
-            ? recentRides.length
-            : enriched.totalRides
-          ).toLocaleString("fr-FR"),
-        },
-        {
-          label: "Documents vérifiés",
-          value: enriched.isApproved ? (
-            <Badge tone="success">Oui</Badge>
-          ) : (
-            <Badge tone="warning">Non</Badge>
-          ),
-        },
-        {
-          label: "Véhicule propriétaire",
-          value: enriched.isVehicleOwner ? "Oui" : "Non",
-        },
-        { label: "Inscrit le", value: formatDateTime(enriched.createdAt) },
-      ]
-    : [
-        { label: "Catégorie", value: category },
-        {
-          label: "Documents vérifiés",
-          value: isDocumentsVerified ? (
-            <Badge tone="success">Oui</Badge>
-          ) : (
-            <Badge tone="warning">Non</Badge>
-          ),
-        },
-        { label: "Inscrit le", value: formatDateTime(createdAt) },
-      ];
+  const totalRides = enriched
+    ? Math.max(enriched.totalRides, recentRides.length)
+    : recentRides.length;
 
   return (
     <div className="flex flex-col gap-6">
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
       <DetailHeader
         backHref="/vtc/drivers"
         backLabel="Retour aux drivers"
@@ -192,7 +494,7 @@ export function DriverDetailClient({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
             <CopyableId id={driverId} prefix="Driver" />
             <CopyableId id={userId} prefix="User" />
-            {enriched ? (
+            {enriched && (
               <>
                 <span className="text-[color:var(--muted-foreground)]">·</span>
                 <a
@@ -203,26 +505,28 @@ export function DriverDetailClient({
                   {enriched.phoneNumber}
                 </a>
               </>
-            ) : null}
-            {online ? (
-              <>
-                <span className="text-[color:var(--muted-foreground)]">·</span>
-                <span className="inline-flex items-center gap-1 text-[color:var(--success)]">
-                  <MapPin className="size-3" />
-                  En ligne · {online.latitude.toFixed(4)},{" "}
-                  {online.longitude.toFixed(4)}
-                </span>
-              </>
-            ) : null}
+            )}
           </div>
         }
-        avatar={headerAvatar}
+        avatar={
+          enriched ? (
+            <Avatar name={displayName} className="size-14 text-base" />
+          ) : (
+            <div className="flex size-14 items-center justify-center rounded-xl bg-[color:var(--primary)]/10 text-[color:var(--primary)]">
+              <UserCircle className="size-7" />
+            </div>
+          )
+        }
         status={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge tone={statusMeta.tone}>{statusMeta.label}</Badge>
-            {online?.isInRide ? (
-              <Badge tone="primary">En course</Badge>
-            ) : null}
+            {online && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                <span className="size-1.5 rounded-full bg-emerald-500" />
+                En ligne
+              </span>
+            )}
+            {online?.isInRide && <Badge tone="primary">En course</Badge>}
           </div>
         }
         actions={
@@ -233,22 +537,18 @@ export function DriverDetailClient({
               onClick={() => startRefresh(() => router.refresh())}
               disabled={refreshing}
             >
-              {refreshing ? (
-                <Spinner size="sm" />
-              ) : (
-                <RefreshCw className="size-4" />
-              )}
+              {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
               Rafraîchir
             </Button>
-            {status === "PENDING" || status === "OFFLINE" ? (
+            {(status === "PENDING" || status === "OFFLINE") && !enriched?.isApproved && (
               <DriverInlineActionButton
                 driverId={driverId}
                 action="approve"
                 label="Approuver"
                 size="sm"
               />
-            ) : null}
-            {status === "SUSPENDED" ? (
+            )}
+            {isSuspended ? (
               <DriverInlineActionButton
                 driverId={driverId}
                 action="reactivate"
@@ -260,12 +560,7 @@ export function DriverDetailClient({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() =>
-                  setSuspendTarget({
-                    driverId,
-                    label: displayName,
-                  })
-                }
+                onClick={() => setSuspendTarget({ driverId, label: displayName })}
               >
                 <ShieldX className="size-4" />
                 Suspendre
@@ -275,117 +570,288 @@ export function DriverDetailClient({
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle>Identité</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <InfoGrid rows={identityRows} columns={2} />
-          </CardContent>
-        </Card>
+      {/* ── Suspension alert ─────────────────────────────────────────────────── */}
+      {isSuspended && (
+        <div className="flex items-center gap-3 rounded-xl border border-[color:var(--danger)]/40 bg-[color:var(--danger)]/8 px-4 py-3">
+          <AlertTriangle className="size-5 flex-shrink-0 text-[color:var(--danger)]" />
+          <p className="text-sm font-semibold text-[color:var(--danger)]">
+            Ce driver est suspendu et ne peut pas accepter de courses.
+          </p>
+        </div>
+      )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Véhicules ({vehicles.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {vehiclesError ? (
-              <p className="text-sm text-[color:var(--danger)]">
-                {vehiclesError}
-              </p>
-            ) : vehicles.length === 0 ? (
-              enriched?.vehicle ? (
-                <ul className="flex flex-col gap-1 py-2">
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        router.push(`/vtc/vehicles/${enriched.vehicle!.vehicleId}`)
-                      }
-                      className="text-sm font-medium text-[color:var(--foreground)] hover:underline"
-                    >
-                      {enriched.vehicle.make} {enriched.vehicle.model}
-                    </button>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted-foreground)]">
-                      <span className="font-mono uppercase">
-                        {enriched.vehicle.licensePlate}
-                      </span>
-                      <span>·</span>
-                      <span>{enriched.vehicle.vehicleType}</span>
-                      <span>·</span>
-                      <span>{enriched.vehicle.color}</span>
-                    </div>
-                  </li>
-                </ul>
-              ) : (
-                <div className="flex flex-col items-center gap-2 py-6 text-center">
-                  <CarIcon className="size-8 text-[color:var(--muted-foreground)]" />
-                  <p className="text-xs text-[color:var(--muted-foreground)]">
-                    Aucun véhicule rattaché
-                  </p>
-                </div>
-              )
+      {/* ── Real-time GPS banner ─────────────────────────────────────────────── */}
+      {online && <OnlineBanner online={online} />}
+
+      {/* ── KPI stats ───────────────────────────────────────────────────────── */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MiniStat
+          label="Note moyenne"
+          value={
+            <span className="inline-flex items-center gap-1.5">
+              <Star className="size-4 fill-[color:var(--warning)] text-[color:var(--warning)]" />
+              {enriched ? enriched.rating.toFixed(2) : "—"}
+            </span>
+          }
+          sub="sur 5.00"
+          icon={Star}
+        />
+        <MiniStat
+          label="Courses totales"
+          value={totalRides.toLocaleString("fr-FR")}
+          sub={recentRides.length > 0 ? `${recentRides.length} récentes affichées` : undefined}
+          icon={TrendingUp}
+          accent={totalRides > 0}
+        />
+        <MiniStat
+          label="Wallet EARNINGS"
+          value={wallet ? formatXof(wallet.totalBalance) : "—"}
+          sub={wallet ? `Principal : ${formatXof(wallet.mainBalance)}` : "Non rattaché"}
+          icon={Wallet}
+        />
+        <MiniStat
+          label="Documents"
+          value={
+            isDocumentsVerified ? (
+              <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="size-4" />
+                Vérifiés
+              </span>
+            ) : pendingDocs > 0 ? (
+              <span className="text-[color:var(--warning)]">
+                {pendingDocs} en attente
+              </span>
             ) : (
-              <ul className="flex flex-col divide-y divide-[color:var(--border)]">
-                {vehicles.map((v) => {
-                  const sm = VEHICLE_STATUS_META[v.status];
-                  return (
-                    <li
-                      key={v.id}
-                      className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/vtc/vehicles/${v.id}`)}
-                          className="text-sm font-medium text-[color:var(--foreground)] hover:underline"
-                        >
-                          {v.make} {v.model} {v.year}
-                        </button>
-                        <Badge tone={sm.tone}>{sm.label}</Badge>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--muted-foreground)]">
-                        <span className="font-mono uppercase">
-                          {v.licensePlate}
-                        </span>
-                        <span>·</span>
-                        <span>{VEHICLE_TYPE_LABELS[v.type]}</span>
-                        {v.category ? (
-                          <>
-                            <span>·</span>
-                            <span>{VEHICLE_CATEGORY_LABELS[v.category]}</span>
-                          </>
-                        ) : null}
-                        <span>·</span>
-                        <span>{VEHICLE_OWNERSHIP_LABELS[v.ownership]}</span>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+              <span className="text-[color:var(--muted-foreground)]">Non vérifiés</span>
+            )
+          }
+          sub={`${documents.length} document${documents.length > 1 ? "s" : ""} uploadé${documents.length > 1 ? "s" : ""}`}
+          icon={ShieldCheck}
+        />
       </div>
 
+      {/* ── Main grid ────────────────────────────────────────────────────────── */}
+      <div className="grid gap-6 xl:grid-cols-3">
+        {/* Left — Identité + Courses ────────────────────────── */}
+        <div className="flex flex-col gap-6 xl:col-span-2">
+          {/* Identité */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <UserCircle className="size-4 text-[color:var(--primary)]" />
+                <CardTitle>Identité</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+                {enriched ? (
+                  <>
+                    <InfoCell label="Téléphone">
+                      <a
+                        href={`tel:${enriched.phoneNumber}`}
+                        className="inline-flex items-center gap-1 font-mono text-sm text-[color:var(--primary)] hover:underline"
+                      >
+                        <Phone className="size-3" />
+                        {enriched.phoneNumber}
+                      </a>
+                    </InfoCell>
+                    <InfoCell label="Type">
+                      <Badge tone="info">{enriched.driverType}</Badge>
+                    </InfoCell>
+                    <InfoCell label="Catégorie profil">
+                      <span className="text-sm font-medium">{enriched.category || "—"}</span>
+                    </InfoCell>
+                    <InfoCell label="Note">
+                      <span className="inline-flex items-center gap-1 text-sm">
+                        <Star className="size-3.5 fill-[color:var(--warning)] text-[color:var(--warning)]" />
+                        {enriched.rating.toFixed(2)} / 5
+                      </span>
+                    </InfoCell>
+                    <InfoCell label="Courses">
+                      <span className="text-sm font-bold">{totalRides.toLocaleString("fr-FR")}</span>
+                    </InfoCell>
+                    <InfoCell label="Propriétaire véhicule">
+                      {enriched.isVehicleOwner ? (
+                        <Badge tone="primary">Oui — Perso</Badge>
+                      ) : (
+                        <Badge tone="neutral">Non — Plateforme</Badge>
+                      )}
+                    </InfoCell>
+                    <InfoCell label="Approuvé">
+                      {enriched.isApproved ? (
+                        <Badge tone="success">Oui</Badge>
+                      ) : (
+                        <Badge tone="warning">Non</Badge>
+                      )}
+                    </InfoCell>
+                    <InfoCell label="Inscrit le">
+                      <span className="text-sm">{formatDateTime(enriched.createdAt)}</span>
+                    </InfoCell>
+                    <InfoCell label="Statut">
+                      <Badge tone={statusMeta.tone}>{statusMeta.label}</Badge>
+                    </InfoCell>
+                  </>
+                ) : (
+                  <>
+                    <InfoCell label="Catégorie">
+                      <span className="text-sm">{category}</span>
+                    </InfoCell>
+                    <InfoCell label="Documents vérifiés">
+                      {isDocumentsVerified ? (
+                        <Badge tone="success">Oui</Badge>
+                      ) : (
+                        <Badge tone="warning">Non</Badge>
+                      )}
+                    </InfoCell>
+                    <InfoCell label="Inscrit le">
+                      <span className="text-sm">{formatDateTime(createdAt)}</span>
+                    </InfoCell>
+                  </>
+                )}
+              </div>
+
+              {!enriched && (
+                <DevNote className="mt-4">
+                  Profil enrichi non trouvé dans{" "}
+                  <code>GET /api/admin/drivers</code> — affichage des seuls IDs
+                  et métadonnées passées par la liste.
+                </DevNote>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Courses récentes */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <History className="size-4 text-[color:var(--primary)]" />
+                  <CardTitle>Courses récentes ({recentRides.length})</CardTitle>
+                </div>
+                {recentRides.length > 0 && (
+                  <div className="flex items-center gap-3 text-xs text-[color:var(--muted-foreground)]">
+                    <span className="flex items-center gap-1">
+                      <span className="size-2 rounded-full bg-emerald-500" />
+                      Gains driver
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <RidesCard rides={recentRides} />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right — Véhicule + Wallet ─────────────────────────── */}
+        <div className="flex flex-col gap-6">
+          {/* Véhicule */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <CarIcon className="size-4 text-[color:var(--primary)]" />
+                <CardTitle>
+                  Véhicule{vehicles.length > 1 ? `s (${vehicles.length})` : ""}
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <VehicleCard
+                vehicles={vehicles}
+                vehiclesError={vehiclesError}
+                enrichedVehicle={enriched?.vehicle ?? undefined}
+                onNavigate={(id) => router.push(`/vtc/vehicles/${id}`)}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Wallet */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Wallet className="size-4 text-[color:var(--primary)]" />
+                <CardTitle>Wallet</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <WalletCard wallet={wallet} />
+            </CardContent>
+          </Card>
+
+          {/* Cycle de vie */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Clock className="size-4 text-[color:var(--primary)]" />
+                <CardTitle>Cycle de vie</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <dl className="flex flex-col divide-y divide-[color:var(--border)]">
+                {[
+                  { label: "Driver ID", value: <CopyableId id={driverId} prefix="" /> },
+                  { label: "User ID", value: <CopyableId id={userId} prefix="" /> },
+                  { label: "Statut", value: <Badge tone={statusMeta.tone}>{statusMeta.label}</Badge> },
+                  {
+                    label: "Inscrit le",
+                    value: formatDateTime(enriched?.createdAt ?? createdAt),
+                  },
+                  online
+                    ? {
+                        label: "Dernière position",
+                        value: (
+                          <span className="font-mono text-[10px] text-emerald-600 dark:text-emerald-400">
+                            {online.latitude.toFixed(4)}, {online.longitude.toFixed(4)}
+                          </span>
+                        ),
+                      }
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .map((row) => (
+                    <div
+                      key={row!.label}
+                      className="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0"
+                    >
+                      <dt className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                        {row!.label}
+                      </dt>
+                      <dd className="text-sm text-[color:var(--foreground)]">
+                        {row!.value as React.ReactNode}
+                      </dd>
+                    </div>
+                  ))}
+              </dl>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* ── Documents ────────────────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Documents ({documents.length})</CardTitle>
-            {documents.some((d) => d.status === "PENDING") ? (
-              <Badge tone="warning">
-                {documents.filter((d) => d.status === "PENDING").length} à
-                vérifier
-              </Badge>
-            ) : null}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-[color:var(--primary)]" />
+              <CardTitle>Documents ({documents.length})</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              {isDocumentsVerified && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="size-3.5" />
+                  Tous vérifiés
+                </span>
+              )}
+              {pendingDocs > 0 && (
+                <Badge tone="warning">{pendingDocs} à vérifier</Badge>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
           {documentsError ? (
-            <p className="text-sm text-[color:var(--danger)]">
-              {documentsError}
-            </p>
+            <p className="text-sm text-[color:var(--danger)]">{documentsError}</p>
           ) : (
             <DocumentsList
               documents={documents}
@@ -396,135 +862,6 @@ export function DriverDetailClient({
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        {/* Wallet */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Wallet className="size-5 text-[color:var(--primary)]" />
-              <CardTitle>Wallet</CardTitle>
-              {wallet ? (
-                <Badge tone={wallet.status === "ACTIVE" ? "success" : "neutral"}>
-                  {wallet.status}
-                </Badge>
-              ) : null}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {wallet ? (
-              <dl className="flex flex-col gap-2 text-sm">
-                <Row
-                  label="Solde principal"
-                  value={
-                    <strong className="text-[color:var(--foreground)]">
-                      {formatXof(wallet.mainBalance)}
-                    </strong>
-                  }
-                />
-                <Row
-                  label="Bonus"
-                  value={formatXof(wallet.bonusBalance)}
-                />
-                <Row
-                  label="Parrainage"
-                  value={formatXof(wallet.referralBalance)}
-                />
-                <div className="border-t border-[color:var(--border)] pt-2">
-                  <Row
-                    label={
-                      <span className="text-[color:var(--foreground)]">
-                        Total
-                      </span>
-                    }
-                    value={
-                      <strong className="text-[color:var(--foreground)]">
-                        {formatXof(wallet.totalBalance)}
-                      </strong>
-                    }
-                  />
-                </div>
-                <Row
-                  label="Wallet ID"
-                  value={<CopyableId id={wallet.walletId} prefix="Wallet" />}
-                />
-                <Row
-                  label="Créé le"
-                  value={
-                    <span className="text-xs">
-                      {formatDateTime(wallet.createdAt)}
-                    </span>
-                  }
-                />
-              </dl>
-            ) : (
-              <div className="flex flex-col items-center gap-2 py-6 text-center">
-                <Wallet className="size-8 text-[color:var(--muted-foreground)]" />
-                <p className="text-xs text-[color:var(--muted-foreground)]">
-                  Aucun wallet rattaché à ce profil.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent rides */}
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <History className="size-5 text-[color:var(--primary)]" />
-              <CardTitle>Dernières courses ({recentRides.length})</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {recentRides.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-6 text-center">
-                <History className="size-8 text-[color:var(--muted-foreground)]" />
-                <p className="text-xs text-[color:var(--muted-foreground)]">
-                  Aucune course récente pour ce driver.
-                </p>
-              </div>
-            ) : (
-              <ul className="flex flex-col divide-y divide-[color:var(--border)]">
-                {recentRides.map((r) => {
-                  const meta = rideStatusMeta(r.status);
-                  return (
-                    <li
-                      key={r.rideId}
-                      className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                    >
-                      <div className="flex flex-col leading-tight">
-                        <span className="font-mono text-xs font-semibold">
-                          {r.rideNumber}
-                        </span>
-                        <span className="text-xs text-[color:var(--muted-foreground)]">
-                          {fullParty(r.passenger)} · {r.vehicleType}
-                        </span>
-                        <span className="text-[10px] text-[color:var(--muted-foreground)]">
-                          {formatDateTime(r.createdAt)}
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <Badge tone={meta.tone}>{meta.label}</Badge>
-                        <span className="text-sm font-semibold text-[color:var(--foreground)]">
-                          {formatXof(r.pricing.finalPrice || r.pricing.estimatedPrice)}
-                        </span>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {!enriched ? (
-        <DevNote>
-          Profil enrichi non trouvé dans <code>GET /api/admin/drivers</code> —
-          affichage des seuls IDs et métadonnées passées par la liste.
-        </DevNote>
-      ) : null}
-
       <SuspendDriverModal
         open={!!suspendTarget}
         target={suspendTarget}
@@ -534,17 +871,21 @@ export function DriverDetailClient({
   );
 }
 
-function Row({
+// ─── InfoCell ─────────────────────────────────────────────────────────────────
+
+function InfoCell({
   label,
-  value,
+  children,
 }: {
-  label: React.ReactNode;
-  value: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="text-xs text-[color:var(--muted-foreground)]">{label}</dt>
-      <dd className="text-right">{value}</dd>
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+        {label}
+      </span>
+      <span className="text-[color:var(--foreground)]">{children}</span>
     </div>
   );
 }

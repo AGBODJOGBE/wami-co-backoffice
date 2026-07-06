@@ -19,6 +19,8 @@ export async function listAdminRides(
       vehicleType: query.vehicleType,
       fromDate: query.fromDate,
       toDate: query.toDate,
+      page: query.page,
+      limit: query.limit,
     },
   });
   if (Array.isArray(raw)) {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, RefreshCw, Smartphone } from "lucide-react";
+import { Clock, Pencil, RefreshCw, Smartphone } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
@@ -12,8 +12,9 @@ import { Spinner } from "@/shared/ui/spinner";
 import { Textarea } from "@/shared/ui/textarea";
 import { toast } from "@/shared/ui/toast";
 import { formatDate } from "@/shared/lib/format";
-import { upsertAppConfigAction } from "../application/actions";
+import { upsertAppConfigAction, updateSystemConfigAction } from "../application/actions";
 import type { AppVersionConfig } from "../domain/admin-user";
+import type { SystemConfigEntry } from "../application/api";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -161,20 +162,150 @@ function EditConfigModal({
   );
 }
 
+// ─── Tolerance inline edit ────────────────────────────────────────────────────
+
+function ToleranceCard({
+  initialDays,
+  updatedAt,
+}: {
+  initialDays: number;
+  updatedAt?: string;
+}) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState<number | "">(initialDays);
+  const [pending, start] = useTransition();
+
+  function save() {
+    const n = Number(value);
+    if (!n || n < 1 || n > 30) {
+      toast({
+        kind: "error",
+        title: "Valeur invalide",
+        description: "La tolérance doit être comprise entre 1 et 30 jours.",
+      });
+      return;
+    }
+    start(async () => {
+      const r = await updateSystemConfigAction("PAYMENT_TOLERANCE_DAYS", String(n));
+      if (r.ok) {
+        toast({ kind: "success", title: "Tolérance mise à jour", description: r.message });
+        setEditing(false);
+        router.refresh();
+      } else {
+        toast({ kind: "error", title: "Échec", description: r.message });
+      }
+    });
+  }
+
+  function cancel() {
+    setValue(initialDays);
+    setEditing(false);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Clock className="size-5 text-amber-500" />
+          <CardTitle>Paramètres des contrats location-vente</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-[color:var(--muted-foreground)]">
+            Ces valeurs sont lues en temps réel par le worker de traitement des
+            échéances. Un changement est appliqué dès le prochain cycle.
+          </p>
+
+          <div className="flex flex-wrap items-end gap-4 rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/20 p-4">
+            <div className="flex flex-1 flex-col gap-1">
+              <span className="text-xs font-medium text-[color:var(--foreground)]">
+                Tolérance de paiement
+              </span>
+              <span className="text-[11px] text-[color:var(--muted-foreground)]">
+                Nombre de jours après la date d'échéance avant passage en
+                statut IMPAYÉE et blocage du chauffeur.
+              </span>
+              {updatedAt && (
+                <span className="text-[10px] text-[color:var(--muted-foreground)]">
+                  Modifié le {formatDate(updatedAt)}
+                </span>
+              )}
+            </div>
+
+            {editing ? (
+              <div className="flex shrink-0 items-center gap-2">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={30}
+                  value={value === "" ? "" : value}
+                  onChange={(e) =>
+                    setValue(e.target.value === "" ? "" : Number(e.target.value))
+                  }
+                  hint="1 – 30 jours"
+                  className="w-28"
+                />
+                <Button size="sm" onClick={save} isLoading={pending}>
+                  Enregistrer
+                </Button>
+                <Button size="sm" variant="ghost" onClick={cancel} disabled={pending}>
+                  Annuler
+                </Button>
+              </div>
+            ) : (
+              <div className="flex shrink-0 items-center gap-3">
+                <span className="font-mono text-2xl font-bold text-[color:var(--foreground)]">
+                  {initialDays}
+                  <span className="ml-1 text-sm font-normal text-[color:var(--muted-foreground)]">
+                    jour{initialDays > 1 ? "s" : ""}
+                  </span>
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setValue(initialDays); setEditing(true); }}
+                >
+                  <Pencil className="size-3.5" />
+                  Modifier
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main tab ─────────────────────────────────────────────────────────────────
 
 export interface PlatformTabProps {
   configs: AppVersionConfig[];
   error?: string;
+  toleranceConfig?: SystemConfigEntry | null;
 }
 
-export function PlatformTab({ configs, error }: PlatformTabProps) {
+export function PlatformTab({ configs, error, toleranceConfig }: PlatformTabProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [editTarget, setEditTarget] = useState<AppVersionConfig | null>(null);
 
+  const toleranceDays = toleranceConfig?.value
+    ? parseInt(toleranceConfig.value, 10) || 3
+    : 3;
+
   return (
     <div className="flex flex-col gap-6">
+      {/* ── Paramètres contrats ── */}
+      <ToleranceCard
+        initialDays={toleranceDays}
+        updatedAt={toleranceConfig?.updatedAt}
+      />
+
+      {/* ── Versions applications mobiles ── */}
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">

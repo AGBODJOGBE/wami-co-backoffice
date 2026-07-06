@@ -12,6 +12,13 @@ import {
   UserCog,
 } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
+
+/** Détecte un nom corrompu (encodage mojibake) et retourne le code formaté en fallback. */
+function permLabel(p: { name: string; code: string }): string {
+  const hasMojibake = /[-©®°-¿�]/.test(p.name);
+  if (hasMojibake) return p.code.replace(/[._]/g, " ");
+  return p.name;
+}
 import { Button } from "@/shared/ui/button";
 import {
   Card,
@@ -66,7 +73,7 @@ function GrantPermissionModal({
     return Object.entries(catalog.permissions).flatMap(([module, perms]) =>
       perms.map((p) => ({
         value: p.code,
-        label: p.name,
+        label: permLabel(p),
         description: `${module} · ${p.code}`,
       })),
     );
@@ -398,7 +405,7 @@ function ManageRolePermissionsModal({
                         : "border-[color:var(--border)] hover:bg-[color:var(--muted)]/40"
                     }`}
                   >
-                    <p className="text-xs font-medium text-[color:var(--foreground)]">{p.name}</p>
+                    <p className="text-xs font-medium text-[color:var(--foreground)]">{permLabel(p)}</p>
                     <p className="font-mono text-[10px] text-[color:var(--muted-foreground)]">{p.code}</p>
                   </button>
                 );
@@ -427,7 +434,7 @@ function ManageRolePermissionsModal({
                         : "border-[color:var(--border)] hover:bg-[color:var(--muted)]/40"
                     }`}
                   >
-                    <p className="text-xs font-medium text-[color:var(--foreground)]">{p.name}</p>
+                    <p className="text-xs font-medium text-[color:var(--foreground)]">{permLabel(p)}</p>
                     <p className="font-mono text-[10px] text-[color:var(--muted-foreground)]">{p.code} · {p.module}</p>
                   </button>
                 );
@@ -548,7 +555,7 @@ function CreateRoleModal({
                       : "border-[color:var(--border)] hover:bg-[color:var(--muted)]/40"
                   }`}
                 >
-                  <p className="text-xs font-medium text-[color:var(--foreground)]">{p.name}</p>
+                  <p className="text-xs font-medium text-[color:var(--foreground)]">{permLabel(p)}</p>
                   <p className="font-mono text-[10px] text-[color:var(--muted-foreground)]">{p.code} · {p.module}</p>
                 </button>
               );
@@ -618,7 +625,7 @@ function RoleCard({
                   key={p.id}
                   className="rounded-md border border-[color:var(--border)] bg-[color:var(--muted)]/20 px-2 py-1.5"
                 >
-                  <p className="text-xs font-medium text-[color:var(--foreground)]">{p.name}</p>
+                  <p className="text-xs font-medium text-[color:var(--foreground)]">{permLabel(p)}</p>
                   <p className="font-mono text-[10px] text-[color:var(--muted-foreground)]">{p.code}</p>
                 </li>
               ))}
@@ -899,7 +906,7 @@ export function RbacSection({
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs font-medium text-[color:var(--foreground)]">
-                              {p.name}
+                              {permLabel(p)}
                             </span>
                             {owned ? <Badge tone="success">Possédée</Badge> : null}
                           </div>

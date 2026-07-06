@@ -80,7 +80,7 @@ export function AdminDriversListClient({
         if (!hay.includes(q)) return false;
       }
       if (statusF !== "ALL" && d.status !== statusF) return false;
-      if (catF !== "ALL" && d.category !== catF) return false;
+      if (catF !== "ALL" && (d.vehicle?.vehicleCategory ?? d.category) !== catF) return false;
       return true;
     });
   }, [drivers, search, statusF, catF]);
@@ -144,9 +144,12 @@ export function AdminDriversListClient({
     },
     {
       key: "category",
-      header: "Catégorie",
-      sortAccessor: (r) => r.category,
-      render: (r) => <Badge tone="primary">{r.category}</Badge>,
+      header: "Catégorie véhicule",
+      sortAccessor: (r) => r.vehicle?.vehicleCategory ?? r.category ?? "",
+      render: (r) => {
+        const cat = r.vehicle?.vehicleCategory ?? r.category;
+        return cat ? <Badge tone="primary">{cat}</Badge> : <span className="text-xs italic text-[color:var(--muted-foreground)]">—</span>;
+      },
     },
     {
       key: "approved",
@@ -164,16 +167,29 @@ export function AdminDriversListClient({
       header: "Véhicule",
       render: (r) =>
         r.vehicle ? (
-          <div className="flex flex-col leading-tight">
-            <span className="text-sm">
-              {r.vehicle.make} {r.vehicle.model}
-            </span>
+          <div className="flex flex-col gap-0.5 leading-tight">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm">
+                {r.vehicle.make} {r.vehicle.model}
+              </span>
+              {r.isVehicleOwner ? (
+                <span className="inline-flex items-center rounded-full bg-[color:var(--primary)]/10 px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--primary)]">
+                  Perso
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-full bg-[color:var(--warning)]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--warning)]">
+                  Plateforme
+                </span>
+              )}
+            </div>
             <span className="font-mono text-[10px] uppercase text-[color:var(--muted-foreground)]">
               {r.vehicle.licensePlate}
             </span>
-            <span className="mt-0.5 text-[10px] font-medium text-[color:var(--primary)]">
-              {r.category}
-            </span>
+            {(r.vehicle?.vehicleCategory ?? r.category) && (
+              <span className="text-[10px] font-medium text-[color:var(--primary)]">
+                {r.vehicle?.vehicleCategory ?? r.category}
+              </span>
+            )}
           </div>
         ) : (
           <span className="text-xs italic text-[color:var(--muted-foreground)]">
@@ -349,7 +365,7 @@ export function AdminDriversListClient({
                   { key: "name", header: "Nom", value: (r) => fullName(r) },
                   { key: "phone", header: "Téléphone", value: (r) => r.phoneNumber },
                   { key: "status", header: "Statut", value: (r) => r.status },
-                  { key: "cat", header: "Catégorie", value: (r) => r.category },
+                  { key: "cat", header: "Catégorie véhicule", value: (r) => r.vehicle?.vehicleCategory ?? r.category ?? "" },
                   { key: "rating", header: "Note", value: (r) => r.rating },
                   { key: "rides", header: "Courses", value: (r) => r.totalRides },
                   { key: "plate", header: "Plaque", value: (r) => r.vehicle?.licensePlate ?? "" },

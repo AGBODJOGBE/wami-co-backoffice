@@ -17,3 +17,28 @@ export async function listAdminUsers(): Promise<AdminUserListResult> {
 export function listAppConfigs(): Promise<AppVersionConfig[]> {
   return apiFetch<AppVersionConfig[]>(API_ROUTES.appConfig.list());
 }
+
+export interface SystemConfigEntry {
+  key: string;
+  value: string;
+  type: string;
+  updatedAt?: string;
+}
+
+/** Lit une clé de configuration système. Retourne null si la route n'existe pas. */
+export async function getSystemConfig(key: string): Promise<SystemConfigEntry | null> {
+  try {
+    const raw = await apiFetch<unknown>(API_ROUTES.systemConfig.get(key));
+    if (!raw || typeof raw !== "object") return null;
+    const r = raw as Record<string, unknown>;
+    const entry = (r.data ?? r) as Record<string, unknown>;
+    return {
+      key: (entry.key ?? key) as string,
+      value: (entry.value ?? "") as string,
+      type: (entry.type ?? "INTEGER") as string,
+      updatedAt: (entry.updatedAt ?? undefined) as string | undefined,
+    };
+  } catch {
+    return null;
+  }
+}

@@ -30,10 +30,14 @@ import {
 import {
   SEAT_RANGE,
   VEHICLE_CATEGORY_LABELS,
+  VEHICLE_OWNERSHIP_LABELS,
+  VEHICLE_STATUS_META,
   VEHICLE_TYPE_LABELS,
   type CreatePlatformVehicleInput,
   type UpdateVehicleInput,
   type VehicleCategory,
+  type VehicleOwnership,
+  type VehicleStatus,
   type VehicleSummary,
   type VehicleType,
 } from "../domain/vehicle";
@@ -53,6 +57,26 @@ const TYPE_CHIPS: Array<{
 ];
 
 const CATEGORY_CHIPS: VehicleCategory[] = ["ECO", "STANDARD", "PREMIUM", "VIP"];
+
+const EDITABLE_STATUSES = [
+  "AVAILABLE",
+  "PENDING",
+  "REJECTED",
+  "MAINTENANCE",
+  "ASSIGNED",
+  "RETIRED",
+] as const;
+type EditableVehicleStatus = (typeof EDITABLE_STATUSES)[number];
+
+const EDIT_STATUS_OPTIONS = EDITABLE_STATUSES.map((s) => ({
+  value: s as string,
+  label: VEHICLE_STATUS_META[s as VehicleStatus].label,
+}));
+
+const OWNERSHIP_CHIPS: Array<{ value: VehicleOwnership; label: string }> = [
+  { value: "PLATFORM", label: VEHICLE_OWNERSHIP_LABELS["PLATFORM"] },
+  { value: "DRIVER", label: VEHICLE_OWNERSHIP_LABELS["DRIVER"] },
+];
 
 /** Returns a seat value guaranteed to be within `SEAT_RANGE[type]`. Used
  *  whenever the type changes so a Moto (max 2) doesn't keep showing the
@@ -467,52 +491,89 @@ interface EditModalProps {
 }
 
 interface EditFormState {
+  type: VehicleType;
+  category: VehicleCategory;
   make: string;
   model: string;
+  licensePlate: string;
   year: number | "";
   color: string;
   seats: number | "";
+  status: EditableVehicleStatus;
+  ownership: VehicleOwnership;
   insuranceExpiryDate: string;
   registration: FileUploadValue | null;
   insurance: FileUploadValue | null;
+  mileage: number | "";
+  lastMaintenanceDate: string;
+  nextMaintenanceDate: string;
+  purchasePrice: number | "";
+  currentValue: number | "";
 }
 
 export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
   const [form, setForm] = useState<EditFormState>({
+    type: "CAR",
+    category: "STANDARD",
     make: "",
     model: "",
+    licensePlate: "",
     year: "",
     color: "",
     seats: "",
+    status: "AVAILABLE",
+    ownership: "PLATFORM",
     insuranceExpiryDate: "",
     registration: null,
     insurance: null,
+    mileage: "",
+    lastMaintenanceDate: "",
+    nextMaintenanceDate: "",
+    purchasePrice: "",
+    currentValue: "",
   });
   const [pending, start] = useTransition();
 
   useEffect(() => {
     if (!open || !vehicle) return;
+    const statusIsEditable = (EDITABLE_STATUSES as readonly string[]).includes(vehicle.status);
     setForm({
+      type: vehicle.type,
+      category: vehicle.category ?? "STANDARD",
       make: vehicle.make,
       model: vehicle.model,
+      licensePlate: vehicle.licensePlate,
       year: vehicle.year,
       color: vehicle.color,
       seats: vehicle.seats,
+      status: statusIsEditable ? (vehicle.status as EditableVehicleStatus) : "AVAILABLE",
+      ownership: vehicle.ownership,
       insuranceExpiryDate: vehicle.insuranceExpiryDate
         ? vehicle.insuranceExpiryDate.slice(0, 10)
         : "",
       registration: null,
       insurance: null,
+      mileage: vehicle.mileage ?? "",
+      lastMaintenanceDate: "",
+      nextMaintenanceDate: vehicle.nextMaintenanceDate
+        ? vehicle.nextMaintenanceDate.slice(0, 10)
+        : "",
+      purchasePrice: vehicle.purchasePrice ?? "",
+      currentValue: vehicle.currentValue ?? "",
     });
   }, [open, vehicle]);
 
   if (!vehicle) return null;
 
-  function set<K extends keyof EditFormState>(
-    key: K,
-    value: EditFormState[K],
-  ) {
+  function set<K extends keyof EditFormState>(key: K, value: EditFormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function selectType(t: VehicleType) {
+    setForm((f) => {
+      const current = typeof f.seats === "number" ? f.seats : SEAT_RANGE[t][0];
+      return { ...f, type: t, seats: clampSeats(current, t) };
+    });
   }
 
   function handleSubmit() {
@@ -525,27 +586,38 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
       });
       return;
     }
-    const [min, max] = SEAT_RANGE[vehicle.type] ?? [1, 10];
-    if (form.seats < min || form.seats > max) {
+    const [min, max] = SEAT_RANGE[form.type] ?? [1, 10];
+    if ((form.seats as number) < min || (form.seats as number) > max) {
       toast({
         kind: "error",
         title: "Sièges invalides",
-        description: `Pour un ${VEHICLE_TYPE_LABELS[vehicle.type]}, entre ${min} et ${max}.`,
+        description: `Pour un ${VEHICLE_TYPE_LABELS[form.type]}, entre ${min} et ${max}.`,
       });
       return;
     }
     const payload: UpdateVehicleInput = {
+      type: form.type,
+      category: form.category,
       make: form.make,
       model: form.model,
+      licensePlate: form.licensePlate.trim().toUpperCase() || undefined,
       year: form.year as number,
       color: form.color,
       seats: form.seats as number,
+      status: form.status,
+      ownership: form.ownership,
       insuranceExpiryDate: form.insuranceExpiryDate || undefined,
-      // Only send a new URL when the admin actually uploaded a replacement —
-      // otherwise leave the field undefined so the backend keeps the
-      // existing document untouched.
-      registrationCardUrl: form.registration?.url,
-      insuranceUrl: form.insurance?.url,
+      registrationCardUrl: form.registration
+        ? (form.registration.fileKey ?? form.registration.url)
+        : undefined,
+      insuranceUrl: form.insurance
+        ? (form.insurance.fileKey ?? form.insurance.url)
+        : undefined,
+      mileage: form.mileage !== "" ? (form.mileage as number) : undefined,
+      lastMaintenanceDate: form.lastMaintenanceDate || undefined,
+      nextMaintenanceDate: form.nextMaintenanceDate || undefined,
+      purchasePrice: form.purchasePrice !== "" ? (form.purchasePrice as number) : undefined,
+      currentValue: form.currentValue !== "" ? (form.currentValue as number) : undefined,
     };
     start(async () => {
       const r = await updateVehicleAction(vehicle.id, payload);
@@ -554,7 +626,7 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
     });
   }
 
-  const [seatMin, seatMax] = SEAT_RANGE[vehicle.type] ?? [1, 10];
+  const [seatMin, seatMax] = SEAT_RANGE[form.type] ?? [1, 10];
 
   return (
     <Modal
@@ -575,6 +647,51 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
       }
     >
       <div className="flex flex-col gap-6">
+        <Section title="Type & catégorie">
+          <div className="grid gap-2 sm:grid-cols-3">
+            {TYPE_CHIPS.map((t) => {
+              const Icon = t.icon;
+              const selected = form.type === t.value;
+              return (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => selectType(t.value)}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-lg border p-3 transition cursor-pointer",
+                    selected
+                      ? "border-[color:var(--primary)] bg-[color:var(--primary-soft)] text-[color:var(--primary)] ring-2 ring-[color:var(--primary)]/30"
+                      : "border-[color:var(--border)] bg-[color:var(--background)] text-[color:var(--foreground)] hover:border-[color:var(--primary)]/50",
+                  )}
+                >
+                  <Icon className="size-6" />
+                  <span className="text-sm font-medium">{t.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {CATEGORY_CHIPS.map((c) => {
+              const selected = form.category === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => set("category", c)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-medium transition cursor-pointer",
+                    selected
+                      ? "border-[color:var(--primary)] bg-[color:var(--primary)] text-[color:var(--primary-foreground)]"
+                      : "border-[color:var(--border)] bg-[color:var(--background)] text-[color:var(--foreground)] hover:border-[color:var(--primary)]/50",
+                  )}
+                >
+                  {VEHICLE_CATEGORY_LABELS[c]}
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+
         <Section title="Identité">
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
@@ -588,6 +705,12 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
               onChange={(e) => set("model", e.target.value)}
             />
             <Input
+              label="Plaque"
+              value={form.licensePlate}
+              onChange={(e) => set("licensePlate", e.target.value.toUpperCase())}
+              placeholder="PL-0001-BJ"
+            />
+            <Input
               label="Couleur"
               value={form.color}
               onChange={(e) => set("color", e.target.value)}
@@ -598,10 +721,7 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
               inputMode="numeric"
               value={form.year === "" ? "" : form.year}
               onChange={(e) =>
-                set(
-                  "year",
-                  e.target.value === "" ? "" : Number(e.target.value),
-                )
+                set("year", e.target.value === "" ? "" : Number(e.target.value))
               }
             />
             <Input
@@ -612,19 +732,46 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
               max={seatMax}
               value={form.seats === "" ? "" : form.seats}
               onChange={(e) =>
-                set(
-                  "seats",
-                  e.target.value === "" ? "" : Number(e.target.value),
-                )
+                set("seats", e.target.value === "" ? "" : Number(e.target.value))
               }
-              hint={`Entre ${seatMin} et ${seatMax} pour un ${VEHICLE_TYPE_LABELS[vehicle.type]}`}
+              hint={`Entre ${seatMin} et ${seatMax} pour un ${VEHICLE_TYPE_LABELS[form.type]}`}
             />
-            <Input
-              label="Expiration assurance"
-              type="date"
-              value={form.insuranceExpiryDate}
-              onChange={(e) => set("insuranceExpiryDate", e.target.value)}
+          </div>
+        </Section>
+
+        <Section title="Statut & propriété">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Combobox
+              label="Statut"
+              options={EDIT_STATUS_OPTIONS}
+              value={form.status}
+              onChange={(v) => set("status", v as EditableVehicleStatus)}
             />
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-[color:var(--foreground)]">
+                Propriété
+              </span>
+              <div className="flex gap-2">
+                {OWNERSHIP_CHIPS.map((o) => {
+                  const selected = form.ownership === o.value;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => set("ownership", o.value)}
+                      className={cn(
+                        "flex-1 rounded-lg border py-2 text-sm font-medium transition cursor-pointer",
+                        selected
+                          ? "border-[color:var(--primary)] bg-[color:var(--primary-soft)] text-[color:var(--primary)] ring-2 ring-[color:var(--primary)]/30"
+                          : "border-[color:var(--border)] bg-[color:var(--background)] text-[color:var(--foreground)] hover:border-[color:var(--primary)]/50",
+                      )}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </Section>
 
@@ -659,6 +806,68 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
                   ? "Assurance existante conservée si laissée vide"
                   : undefined
               }
+            />
+          </div>
+          <Input
+            label="Expiration assurance"
+            type="date"
+            value={form.insuranceExpiryDate}
+            onChange={(e) => set("insuranceExpiryDate", e.target.value)}
+          />
+        </Section>
+
+        <Section title="Maintenance">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Input
+              label="Kilométrage (km)"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={form.mileage === "" ? "" : form.mileage}
+              onChange={(e) =>
+                set("mileage", e.target.value === "" ? "" : Number(e.target.value))
+              }
+              placeholder="Ex : 45 000"
+            />
+            <Input
+              label="Dernière maintenance"
+              type="date"
+              value={form.lastMaintenanceDate}
+              max={todayIso()}
+              onChange={(e) => set("lastMaintenanceDate", e.target.value)}
+            />
+            <Input
+              label="Prochaine maintenance"
+              type="date"
+              value={form.nextMaintenanceDate}
+              onChange={(e) => set("nextMaintenanceDate", e.target.value)}
+            />
+          </div>
+        </Section>
+
+        <Section title="Valorisation (interne)">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label="Prix d'achat (FCFA)"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={form.purchasePrice === "" ? "" : form.purchasePrice}
+              onChange={(e) =>
+                set("purchasePrice", e.target.value === "" ? "" : Number(e.target.value))
+              }
+              placeholder="Ex : 1 500 000"
+            />
+            <Input
+              label="Valeur actuelle (FCFA)"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={form.currentValue === "" ? "" : form.currentValue}
+              onChange={(e) =>
+                set("currentValue", e.target.value === "" ? "" : Number(e.target.value))
+              }
+              placeholder="Ex : 1 200 000"
             />
           </div>
         </Section>
