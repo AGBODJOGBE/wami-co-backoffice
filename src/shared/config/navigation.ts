@@ -318,6 +318,7 @@ export const navSections: NavSection[] = [
         label: "Paramètres",
         icon: Settings,
         dataSource: "partial",
+        requiredPermissions: ["admin.view_all", "app_config.manage"],
       },
     ],
   },

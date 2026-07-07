@@ -1,3 +1,4 @@
+import { requireAnyPermission } from "@/features/auth/application/dal";
 import {
   getMyPermissions,
   listPermissionsByModule,
@@ -14,6 +15,8 @@ import { Tabs } from "@/shared/ui/tabs";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPageRoute() {
+  await requireAnyPermission(["admin.view_all", "app_config.manage"]);
+
   const [meRes, rolesRes, catalogRes, adminsRes, appConfigRes, systemConfigsRes, welcomeBonusRes] =
     await Promise.allSettled([
       getMyPermissions(),
