@@ -30,6 +30,7 @@ import {
   type ReferralConfig,
 } from "../domain/referral";
 import { ReferralConfigFormModal } from "./referral-config-form-modal";
+import { CanView } from "@/shared/ui/can-view";
 
 function notify(result: ActionResult<unknown>, successTitle: string) {
   if (result.ok) {
@@ -50,55 +51,57 @@ function ConfigActions({
   const [deleting, startDelete] = useTransition();
 
   return (
-    <div className="flex items-center gap-2">
-      {!config.isActive && (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={toggling || deleting}
-          onClick={onEdit}
-        >
-          <Pencil className="size-3.5" />
-          Modifier
-        </Button>
-      )}
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={toggling || deleting}
-        onClick={() =>
-          startToggle(async () => {
-            const res = config.isActive
-              ? await deactivateReferralConfigAction(config.id)
-              : await activateReferralConfigAction(config.id);
-            notify(res, config.isActive ? "Configuration désactivée" : "Configuration activée");
-          })
-        }
-      >
-        {toggling ? (
-          <Spinner size="sm" />
-        ) : (
-          <Power className={`size-3.5 ${config.isActive ? "text-red-500" : "text-emerald-600"}`} />
+    <CanView permission="referral.config.manage">
+      <div className="flex items-center gap-2">
+        {!config.isActive && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={toggling || deleting}
+            onClick={onEdit}
+          >
+            <Pencil className="size-3.5" />
+            Modifier
+          </Button>
         )}
-        {config.isActive ? "Désactiver" : "Activer"}
-      </Button>
-      {!config.isActive && (
         <Button
           size="sm"
           variant="outline"
           disabled={toggling || deleting}
           onClick={() =>
-            startDelete(async () => {
-              const res = await deleteReferralConfigAction(config.id);
-              notify(res, "Configuration supprimée");
+            startToggle(async () => {
+              const res = config.isActive
+                ? await deactivateReferralConfigAction(config.id)
+                : await activateReferralConfigAction(config.id);
+              notify(res, config.isActive ? "Configuration désactivée" : "Configuration activée");
             })
           }
         >
-          {deleting ? <Spinner size="sm" /> : <Trash2 className="size-3.5 text-red-500" />}
-          Supprimer
+          {toggling ? (
+            <Spinner size="sm" />
+          ) : (
+            <Power className={`size-3.5 ${config.isActive ? "text-red-500" : "text-emerald-600"}`} />
+          )}
+          {config.isActive ? "Désactiver" : "Activer"}
         </Button>
-      )}
-    </div>
+        {!config.isActive && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={toggling || deleting}
+            onClick={() =>
+              startDelete(async () => {
+                const res = await deleteReferralConfigAction(config.id);
+                notify(res, "Configuration supprimée");
+              })
+            }
+          >
+            {deleting ? <Spinner size="sm" /> : <Trash2 className="size-3.5 text-red-500" />}
+            Supprimer
+          </Button>
+        )}
+      </div>
+    </CanView>
   );
 }
 
@@ -124,13 +127,15 @@ export function ReferralConfigClient({ configs }: ReferralConfigClientProps) {
         dataSource="live"
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              onClick={() => setCreateOpen(true)}
-            >
-              <Plus className="size-4" />
-              Créer une configuration
-            </Button>
+            <CanView permission="referral.config.manage">
+              <Button
+                size="sm"
+                onClick={() => setCreateOpen(true)}
+              >
+                <Plus className="size-4" />
+                Créer une configuration
+              </Button>
+            </CanView>
             <Button
               variant="outline"
               size="sm"

@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { listSurgeRules } from "@/features/vtc-pricing/application/surge-api";
 import {
   getPricingProfile,
@@ -9,6 +10,7 @@ import { PricingTabs } from "@/features/vtc-pricing/presentation/pricing-tabs";
 export const dynamic = "force-dynamic";
 
 export default async function VtcPricingPageRoute() {
+  await requirePermission("pricing.grid.configure");
   const [surgeRes, profilesRes, zonesRes] = await Promise.allSettled([
     listSurgeRules(),
     listPricingProfiles(),

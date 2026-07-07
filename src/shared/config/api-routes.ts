@@ -32,10 +32,14 @@ export const API_ROUTES = {
     /** POST — grant a single permission to an admin. */
     grantPermission: (adminId: string) =>
       `/api/admin/admins/${adminId}/grant-permission`,
-    /** GET — list all admin users. */
-    listAdmins: () => "/api/admin/users",
+    /** GET — list all admin accounts (dedicated admin profile endpoint). */
+    listAdmins: () => "/api/admin/admins",
     /** PATCH — change an admin's role. */
     updateAdminRole: (adminId: string) => `/api/admin/admins/${adminId}/role`,
+    /** PATCH — deactivate an admin. */
+    deactivateAdmin: (adminId: string) => `/api/admin/admins/${adminId}/deactivate`,
+    /** PATCH — reactivate an admin. */
+    reactivateAdmin: (adminId: string) => `/api/admin/admins/${adminId}/reactivate`,
   },
 
   // ─── Admin: drivers ────────────────────────────────────────────────────────
@@ -53,6 +57,8 @@ export const API_ROUTES = {
     /** PATCH — reactivate a suspended driver. */
     reactivate: (driverId: string) =>
       `/api/admin/drivers/${driverId}/reactivate`,
+    /** GET — historique paginé des sessions de connexion d'un driver. Query: page, limit, from, to. */
+    sessions: (driverId: string) => `/api/admin/drivers/${driverId}/sessions`,
   },
 
   // ─── Admin: partners ───────────────────────────────────────────────────────
@@ -320,8 +326,38 @@ export const API_ROUTES = {
       `/api/app-config/${appType}/${platform}`,
   },
 
+  // ─── Admin: driver bonus par paliers ─────────────────────────────────────
+  adminDriverBonus: {
+    /** GET  — liste tous les barèmes (query: vehicleCategory?, isActive?). */
+    configs: () => "/api/admin/driver-bonus/config",
+    /** POST — créer un barème (SUPER_ADMIN). */
+    createConfig: () => "/api/admin/driver-bonus/config",
+    /** GET  — détail d'un barème. */
+    config: (id: string) => `/api/admin/driver-bonus/config/${id}`,
+    /** PUT  — mettre à jour un barème. */
+    updateConfig: (id: string) => `/api/admin/driver-bonus/config/${id}`,
+    /** DELETE — soft-delete (refusé si actif). */
+    deleteConfig: (id: string) => `/api/admin/driver-bonus/config/${id}`,
+    /** POST — activer (désactive l'éventuel actif de même catégorie). */
+    activateConfig: (id: string) => `/api/admin/driver-bonus/config/${id}/activate`,
+    /** POST — désactiver. */
+    deactivateConfig: (id: string) => `/api/admin/driver-bonus/config/${id}/deactivate`,
+    /** GET  — historique des bonus déjà versés (query: driverId?, vehicleCategory?, from?, to?, page?, limit?). */
+    awards: () => "/api/admin/driver-bonus/awards",
+  },
+
+  // ─── Admin: driver welcome bonus campaign ─────────────────────────────────
+  driverWelcomeBonus: {
+    /** GET — config de la campagne bonus de bienvenue (singleton). */
+    get: () => "/api/admin/driver-welcome-bonus",
+    /** PATCH — modifier la campagne. Body: { bonusAmountFcfa?, maxEligibleDrivers?, isActive? }. */
+    configure: () => "/api/admin/driver-welcome-bonus",
+  },
+
   // ─── System config (clés dynamiques en base) ──────────────────────────────
   systemConfig: {
+    /** GET  — lister toutes les clés de config système. */
+    list: () => "/api/app-config/config",
     /** GET  — lire une clé de config système (ex: PAYMENT_TOLERANCE_DAYS) */
     get: (key: string) => `/api/app-config/config/${key}`,
     /** PUT  — mettre à jour une clé. Body: { value: string }. Rôle: SUPER_ADMIN */

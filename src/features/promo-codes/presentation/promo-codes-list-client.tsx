@@ -45,6 +45,7 @@ import {
   PromoCodeCreateModal,
   PromoCodeValidateModal,
 } from "./promo-code-modals";
+import { CanView } from "@/shared/ui/can-view";
 
 function notify(result: ActionResult<unknown>, successTitle: string) {
   if (result.ok) {
@@ -78,20 +79,22 @@ function ToggleButton({ promo }: { promo: PromoCode }) {
   const [pending, start] = useTransition();
   const isActive = promo.isActive;
   return (
-    <Button
-      variant={isActive ? "outline" : "primary"}
-      size="sm"
-      isLoading={pending}
-      onClick={() =>
-        start(async () => {
-          const r = await togglePromoCodeAction(promo.id);
-          notify(r, isActive ? "Code désactivé" : "Code activé");
-        })
-      }
-    >
-      <Power className="size-4" />
-      {isActive ? "Désactiver" : "Activer"}
-    </Button>
+    <CanView permission="promo_code.manage">
+      <Button
+        variant={isActive ? "outline" : "primary"}
+        size="sm"
+        isLoading={pending}
+        onClick={() =>
+          start(async () => {
+            const r = await togglePromoCodeAction(promo.id);
+            notify(r, isActive ? "Code désactivé" : "Code activé");
+          })
+        }
+      >
+        <Power className="size-4" />
+        {isActive ? "Désactiver" : "Activer"}
+      </Button>
+    </CanView>
   );
 }
 
@@ -301,10 +304,12 @@ export function PromoCodesListClient({
               <FlaskConical className="size-4" />
               Tester un code
             </Button>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" />
-              Nouveau code
-            </Button>
+            <CanView permission="promo_code.manage">
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                <Plus className="size-4" />
+                Nouveau code
+              </Button>
+            </CanView>
           </>
         }
       />

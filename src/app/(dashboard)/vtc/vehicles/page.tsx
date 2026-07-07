@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { listAdminDrivers } from "@/features/drivers/application/api";
 import { fullName } from "@/features/drivers/domain/admin-driver";
 import { listVehicles } from "@/features/vehicles/application/api";
@@ -6,6 +7,7 @@ import { VehiclesListClient } from "@/features/vehicles/presentation/vehicles-li
 export const dynamic = "force-dynamic";
 
 export default async function VtcVehiclesPage() {
+  await requirePermission("vehicle.view_all");
   const [vehiclesRes, driversRes] = await Promise.allSettled([
     listVehicles({ limit: 100 }),
     listAdminDrivers(),

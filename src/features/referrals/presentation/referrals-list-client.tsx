@@ -27,6 +27,7 @@ import { toast } from "@/shared/ui/toast";
 import { downloadCsv, timestampedFilename } from "@/shared/lib/csv";
 import { formatDate, formatXof } from "@/shared/lib/format";
 import { StatCard } from "@/features/dashboard/presentation/components/stat-card";
+import { CanView } from "@/shared/ui/can-view";
 import {
   validateReferralAction,
   expireReferralAction,
@@ -71,36 +72,38 @@ function ActionButtons({ referral }: { referral: Referral }) {
   if (referral.status !== "PENDING") return null;
 
   return (
-    <div className="flex items-center gap-1.5">
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={validating || expiring}
-        onClick={() =>
-          startValidate(async () => {
-            const res = await validateReferralAction(referral.referralId);
-            notify(res, "Parrainage validé");
-          })
-        }
-      >
-        {validating ? <Spinner size="sm" /> : <CheckCircle2 className="size-3.5 text-emerald-600" />}
-        Valider
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={validating || expiring}
-        onClick={() =>
-          startExpire(async () => {
-            const res = await expireReferralAction(referral.referralId);
-            notify(res, "Parrainage expiré");
-          })
-        }
-      >
-        {expiring ? <Spinner size="sm" /> : <TimerOff className="size-3.5 text-red-500" />}
-        Expirer
-      </Button>
-    </div>
+    <CanView permission="referral.validate">
+      <div className="flex items-center gap-1.5">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={validating || expiring}
+          onClick={() =>
+            startValidate(async () => {
+              const res = await validateReferralAction(referral.referralId);
+              notify(res, "Parrainage validé");
+            })
+          }
+        >
+          {validating ? <Spinner size="sm" /> : <CheckCircle2 className="size-3.5 text-emerald-600" />}
+          Valider
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={validating || expiring}
+          onClick={() =>
+            startExpire(async () => {
+              const res = await expireReferralAction(referral.referralId);
+              notify(res, "Parrainage expiré");
+            })
+          }
+        >
+          {expiring ? <Spinner size="sm" /> : <TimerOff className="size-3.5 text-red-500" />}
+          Expirer
+        </Button>
+      </div>
+    </CanView>
   );
 }
 

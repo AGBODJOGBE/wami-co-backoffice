@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { getCurrentAdmin } from "@/features/auth/application/session";
 import type { AdminProfile } from "@/features/auth/domain/entity/admin";
 import { listDocumentsByOwner } from "@/features/documents/application/api";
@@ -17,6 +18,7 @@ export default async function VtcVehicleDetailPage({
 }: {
   params: Promise<{ vehicleId: string }>;
 }) {
+  await requirePermission("vehicle.view_all");
   const { vehicleId } = await params;
 
   let vehicle;

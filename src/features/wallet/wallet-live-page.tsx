@@ -37,6 +37,7 @@ import {
   type WalletCreditType,
   type WalletDebitType,
 } from "./application/actions";
+import { CanView } from "@/shared/ui/can-view";
 import {
   TRANSACTION_TYPE_META,
   WALLET_TYPE_META,
@@ -983,14 +984,18 @@ export function WalletLivePage({
           {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
           Rafraîchir
         </Button>
-        <Button size="sm" onClick={() => setCreditOpen(true)}>
-          <ArrowDownLeft className="size-4" />
-          Crédit manuel
-        </Button>
-        <Button size="sm" variant="danger" onClick={() => setDebitOpen(true)}>
-          <ArrowUpRight className="size-4" />
-          Débit manuel
-        </Button>
+        <CanView permission="wallet.credit">
+          <Button size="sm" onClick={() => setCreditOpen(true)}>
+            <ArrowDownLeft className="size-4" />
+            Crédit manuel
+          </Button>
+        </CanView>
+        <CanView permission="wallet.debit">
+          <Button size="sm" variant="danger" onClick={() => setDebitOpen(true)}>
+            <ArrowUpRight className="size-4" />
+            Débit manuel
+          </Button>
+        </CanView>
       </div>
 
       {/* KPIs */}

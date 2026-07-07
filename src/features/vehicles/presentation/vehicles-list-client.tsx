@@ -18,10 +18,12 @@ import {
   Wrench,
   WrenchIcon,
 } from "lucide-react";
+import { CanView } from "@/shared/ui/can-view";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Combobox } from "@/shared/ui/combobox";
+import { usePermissions } from "@/features/auth/presentation/use-permissions";
 import {
   DataTable,
   PaginationFooter,
@@ -125,6 +127,7 @@ export function VehiclesListClient({
   drivers = [],
 }: VehiclesListClientProps) {
   const router = useRouter();
+  const { can } = usePermissions();
   const [refreshing, startRefresh] = useTransition();
 
   const [search, setSearch] = useState("");
@@ -318,77 +321,45 @@ export function VehiclesListClient({
   ];
 
   function buildMenu(row: VehicleSummary) {
-    const items = [
-      { label: "Modifier", icon: Pencil, onSelect: () => setEditTarget(row) },
-    ];
-    if (row.status === "PENDING") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const items: { label: string; icon: any; onSelect: () => void; danger?: boolean }[] = [];
+    if (can("vehicle.manage")) {
+      items.push({ label: "Modifier", icon: Pencil, onSelect: () => setEditTarget(row) });
+    }
+    if (row.status === "PENDING" && can("vehicle.verify")) {
       items.push(
-        {
-          label: "Vérifier",
-          icon: ShieldCheck,
-          onSelect: () => setVerifyTarget(row),
-        },
-        {
-          label: "Rejeter",
-          icon: ShieldX,
-          onSelect: () => setRejectTarget(row),
-        },
+        { label: "Vérifier", icon: ShieldCheck, onSelect: () => setVerifyTarget(row) },
+        { label: "Rejeter", icon: ShieldX, onSelect: () => setRejectTarget(row) },
       );
     }
-    items.push({
-      label: "Changer la catégorie",
-      icon: CheckCircle,
-      onSelect: () => setCategoryTarget(row),
-    });
-    if (row.ownership === "PLATFORM") {
+    if (can("vehicle.manage")) {
+      items.push({ label: "Changer la catégorie", icon: CheckCircle, onSelect: () => setCategoryTarget(row) });
+    }
+    if (row.ownership === "PLATFORM" && can("vehicle.manage")) {
       if (row.status === "AVAILABLE") {
-        items.push({
-          label: "Assigner à un driver",
-          icon: UserCog,
-          onSelect: () => setAssignTarget(row),
-        });
+        items.push({ label: "Assigner à un driver", icon: UserCog, onSelect: () => setAssignTarget(row) });
       }
       if (row.status === "ASSIGNED") {
-        items.push({
-          label: "Désassigner",
-          icon: UserMinus,
-          onSelect: () => setConfirm({ kind: "unassign", vehicle: row }),
-        });
+        items.push({ label: "Désassigner", icon: UserMinus, onSelect: () => setConfirm({ kind: "unassign", vehicle: row }) });
+      }
+      if (row.status === "AVAILABLE" && !row.assignedToDriverId) {
+        items.push({ label: "Mettre en maintenance", icon: Wrench, onSelect: () => setMaintenanceStartTarget(row) });
       }
     }
-    if (row.ownership === "PLATFORM" && row.status === "AVAILABLE" && !row.assignedToDriverId) {
-      items.push({
-        label: "Mettre en maintenance",
-        icon: Wrench,
-        onSelect: () => setMaintenanceStartTarget(row),
-      });
+    if (row.status === "MAINTENANCE" && can("vehicle.manage")) {
+      items.push({ label: "Terminer la maintenance", icon: WrenchIcon, onSelect: () => setCompleteTarget(row) });
     }
-    if (row.status === "MAINTENANCE") {
-      items.push({
-        label: "Terminer la maintenance",
-        icon: WrenchIcon,
-        onSelect: () => setCompleteTarget(row),
-      });
-    }
-    return [
-      { items },
-      {
+
+    const groups: { items: typeof items }[] = [{ items }];
+    if (can("vehicle.manage")) {
+      groups.push({
         items: [
-          {
-            label: "Retirer définitivement",
-            icon: AlertTriangle,
-            onSelect: () => setConfirm({ kind: "retire", vehicle: row }),
-            danger: true,
-          },
-          {
-            label: "Supprimer",
-            icon: Trash2,
-            onSelect: () => setConfirm({ kind: "delete", vehicle: row }),
-            danger: true,
-          },
+          { label: "Retirer définitivement", icon: AlertTriangle, onSelect: () => setConfirm({ kind: "retire", vehicle: row }), danger: true },
+          { label: "Supprimer", icon: Trash2, onSelect: () => setConfirm({ kind: "delete", vehicle: row }), danger: true },
         ],
-      },
-    ];
+      });
+    }
+    return groups;
   }
 
   return (
@@ -456,10 +427,12 @@ export function VehiclesListClient({
               <Download className="size-4" />
               Export CSV
             </Button>
-<Button size="sm" onClick={() => setCreateOpen(true)}>
+<CanView permission="vehicle.manage">
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="size-4" />
               Nouveau véhicule
             </Button>
+            </CanView>
           </>
         }
       />

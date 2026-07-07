@@ -33,6 +33,28 @@ export interface CreateAdminInput {
   roleId: string;
 }
 
+/** Admin as returned by GET /api/admin/admins (dedicated admin profile endpoint). */
+export interface AdminListItem {
+  adminId: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phoneNumber: string;
+  roleId: string;
+  roleName: string;
+  status: "ACTIVE" | "INACTIVE";
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface AdminListResult {
+  admins: AdminListItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 /** App version config as returned by GET /api/app-config */
 export interface AppVersionConfig {
   id: string;

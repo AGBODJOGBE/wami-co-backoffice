@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { API_ROUTES } from "@/shared/config/api-routes";
 import { apiFetch } from "@/shared/lib/api/server";
 import { ApiError } from "@/shared/lib/api/types";
+import {
+  MISSING_PERMISSIONS,
+  type SyncPermissionDetail,
+  type SyncPermissionsResult,
+} from "./permissions-catalog";
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -130,6 +135,49 @@ export async function updateRolePermissionsAction(
   } catch (e) {
     return fail(e, "Mise à jour des permissions du rôle impossible.");
   }
+}
+
+// ─── Permissions manquantes à synchroniser ────────────────────────────────────
+
+export async function syncMissingPermissionsAction(): Promise<ActionResult<SyncPermissionsResult>> {
+  const details: SyncPermissionDetail[] = [];
+  let created = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const perm of MISSING_PERMISSIONS) {
+    try {
+      await apiFetch<unknown>(API_ROUTES.admin.createPermission(), {
+        method: "POST",
+        body: perm,
+      });
+      details.push({ code: perm.code, name: perm.name, module: perm.module, status: "created" });
+      created++;
+    } catch (e) {
+      const isAlreadyExists =
+        e instanceof ApiError &&
+        (e.status === 409 ||
+          (e.message ?? "").toLowerCase().includes("exist") ||
+          (e.message ?? "").toLowerCase().includes("already") ||
+          (e.message ?? "").toLowerCase().includes("déjà") ||
+          (e.message ?? "").toLowerCase().includes("duplicate"));
+      if (isAlreadyExists) {
+        details.push({ code: perm.code, name: perm.name, module: perm.module, status: "skipped" });
+        skipped++;
+      } else {
+        const errorMsg = e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Erreur inconnue";
+        details.push({ code: perm.code, name: perm.name, module: perm.module, status: "failed", error: errorMsg });
+        failed++;
+      }
+    }
+  }
+
+  revalidatePath("/settings");
+  return {
+    ok: failed === 0,
+    message: `Synchronisation : ${created} créée(s), ${skipped} déjà présente(s), ${failed} échec(s).`,
+    data: { created, skipped, failed, details },
+  };
 }
 
 export async function changeAdminRoleAction(

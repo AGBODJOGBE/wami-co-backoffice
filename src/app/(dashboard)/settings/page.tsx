@@ -1,11 +1,10 @@
-import { getCurrentAdmin } from "@/features/auth/application/session";
 import {
   getMyPermissions,
   listPermissionsByModule,
   listRoles,
 } from "@/features/rbac/application/api";
 import { RbacSection } from "@/features/rbac/presentation/rbac-section";
-import { listAdminUsers, listAppConfigs, getSystemConfig } from "@/features/settings/application/api";
+import { listAdmins, listAppConfigs, listSystemConfigs, getWelcomeBonusCampaign } from "@/features/settings/application/api";
 import { AdminsTab } from "@/features/settings/presentation/admins-tab";
 import { PlatformTab } from "@/features/settings/presentation/platform-tab";
 import { SettingsPage as MockSettingsPage } from "@/features/settings/settings-page";
@@ -15,56 +14,29 @@ import { Tabs } from "@/shared/ui/tabs";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPageRoute() {
-  const [meRes, rolesRes, catalogRes, adminsRes, appConfigRes, toleranceRes] =
+  const [meRes, rolesRes, catalogRes, adminsRes, appConfigRes, systemConfigsRes, welcomeBonusRes] =
     await Promise.allSettled([
       getMyPermissions(),
       listRoles(),
       listPermissionsByModule(),
-      listAdminUsers(),
+      listAdmins(),
       listAppConfigs(),
-      getSystemConfig("PAYMENT_TOLERANCE_DAYS"),
+      listSystemConfigs(),
+      getWelcomeBonusCampaign(),
     ]);
 
   const errMsg = (e: unknown) =>
     e instanceof Error ? e.message : "Erreur de chargement.";
 
   const me = meRes.status === "fulfilled" ? meRes.value : null;
-  const session = await getCurrentAdmin();
   const roles = rolesRes.status === "fulfilled" ? rolesRes.value : [];
-  const rawAdmins = adminsRes.status === "fulfilled" ? adminsRes.value.users : [];
+  const admins = adminsRes.status === "fulfilled" ? adminsRes.value.admins : [];
   const adminsTotal = adminsRes.status === "fulfilled" ? adminsRes.value.total : 0;
+  const catalog = catalogRes.status === "fulfilled" ? catalogRes.value : null;
   const appConfigs = appConfigRes.status === "fulfilled" ? appConfigRes.value : [];
-  const toleranceConfig = toleranceRes.status === "fulfilled" ? toleranceRes.value : null;
-
-  // Enrich admin list: inject adminId where known.
-  // We only know the mapping userId↔adminId for the logged-in user (from session cookie).
-  const enriched = rawAdmins.map((a) => {
-    if (session && a.userId === session.userId) {
-      return { ...a, adminId: session.adminId };
-    }
-    return a;
-  });
-
-  // The current admin might have been filtered out by listAdminUsers() if their
-  // user role is PASSENGER/DRIVER (admin profile is separate from user role).
-  // Always ensure the logged-in admin is in the list.
-  const currentInList = session && enriched.some((a) => a.userId === session.userId);
-  const admins = !currentInList && session
-    ? [
-        {
-          userId: session.userId,
-          adminId: session.adminId,
-          firstName: session.firstName,
-          lastName: session.lastName,
-          phoneNumber: session.phone,
-          email: null,
-          role: session.role.name,
-          isActive: session.status === "ACTIVE",
-          createdAt: "",
-        },
-        ...enriched,
-      ]
-    : enriched;
+  const allSystemConfigs = systemConfigsRes.status === "fulfilled" ? systemConfigsRes.value : [];
+  const toleranceConfig = allSystemConfigs.find((c) => c.key === "PAYMENT_TOLERANCE_DAYS") ?? null;
+  const welcomeBonus = welcomeBonusRes.status === "fulfilled" ? welcomeBonusRes.value : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -89,6 +61,7 @@ export default async function SettingsPageRoute() {
                 admins={admins}
                 total={adminsTotal}
                 roles={roles}
+                catalog={catalog}
                 error={
                   adminsRes.status === "rejected" ? errMsg(adminsRes.reason) : undefined
                 }
@@ -133,6 +106,8 @@ export default async function SettingsPageRoute() {
                   appConfigRes.status === "rejected" ? errMsg(appConfigRes.reason) : undefined
                 }
                 toleranceConfig={toleranceConfig}
+                welcomeBonus={welcomeBonus}
+                systemConfigs={allSystemConfigs}
               />
             ),
           },

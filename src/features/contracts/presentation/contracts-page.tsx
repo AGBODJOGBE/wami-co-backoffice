@@ -42,6 +42,7 @@ import {
   type ContractStatus,
 } from "../domain/contract";
 import { ContractCreateModal } from "./contract-create-modal";
+import { CanView } from "@/shared/ui/can-view";
 
 // ─── Options filtre statut ────────────────────────────────────────────────────
 
@@ -329,10 +330,12 @@ export function ContractsPage({ contracts, total, error, drivers, vehicles, kpis
               {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
               Rafraîchir
             </Button>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" />
-              Nouveau contrat
-            </Button>
+            <CanView permission="contract.create">
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                <Plus className="size-4" />
+                Nouveau contrat
+              </Button>
+            </CanView>
           </>
         }
       />
@@ -471,10 +474,12 @@ export function ContractsPage({ contracts, total, error, drivers, vehicles, kpis
               Créez le premier contrat de location-vente pour commencer.
             </p>
           </div>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" />
-            Nouveau contrat
-          </Button>
+          <CanView permission="contract.create">
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" />
+              Nouveau contrat
+            </Button>
+          </CanView>
         </Card>
       ) : (
         <Card className="overflow-hidden p-0">

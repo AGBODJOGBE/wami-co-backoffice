@@ -2,6 +2,7 @@
 // est en réalité B2C (commandes individuelles passager → driver via
 // GET /api/admin/delivery). Voir le commentaire dans navigation.ts.
 
+import { requirePermission } from "@/features/auth/application/dal";
 import { listAdminDeliveries } from "@/features/delivery-b2c/application/api";
 import { DeliveriesListClient } from "@/features/delivery-b2c/presentation/deliveries-list-client";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -9,6 +10,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 export const dynamic = "force-dynamic";
 
 export default async function DeliveryB2cListPage() {
+  await requirePermission("delivery_b2c.view_all");
   let deliveries: Awaited<ReturnType<typeof listAdminDeliveries>> = {
     deliveries: [],
     total: 0,

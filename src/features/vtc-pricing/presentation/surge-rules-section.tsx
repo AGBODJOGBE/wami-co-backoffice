@@ -25,6 +25,7 @@ import {
 } from "../application/surge-actions";
 import { DAYS_OF_WEEK_LABELS, type SurgeRule } from "../domain/surge";
 import { SurgeRuleModal } from "./surge-rule-modal";
+import { CanView } from "@/shared/ui/can-view";
 
 function notify(result: ActionResult<unknown>, successTitle: string) {
   if (result.ok) {
@@ -90,10 +91,12 @@ export function SurgeRulesSection({ rules, error }: SurgeRulesSectionProps) {
             {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
             Rafraîchir
           </Button>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" />
-            Nouvelle règle
-          </Button>
+          <CanView permission="pricing.grid.configure">
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" />
+              Nouvelle règle
+            </Button>
+          </CanView>
         </div>
       </div>
 
@@ -120,10 +123,12 @@ export function SurgeRulesSection({ rules, error }: SurgeRulesSectionProps) {
               Les règles de surge multiplient automatiquement les tarifs selon des conditions.
             </p>
           </div>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" />
-            Créer la première règle
-          </Button>
+          <CanView permission="pricing.grid.configure">
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" />
+              Créer la première règle
+            </Button>
+          </CanView>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -281,20 +286,22 @@ function SurgeRuleCard({
         </div>
 
         {/* Actions */}
-        <div className="flex flex-shrink-0 items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            <Pencil className="size-4" />
-            Modifier
-          </Button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="rounded-lg p-2 text-[color:var(--muted-foreground)] transition-colors hover:bg-[color:var(--muted)] hover:text-[color:var(--danger)]"
-            title="Supprimer"
-          >
-            <Trash2 className="size-4" />
-          </button>
-        </div>
+        <CanView permission="pricing.grid.configure">
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              <Pencil className="size-4" />
+              Modifier
+            </Button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="rounded-lg p-2 text-[color:var(--muted-foreground)] transition-colors hover:bg-[color:var(--muted)] hover:text-[color:var(--danger)]"
+              title="Supprimer"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          </div>
+        </CanView>
       </div>
     </div>
   );

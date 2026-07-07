@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { getAdminRide } from "@/features/rides/application/api";
 import { RideDetailClient } from "@/features/rides/presentation/ride-detail-client";
 import { DetailNotFound } from "@/shared/ui/detail-header";
@@ -10,6 +11,7 @@ export default async function VtcRideDetailPage({
 }: {
   params: Promise<{ rideId: string }>;
 }) {
+  await requirePermission("ride.view_all");
   const { rideId } = await params;
 
   try {

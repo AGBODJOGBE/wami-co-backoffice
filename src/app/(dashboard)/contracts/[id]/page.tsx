@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { getContract, getContractInstallments, listContractAuditLogs } from "@/features/contracts/application/api";
 import { ContractDetailPage } from "@/features/contracts/presentation/contract-detail-page";
 import { DetailNotFound } from "@/shared/ui/detail-header";
@@ -12,6 +13,7 @@ export default async function ContractDetailRoute({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requirePermission("contract.view_all");
   const { id } = await params;
 
   try {

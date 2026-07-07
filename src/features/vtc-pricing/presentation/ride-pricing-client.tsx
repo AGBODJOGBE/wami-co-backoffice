@@ -22,6 +22,7 @@ import {
   type TimedPackage,
 } from "../domain/ride-pricing";
 import { updateRidePricingAction } from "../application/actions";
+import { CanView } from "@/shared/ui/can-view";
 
 const VEHICLE_OPTIONS = (
   Object.keys(RIDE_VEHICLE_LABELS) as RideVehicleType[]
@@ -158,15 +159,17 @@ export function RidePricingClient({
         description="Grille tarifaire par catégorie de véhicule. Versionné — la version précédente est automatiquement désactivée."
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={reset} disabled={pending}>
-              Réinitialiser
-            </Button>
-            <Button onClick={submit} isLoading={pending}>
-              <Save className="size-4" />
-              {pending
-                ? "Enregistrement…"
-                : "Activer une nouvelle version"}
-            </Button>
+            <CanView permission="pricing.grid.configure">
+              <Button variant="outline" size="sm" onClick={reset} disabled={pending}>
+                Réinitialiser
+              </Button>
+              <Button onClick={submit} isLoading={pending}>
+                <Save className="size-4" />
+                {pending
+                  ? "Enregistrement…"
+                  : "Activer une nouvelle version"}
+              </Button>
+            </CanView>
           </>
         }
       />
@@ -354,15 +357,17 @@ export function RidePricingClient({
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Forfaits horaires</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={addPackage}
-              disabled={pending}
-            >
-              <Plus className="size-4" />
-              Ajouter un forfait
-            </Button>
+            <CanView permission="pricing.grid.configure">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addPackage}
+                disabled={pending}
+              >
+                <Plus className="size-4" />
+                Ajouter un forfait
+              </Button>
+            </CanView>
           </div>
         </CardHeader>
         <CardContent>

@@ -32,11 +32,13 @@ import { DevNote } from "@/shared/ui/dev-note";
 import { Spinner } from "@/shared/ui/spinner";
 import { DocumentsList } from "@/features/documents/presentation/documents-list";
 import { formatDate, formatDateTime, formatXof } from "@/shared/lib/format";
+import { CanView } from "@/shared/ui/can-view";
 import {
   DriverInlineActionButton,
   SuspendDriverModal,
   type DriverTarget,
 } from "./driver-action-modals";
+import { fetchDriverSessionsAction } from "../application/actions";
 import {
   ADMIN_DRIVER_STATUS_META,
   fullName,
@@ -58,6 +60,7 @@ import {
   rideStatusMeta,
   type AdminRide,
 } from "@/features/rides/domain/admin-ride";
+import type { DriverConnectionSession, SessionEndReason } from "../domain/admin-driver";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -76,6 +79,218 @@ export interface DriverDetailClientProps {
   online?: OnlineDriver;
   wallet?: AdminWallet;
   recentRides?: AdminRide[];
+  sessions?: DriverConnectionSession[];
+  sessionsTotalDuration?: number;
+  sessionsTotal?: number;
+}
+
+// ─── Sessions helpers ─────────────────────────────────────────────────────────
+
+const SESSION_END_REASON_META: Record<
+  SessionEndReason,
+  { label: string; tone: "success" | "warning" | "danger" }
+> = {
+  LOGOUT:     { label: "Déconnexion", tone: "success" },
+  SUPERSEDED: { label: "Remplacée",   tone: "warning" },
+  TIMEOUT:    { label: "Timeout",     tone: "danger"  },
+};
+
+function formatDuration(seconds: number | null): string {
+  if (seconds == null || seconds < 0) return "—";
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem > 0 ? `${h}h ${rem}min` : `${h}h`;
+}
+
+// ─── SessionsCard ─────────────────────────────────────────────────────────────
+
+const LIMIT = 20;
+
+function SessionsCard({
+  driverId,
+  initialSessions,
+  initialTotal,
+  initialTotalDuration,
+}: {
+  driverId: string;
+  initialSessions: DriverConnectionSession[];
+  initialTotal: number;
+  initialTotalDuration: number;
+}) {
+  const [sessions, setSessions] = useState(initialSessions);
+  const [total, setTotal] = useState(initialTotal);
+  const [totalDuration, setTotalDuration] = useState(initialTotalDuration);
+  const [page, setPage] = useState(1);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [pending, start] = useTransition();
+
+  function fetch(nextPage: number, f: string, t: string) {
+    start(async () => {
+      const res = await fetchDriverSessionsAction(driverId, {
+        page: nextPage,
+        limit: LIMIT,
+        from: f || undefined,
+        to: t || undefined,
+      });
+      setSessions(res.sessions);
+      setTotal(res.total);
+      setTotalDuration(res.totalDurationSeconds);
+      setPage(nextPage);
+    });
+  }
+
+  function applyFilters() {
+    fetch(1, from, to);
+  }
+
+  function resetFilters() {
+    setFrom("");
+    setTo("");
+    fetch(1, "", "");
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Zap className="size-4 text-[color:var(--primary)]" />
+            <CardTitle>Sessions de connexion{total > 0 ? ` (${total})` : ""}</CardTitle>
+          </div>
+          {totalDuration > 0 && (
+            <span className="text-xs text-[color:var(--muted-foreground)]">
+              Durée totale (filtre) :{" "}
+              <span className="font-semibold text-[color:var(--foreground)]">
+                {formatDuration(totalDuration)}
+              </span>
+            </span>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col gap-4">
+          {/* Filtres période */}
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                Du
+              </label>
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="h-8 rounded-md border border-[color:var(--border)] bg-[color:var(--background)] px-2 text-xs text-[color:var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[color:var(--primary)]"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                Au
+              </label>
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="h-8 rounded-md border border-[color:var(--border)] bg-[color:var(--background)] px-2 text-xs text-[color:var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[color:var(--primary)]"
+              />
+            </div>
+            <Button size="sm" onClick={applyFilters} isLoading={pending}>
+              Filtrer
+            </Button>
+            {(from || to) && (
+              <Button size="sm" variant="ghost" onClick={resetFilters} disabled={pending}>
+                Réinitialiser
+              </Button>
+            )}
+          </div>
+
+          {/* Table */}
+          {sessions.length === 0 ? (
+            <p className="text-sm text-[color:var(--muted-foreground)]">
+              Aucune session sur cette période.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-[color:var(--border)] text-left text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                    <th className="pb-2 pr-4">Début</th>
+                    <th className="pb-2 pr-4">Fin</th>
+                    <th className="pb-2 pr-4">Durée</th>
+                    <th className="pb-2">Raison</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y divide-[color:var(--border)] transition-opacity ${pending ? "opacity-50" : ""}`}>
+                  {sessions.map((s) => {
+                    const meta = s.endReason ? SESSION_END_REASON_META[s.endReason] : null;
+                    return (
+                      <tr key={s.id}>
+                        <td className="py-2 pr-4 text-[color:var(--foreground)]">
+                          {formatDateTime(s.startedAt)}
+                        </td>
+                        <td className="py-2 pr-4 text-[color:var(--muted-foreground)]">
+                          {s.endedAt ? (
+                            formatDateTime(s.endedAt)
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-emerald-600">
+                              <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+                              En cours
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-4 font-mono text-[color:var(--foreground)]">
+                          {formatDuration(s.durationSeconds)}
+                        </td>
+                        <td className="py-2">
+                          {meta ? (
+                            <Badge tone={meta.tone}>{meta.label}</Badge>
+                          ) : (
+                            <span className="text-[color:var(--muted-foreground)]">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-[color:var(--border)] pt-3">
+              <span className="text-[11px] text-[color:var(--muted-foreground)]">
+                Page {page} / {totalPages} — {total} session{total > 1 ? "s" : ""}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => fetch(page - 1, from, to)}
+                  disabled={page <= 1 || pending}
+                >
+                  ← Précédent
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => fetch(page + 1, from, to)}
+                  disabled={page >= totalPages || pending}
+                >
+                  Suivant →
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 // ─── MiniStat ─────────────────────────────────────────────────────────────────
@@ -467,6 +682,9 @@ export function DriverDetailClient({
   online,
   wallet,
   recentRides = [],
+  sessions,
+  sessionsTotalDuration,
+  sessionsTotal,
 }: DriverDetailClientProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
@@ -541,30 +759,36 @@ export function DriverDetailClient({
               Rafraîchir
             </Button>
             {(status === "PENDING" || status === "OFFLINE") && !enriched?.isApproved && (
-              <DriverInlineActionButton
-                driverId={driverId}
-                action="approve"
-                label="Approuver"
-                size="sm"
-              />
+              <CanView permission="driver.approve">
+                <DriverInlineActionButton
+                  driverId={driverId}
+                  action="approve"
+                  label="Approuver"
+                  size="sm"
+                />
+              </CanView>
             )}
             {isSuspended ? (
-              <DriverInlineActionButton
-                driverId={driverId}
-                action="reactivate"
-                label="Réactiver"
-                size="sm"
-                variant="primary"
-              />
+              <CanView permission="driver.reactivate">
+                <DriverInlineActionButton
+                  driverId={driverId}
+                  action="reactivate"
+                  label="Réactiver"
+                  size="sm"
+                  variant="primary"
+                />
+              </CanView>
             ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSuspendTarget({ driverId, label: displayName })}
-              >
-                <ShieldX className="size-4" />
-                Suspendre
-              </Button>
+              <CanView permission="driver.suspend">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSuspendTarget({ driverId, label: displayName })}
+                >
+                  <ShieldX className="size-4" />
+                  Suspendre
+                </Button>
+              </CanView>
             )}
           </>
         }
@@ -584,7 +808,7 @@ export function DriverDetailClient({
       {online && <OnlineBanner online={online} />}
 
       {/* ── KPI stats ───────────────────────────────────────────────────────── */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <MiniStat
           label="Note moyenne"
           value={
@@ -602,6 +826,26 @@ export function DriverDetailClient({
           sub={recentRides.length > 0 ? `${recentRides.length} récentes affichées` : undefined}
           icon={TrendingUp}
           accent={totalRides > 0}
+        />
+        <MiniStat
+          label="Temps en ligne"
+          value={(() => {
+            // Backend totalDurationSeconds n'inclut que les sessions fermées.
+            // Si une session est encore ouverte (endedAt=null), on ajoute le temps écoulé depuis startedAt.
+            const base = sessionsTotalDuration ?? 0;
+            const openSession = sessions?.find((s) => s.endedAt === null);
+            const liveExtra = openSession
+              ? Math.floor((Date.now() - new Date(openSession.startedAt).getTime()) / 1000)
+              : 0;
+            const total = base + liveExtra;
+            return total > 0 ? formatDuration(total) : "—";
+          })()}
+          sub={
+            sessionsTotal != null && sessionsTotal > 0
+              ? `${sessionsTotal} session${sessionsTotal > 1 ? "s" : ""}${sessions?.some((s) => s.endedAt === null) ? " · en cours" : ""}`
+              : undefined
+          }
+          icon={Clock}
         />
         <MiniStat
           label="Wallet EARNINGS"
@@ -827,6 +1071,14 @@ export function DriverDetailClient({
           </Card>
         </div>
       </div>
+
+      {/* ── Sessions de connexion ────────────────────────────────────────────── */}
+      <SessionsCard
+        driverId={driverId}
+        initialSessions={sessions ?? []}
+        initialTotal={sessionsTotal ?? 0}
+        initialTotalDuration={sessionsTotalDuration ?? 0}
+      />
 
       {/* ── Documents ────────────────────────────────────────────────────────── */}
       <Card>

@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { listPromoCodes } from "@/features/promo-codes/application/api";
 import { PromoCodesListClient } from "@/features/promo-codes/presentation/promo-codes-list-client";
 import { Card } from "@/shared/ui/card";
@@ -6,6 +7,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 export const dynamic = "force-dynamic";
 
 export default async function PromoCodesPageRoute() {
+  await requirePermission("promo_code.view_all");
   try {
     const result = await listPromoCodes();
     return (

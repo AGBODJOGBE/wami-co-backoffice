@@ -79,6 +79,47 @@ export async function updateAdminRoleAction(
   }
 }
 
+export interface ConfigureWelcomeBonusInput {
+  bonusAmountFcfa?: number;
+  maxEligibleDrivers?: number;
+  isActive?: boolean;
+}
+
+export async function configureWelcomeBonusCampaignAction(
+  input: ConfigureWelcomeBonusInput,
+): Promise<ActionResult> {
+  try {
+    await apiFetch<unknown>(API_ROUTES.driverWelcomeBonus.configure(), {
+      method: "PATCH",
+      body: input,
+    });
+    revalidatePath("/settings");
+    return { ok: true, message: "Campagne mise à jour." };
+  } catch (e) {
+    return fail(e, "Impossible de mettre à jour la campagne.");
+  }
+}
+
+export async function deactivateAdminAction(adminId: string): Promise<ActionResult> {
+  try {
+    await apiFetch<unknown>(API_ROUTES.admin.deactivateAdmin(adminId), { method: "PATCH" });
+    revalidatePath("/settings");
+    return { ok: true, message: "Admin désactivé." };
+  } catch (e) {
+    return fail(e, "Désactivation impossible.");
+  }
+}
+
+export async function reactivateAdminAction(adminId: string): Promise<ActionResult> {
+  try {
+    await apiFetch<unknown>(API_ROUTES.admin.reactivateAdmin(adminId), { method: "PATCH" });
+    revalidatePath("/settings");
+    return { ok: true, message: "Admin réactivé." };
+  } catch (e) {
+    return fail(e, "Réactivation impossible.");
+  }
+}
+
 export async function updateSystemConfigAction(
   key: string,
   value: string,

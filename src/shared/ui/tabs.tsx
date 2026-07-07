@@ -6,7 +6,7 @@ import { Badge } from "@/shared/ui/badge";
 
 export interface TabDescriptor<TValue extends string> {
   value: TValue;
-  label: string;
+  label: ReactNode;
   badge?: {
     count: number;
     tone?: "primary" | "warning" | "danger" | "success" | "info" | "neutral";

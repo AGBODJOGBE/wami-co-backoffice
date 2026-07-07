@@ -28,6 +28,8 @@ import {
 import { Avatar } from "@/shared/ui/avatar";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
+import { usePermissions } from "@/features/auth/presentation/use-permissions";
+import { CanView } from "@/shared/ui/can-view";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { DetailHeader, type InfoRow } from "@/shared/ui/detail-header";
 import { CopyableId } from "@/shared/ui/copy-button";
@@ -583,6 +585,7 @@ export function VehicleDetailClient({
   connectedAdminId,
 }: VehicleDetailClientProps) {
   const router = useRouter();
+  const { can } = usePermissions();
   const [refreshing, startRefresh] = useTransition();
 
   const [editOpen, setEditOpen] = useState(false);
@@ -723,10 +726,12 @@ export function VehicleDetailClient({
               {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
               Rafraîchir
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-              <Pencil className="size-4" />
-              Modifier
-            </Button>
+            <CanView permission="vehicle.manage">
+              <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                <Pencil className="size-4" />
+                Modifier
+              </Button>
+            </CanView>
             <DropdownMenu groups={buildMenuGroups()} />
           </>
         }
@@ -958,22 +963,19 @@ export function VehicleDetailClient({
   );
 
   function buildMenuGroups() {
-    const lifecycle: Array<{
-      label: string;
-      icon?: typeof Pencil;
-      onSelect: () => void;
-      danger?: boolean;
-    }> = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const lifecycle: Array<{ label: string; icon?: any; onSelect: () => void; danger?: boolean }> = [];
 
-    if (vehicle.status === "PENDING") {
+    if (vehicle.status === "PENDING" && can("vehicle.verify")) {
       lifecycle.push(
         { label: "Vérifier", icon: ShieldCheck, onSelect: () => setVerifyOpen(true) },
         { label: "Rejeter", icon: ShieldX, onSelect: () => setRejectOpen(true) },
       );
     }
-    lifecycle.push({ label: "Changer la catégorie", icon: Pencil, onSelect: () => setCategoryOpen(true) });
-
-    if (vehicle.ownership === "PLATFORM") {
+    if (can("vehicle.manage")) {
+      lifecycle.push({ label: "Changer la catégorie", icon: Pencil, onSelect: () => setCategoryOpen(true) });
+    }
+    if (vehicle.ownership === "PLATFORM" && can("vehicle.manage")) {
       if (vehicle.status === "AVAILABLE") {
         lifecycle.push({ label: "Assigner à un driver", icon: UserCog, onSelect: () => setAssignOpen(true) });
       }
@@ -988,14 +990,16 @@ export function VehicleDetailClient({
       }
     }
 
-    return [
-      { label: "Cycle de vie", items: lifecycle },
-      {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const groups: Array<{ label?: string; items: typeof lifecycle }> = [{ label: "Cycle de vie", items: lifecycle }];
+    if (can("vehicle.manage")) {
+      groups.push({
         items: [
           { label: "Retirer définitivement", icon: AlertTriangle, onSelect: () => setConfirm("retire"), danger: true },
           { label: "Supprimer", icon: Trash2, onSelect: () => setConfirm("delete"), danger: true },
         ],
-      },
-    ];
+      });
+    }
+    return groups;
   }
 }

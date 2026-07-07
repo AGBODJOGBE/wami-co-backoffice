@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { listReferralConfigs } from "@/features/referrals/application/api";
 import { ReferralConfigClient } from "@/features/referrals/presentation/referral-config-client";
 import { Card } from "@/shared/ui/card";
@@ -6,6 +7,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 export const dynamic = "force-dynamic";
 
 export default async function ReferralConfigPageRoute() {
+  await requirePermission("referral.config.view");
   try {
     const configs = await listReferralConfigs();
     return <ReferralConfigClient configs={configs} />;

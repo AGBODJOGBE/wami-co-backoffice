@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { listParrains } from "@/features/referrals/application/api";
 import { ParrainsListClient } from "@/features/referrals/presentation/parrains-list-client";
 import { Card } from "@/shared/ui/card";
@@ -6,6 +7,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 export const dynamic = "force-dynamic";
 
 export default async function ParrainsPageRoute() {
+  await requirePermission("referral.view_all");
   try {
     const { referrals, total } = await listParrains();
     return <ParrainsListClient referrals={referrals} total={total} />;

@@ -115,6 +115,27 @@ export interface OnlineDriversResult {
   total: number;
 }
 
+/** Raison de fin de session de connexion driver. */
+export type SessionEndReason = "LOGOUT" | "SUPERSEDED" | "TIMEOUT";
+
+/** Item retourné par GET /api/admin/drivers/:driverId/sessions */
+export interface DriverConnectionSession {
+  id: string;
+  driverId: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  endReason: SessionEndReason | null;
+}
+
+export interface DriverSessionsResult {
+  sessions: DriverConnectionSession[];
+  total: number;
+  totalDurationSeconds: number;
+  page: number;
+  limit: number;
+}
+
 export function fullName(d: { firstName?: string; lastName?: string }): string {
   return `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim();
 }

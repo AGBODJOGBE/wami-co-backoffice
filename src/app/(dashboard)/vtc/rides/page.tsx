@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { listAdminRides } from "@/features/rides/application/api";
 import { AdminRidesListClient } from "@/features/rides/presentation/admin-rides-list-client";
 import type { AdminRide } from "@/features/rides/domain/admin-ride";
@@ -42,6 +43,7 @@ async function fetchAllRides(): Promise<{ rides: AdminRide[]; total: number }> {
 }
 
 export default async function VtcRidesPage() {
+  await requirePermission("ride.view_all");
   try {
     const { rides, total } = await fetchAllRides();
     return <AdminRidesListClient rides={rides} total={total} />;

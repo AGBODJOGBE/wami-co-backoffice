@@ -1,5 +1,6 @@
 import {
   listAdminDrivers,
+  listDriverSessions,
   listDriverUsers,
   listOnlineDrivers,
   listPendingDrivers,
@@ -7,10 +8,12 @@ import {
 import { listAdminRides } from "@/features/rides/application/api";
 import { DriversTabs } from "@/features/drivers/presentation/drivers-tabs";
 import { PageHeader } from "@/shared/ui/page-header";
+import { requirePermission } from "@/features/auth/application/dal";
 
 export const dynamic = "force-dynamic";
 
 export default async function VtcDriversPage() {
+  await requirePermission("driver.view_all");
   const [pendingRes, allRes, ridesRes, onlineRes, driverUsersRes] =
     await Promise.allSettled([
       listPendingDrivers(),
@@ -59,11 +62,34 @@ export default async function VtcDriversPage() {
   }
 
   // ── Online driver ids ──────────────────────────────────────────────────────
-  const onlineDriverIds = new Set(
-    onlineRes.status === "fulfilled"
-      ? onlineRes.value.drivers.map((d) => d.driverId)
-      : [],
-  );
+  const onlineDrivers = onlineRes.status === "fulfilled" ? onlineRes.value.drivers : [];
+  const onlineDriverIds = new Set(onlineDrivers.map((d) => d.driverId));
+
+  // Sessions : uniquement pour les drivers EN LIGNE (petit N, typiquement 2-10).
+  // totalDurationSeconds = somme de toutes les sessions fermées (agrégation
+  // backend sans limit). openSince = startedAt de la session ouverte pour
+  // calculer le temps écoulé en direct côté client.
+  // Les drivers hors-ligne affichent "—" : leur total ne change pas en temps réel.
+  type SessionEntry = { totalSeconds: number; openSince: string | null };
+  const sessionsByDriverId = new Map<string, SessionEntry>();
+
+  if (onlineDrivers.length > 0) {
+    const sessionResults = await Promise.allSettled(
+      onlineDrivers.map((d) => listDriverSessions(d.driverId, { limit: 1 })),
+    );
+    for (let i = 0; i < onlineDrivers.length; i++) {
+      const res = sessionResults[i];
+      const driverId = onlineDrivers[i].driverId;
+      if (res.status === "fulfilled") {
+        const { totalDurationSeconds, sessions } = res.value;
+        const openSession = sessions.find((s) => s.endedAt === null) ?? null;
+        sessionsByDriverId.set(driverId, {
+          totalSeconds: totalDurationSeconds,
+          openSince: openSession?.startedAt ?? null,
+        });
+      }
+    }
+  }
 
   // ── Patch rich list with real ride counts + online status ──────────────────
   const patchedDrivers = allRaw.drivers.map((d) => ({
@@ -86,6 +112,15 @@ export default async function VtcDriversPage() {
   // ── Approved tab ───────────────────────────────────────────────────────────
   const approvedDrivers = patchedDrivers.filter((d) => d.isApproved);
   const all = { drivers: approvedDrivers, total: approvedDrivers.length };
+
+  // ── Véhicule plateforme vs autres ──────────────────────────────────────────
+  // isVehicleOwner === false → véhicule appartient à ForYou (plateforme)
+  const platformVehicleDrivers = approvedDrivers.filter(
+    (d) => d.isVehicleOwner === false && !!d.vehicle,
+  );
+  const otherApprovedDrivers = approvedDrivers.filter(
+    (d) => d.isVehicleOwner === true || !d.vehicle,
+  );
 
   // ── Pending enrichment ─────────────────────────────────────────────────────
   // Priority: rich list (patchedDrivers) → users map → raw pending data
@@ -153,6 +188,11 @@ export default async function VtcDriversPage() {
         all={all.drivers}
         allTotal={all.total}
         allError={allError}
+        online={onlineDrivers}
+        onlineTotal={onlineDrivers.length}
+        sessionsByDriverId={sessionsByDriverId}
+        platformVehicleDrivers={platformVehicleDrivers}
+        otherApprovedDrivers={otherApprovedDrivers}
       />
     </div>
   );

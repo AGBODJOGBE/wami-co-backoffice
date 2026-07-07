@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { listPassengers } from "@/features/passengers/application/api";
 import { listAdminRides } from "@/features/rides/application/api";
 import { listAdminWallets } from "@/features/wallet/application/api";
@@ -8,6 +9,7 @@ import type { AdminWallet } from "@/features/wallet/domain/wallet";
 export const dynamic = "force-dynamic";
 
 export default async function VtcPassengersPage() {
+  await requirePermission("passenger.view_all");
   const [passengersRes, ridesRes, walletsRes] = await Promise.allSettled([
     listPassengers(),
     listAdminRides(),

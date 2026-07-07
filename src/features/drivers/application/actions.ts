@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { API_ROUTES } from "@/shared/config/api-routes";
 import { apiFetch } from "@/shared/lib/api/server";
 import { ApiError } from "@/shared/lib/api/types";
-import type { DriverStatusChangeResult } from "../domain/admin-driver";
+import { listDriverSessions } from "./api";
+import type { DriverSessionsResult, DriverStatusChangeResult } from "../domain/admin-driver";
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -25,6 +26,13 @@ function fail<T>(error: unknown, fallback: string): ActionResult<T> {
     ok: false,
     message: error instanceof Error ? error.message : fallback,
   };
+}
+
+export async function fetchDriverSessionsAction(
+  driverId: string,
+  params: { page?: number; limit?: number; from?: string; to?: string } = {},
+): Promise<DriverSessionsResult> {
+  return listDriverSessions(driverId, params);
 }
 
 export async function approveDriverAction(

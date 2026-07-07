@@ -33,6 +33,7 @@ import {
   type AdminDriver,
   type AdminDriverStatus,
 } from "../domain/admin-driver";
+import { CanView } from "@/shared/ui/can-view";
 import {
   DriverInlineActionButton,
   SuspendDriverModal,
@@ -56,14 +57,27 @@ const CATEGORY_OPTIONS = [
   { value: "VIP", label: "VIP" },
 ];
 
+type SessionEntry = { totalSeconds: number; openSince: string | null };
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem > 0 ? `${h}h ${rem}min` : `${h}h`;
+}
+
 export interface AdminDriversListClientProps {
   drivers: AdminDriver[];
   total: number;
+  sessionMap?: Map<string, SessionEntry>;
 }
 
 export function AdminDriversListClient({
   drivers,
   total,
+  sessionMap,
 }: AdminDriversListClientProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
@@ -221,6 +235,39 @@ export function AdminDriversListClient({
       ),
     },
     {
+      key: "onlineTime",
+      header: "Temps en ligne",
+      sortAccessor: (r) => {
+        const s = sessionMap?.get(r.driverId);
+        if (!s) return 0;
+        const elapsed = s.openSince
+          ? Math.floor((Date.now() - new Date(s.openSince).getTime()) / 1000)
+          : 0;
+        return s.totalSeconds + elapsed;
+      },
+      render: (r) => {
+        const s = sessionMap?.get(r.driverId);
+        if (!s) return <span className="text-xs text-[color:var(--muted-foreground)]">—</span>;
+        const elapsed = s.openSince
+          ? Math.floor((Date.now() - new Date(s.openSince).getTime()) / 1000)
+          : 0;
+        const total = s.totalSeconds + elapsed;
+        return (
+          <div className="flex flex-col leading-tight gap-0.5">
+            <span className="text-sm font-medium text-[color:var(--foreground)]">
+              {total > 0 ? formatDuration(total) : "—"}
+            </span>
+            {s.openSince && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+                <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+                En ligne
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       key: "joined",
       header: "Inscrit",
       sortAccessor: (r) => r.createdAt,
@@ -237,35 +284,41 @@ export function AdminDriversListClient({
       render: (r) => (
         <div className="flex items-center justify-end gap-2">
           {r.status === "SUSPENDED" ? (
-            <DriverInlineActionButton
-              driverId={r.driverId}
-              action="reactivate"
-              label="Réactiver"
-              size="sm"
-            />
+            <CanView permission="driver.reactivate">
+              <DriverInlineActionButton
+                driverId={r.driverId}
+                action="reactivate"
+                label="Réactiver"
+                size="sm"
+              />
+            </CanView>
           ) : (
             <>
               {!r.isApproved ? (
-                <DriverInlineActionButton
-                  driverId={r.driverId}
-                  action="approve"
-                  label="Approuver"
-                  size="sm"
-                />
+                <CanView permission="driver.approve">
+                  <DriverInlineActionButton
+                    driverId={r.driverId}
+                    action="approve"
+                    label="Approuver"
+                    size="sm"
+                  />
+                </CanView>
               ) : null}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setSuspendTarget({
-                    driverId: r.driverId,
-                    label: fullName(r),
-                  })
-                }
-              >
-                <ShieldX className="size-4" />
-                Suspendre
-              </Button>
+              <CanView permission="driver.suspend">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setSuspendTarget({
+                      driverId: r.driverId,
+                      label: fullName(r),
+                    })
+                  }
+                >
+                  <ShieldX className="size-4" />
+                  Suspendre
+                </Button>
+              </CanView>
             </>
           )}
         </div>

@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import {
   getPlatformRevenue,
   listAdminTransactions,
@@ -10,6 +11,7 @@ import { WalletLivePage } from "@/features/wallet/wallet-live-page";
 export const dynamic = "force-dynamic";
 
 export default async function WalletPageRoute() {
+  await requirePermission("wallet.view_all");
   const [walletsRes, transactionsRes, withdrawalsRes, platformRevenueRes] =
     await Promise.allSettled([
       listAdminWallets(),

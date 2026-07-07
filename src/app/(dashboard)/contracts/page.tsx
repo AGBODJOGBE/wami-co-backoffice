@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { listContracts, getContractKpis } from "@/features/contracts/application/api";
 import { ContractsPage } from "@/features/contracts/presentation/contracts-page";
 import { listAdminDrivers, listPendingDrivers } from "@/features/drivers/application/api";
@@ -6,6 +7,7 @@ import { listVehicles } from "@/features/vehicles/application/api";
 export const dynamic = "force-dynamic";
 
 export default async function ContractsRoute() {
+  await requirePermission("contract.view_all");
   const [contractsRes, driversRes, pendingRes, vehiclesRes, kpisRes] =
     await Promise.allSettled([
       listContracts({ limit: 100 }),

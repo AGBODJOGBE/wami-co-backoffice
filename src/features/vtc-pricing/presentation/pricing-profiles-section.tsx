@@ -32,6 +32,7 @@ import {
   type ServiceKey,
 } from "../domain/pricing-profile";
 import { PricingProfileModal } from "./pricing-profile-modal";
+import { CanView } from "@/shared/ui/can-view";
 
 function notify(result: ActionResult<unknown>, successTitle: string) {
   if (result.ok) {
@@ -127,10 +128,12 @@ export function PricingProfilesSection({ profiles, error }: PricingProfilesSecti
             {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
             Rafraîchir
           </Button>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" />
-            Nouveau profil
-          </Button>
+          <CanView permission="pricing.grid.configure">
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" />
+              Nouveau profil
+            </Button>
+          </CanView>
         </div>
       </div>
 
@@ -188,10 +191,12 @@ export function PricingProfilesSection({ profiles, error }: PricingProfilesSecti
               Les profils définissent les règles tarifaires par service et catégorie de véhicule.
             </p>
           </div>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" />
-            Créer le premier profil
-          </Button>
+          <CanView permission="pricing.grid.configure">
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" />
+              Créer le premier profil
+            </Button>
+          </CanView>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -350,33 +355,35 @@ function ProfileRow({ profile, onEdit, onDelete, onActivate, onDeactivate }: Pro
         </div>
 
         {/* Actions */}
-        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
-          {profile.isActive ? (
-            <Button variant="outline" size="sm" onClick={onDeactivate}>
-              <PowerOff className="size-4" />
-              Désactiver
-            </Button>
-          ) : (
-            <>
-              <Button variant="outline" size="sm" onClick={onActivate}>
-                <Zap className="size-4" />
-                Activer
+        <CanView permission="pricing.grid.configure">
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+            {profile.isActive ? (
+              <Button variant="outline" size="sm" onClick={onDeactivate}>
+                <PowerOff className="size-4" />
+                Désactiver
               </Button>
-              <Button variant="outline" size="sm" onClick={onEdit}>
-                <Pencil className="size-4" />
-                Modifier
-              </Button>
-              <button
-                type="button"
-                onClick={onDelete}
-                className="rounded-lg p-2 text-[color:var(--muted-foreground)] transition-colors hover:bg-[color:var(--muted)] hover:text-[color:var(--danger)]"
-                title="Supprimer"
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" onClick={onActivate}>
+                  <Zap className="size-4" />
+                  Activer
+                </Button>
+                <Button variant="outline" size="sm" onClick={onEdit}>
+                  <Pencil className="size-4" />
+                  Modifier
+                </Button>
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="rounded-lg p-2 text-[color:var(--muted-foreground)] transition-colors hover:bg-[color:var(--muted)] hover:text-[color:var(--danger)]"
+                  title="Supprimer"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </>
+            )}
+          </div>
+        </CanView>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 // porte un détail B2C (GET /api/admin/delivery/{orderId}) malgré le folder
 // `delivery-b2b/`.
 
+import { requirePermission } from "@/features/auth/application/dal";
 import { getAdminDelivery } from "@/features/delivery-b2c/application/api";
 import { DeliveryDetailClient } from "@/features/delivery-b2c/presentation/delivery-detail-client";
 import { DetailNotFound } from "@/shared/ui/detail-header";
@@ -14,6 +15,7 @@ export default async function DeliveryB2cDetailPage({
 }: {
   params: Promise<{ orderId: string }>;
 }) {
+  await requirePermission("delivery_b2c.view_all");
   const { orderId } = await params;
 
   try {

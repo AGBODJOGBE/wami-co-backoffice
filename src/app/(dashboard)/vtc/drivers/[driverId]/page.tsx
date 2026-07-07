@@ -1,9 +1,10 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { listDocumentsByOwner } from "@/features/documents/application/api";
 import { DriverDetailClient } from "@/features/drivers/presentation/driver-detail-client";
 import {
   listAdminDrivers,
+  listDriverSessions,
   listOnlineDrivers,
-  listPendingDrivers,
 } from "@/features/drivers/application/api";
 import type {
   AdminDriver,
@@ -41,6 +42,7 @@ export default async function VtcDriverDetailPage({
   params: Promise<{ driverId: string }>;
   searchParams: Promise<SearchParams>;
 }) {
+  await requirePermission("driver.view_all");
   const { driverId } = await params;
   const sp = await searchParams;
 
@@ -71,24 +73,19 @@ export default async function VtcDriverDetailPage({
     vehiclesRes,
     walletRes,
     recentRidesRes,
-    pendingRes,
+    sessionsRes,
   ] = await Promise.allSettled([
     listAdminDrivers(),
     listOnlineDrivers(),
     listDriverVehicles(driverId),
     findWalletByProfile(driverId),
     listRidesByDriver(driverId, 6),
-    listPendingDrivers(),
+    listDriverSessions(driverId, { limit: 20 }),
   ]);
 
   const enriched: AdminDriver | undefined =
     adminListRes.status === "fulfilled"
       ? adminListRes.value.drivers.find((d) => d.driverId === driverId)
-      : undefined;
-
-  const pendingDriver =
-    pendingRes.status === "fulfilled"
-      ? pendingRes.value.drivers.find((d) => d.driverId === driverId)
       : undefined;
 
   const online: OnlineDriver | undefined =
@@ -127,6 +124,8 @@ export default async function VtcDriverDetailPage({
     walletRes.status === "fulfilled" ? walletRes.value : undefined;
   const recentRides =
     recentRidesRes.status === "fulfilled" ? recentRidesRes.value : [];
+  const sessionsData =
+    sessionsRes.status === "fulfilled" ? sessionsRes.value : null;
 
   const category = enriched?.category ?? fallbackCategory;
 
@@ -139,7 +138,6 @@ export default async function VtcDriverDetailPage({
 
   const isDocumentsVerified =
     isDocumentsVerifiedFromDocs ||
-    pendingDriver?.isDocumentsVerified ||
     enriched?.isDocumentsVerified ||
     fallbackVerified;
   const createdAt = enriched?.createdAt ?? fallbackCreatedAt;
@@ -162,6 +160,9 @@ export default async function VtcDriverDetailPage({
       online={online}
       wallet={wallet}
       recentRides={recentRides}
+      sessions={sessionsData?.sessions}
+      sessionsTotalDuration={sessionsData?.totalDurationSeconds}
+      sessionsTotal={sessionsData?.total}
     />
   );
 }

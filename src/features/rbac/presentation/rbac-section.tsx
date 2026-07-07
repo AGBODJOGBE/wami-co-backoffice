@@ -3,13 +3,17 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  CheckCircle,
   ChevronDown,
   ChevronRight,
   RefreshCw,
   Search,
   Shield,
   ShieldCheck,
+  SkipForward,
   UserCog,
+  XCircle,
+  Zap,
 } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 
@@ -37,11 +41,18 @@ import {
   createPermissionAction,
   createRoleAction,
   grantPermissionAction,
+  syncMissingPermissionsAction,
   updateRolePermissionsAction,
   type CreatePermissionInput,
 } from "../application/actions";
+import {
+  MISSING_PERMISSIONS,
+  type SyncPermissionDetail,
+  type SyncPermissionsResult,
+} from "../application/permissions-catalog";
 import type { MyPermissions, PermissionsByModule, RbacPermission, RbacRole } from "../domain/rbac";
-import type { AdminUser } from "@/features/settings/domain/admin-user";
+import type { AdminListItem } from "@/features/settings/domain/admin-user";
+import { CanView } from "@/shared/ui/can-view";
 
 // ─── Role tone map ─────────────────────────────────────────────────────────────
 
@@ -62,7 +73,7 @@ function GrantPermissionModal({
 }: {
   open: boolean;
   onClose: () => void;
-  admin: AdminUser | null;
+  admin: AdminListItem | null;
   catalog: PermissionsByModule | null;
 }) {
   const [permissionCode, setPermissionCode] = useState("");
@@ -147,7 +158,7 @@ function ChangeRoleModal({
 }: {
   open: boolean;
   onClose: () => void;
-  admin: AdminUser | null;
+  admin: AdminListItem | null;
   roles: RbacRole[];
 }) {
   const [roleId, setRoleId] = useState("");
@@ -205,6 +216,140 @@ function ChangeRoleModal({
           value={roleId}
           onChange={(e) => setRoleId(e.target.value)}
         />
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Sync missing permissions modal ──────────────────────────────────────────
+
+const MODULE_ORDER = [
+  "payment", "driver", "driver_bonus", "referral", "vehicle",
+  "promo_code", "notification", "app_config", "passenger", "document", "delivery_b2c",
+];
+
+const MODULE_LABELS: Record<string, string> = {
+  payment: "Payment", driver: "Driver", driver_bonus: "Driver Bonus",
+  referral: "Parrainage", vehicle: "Véhicules", promo_code: "Codes Promo",
+  notification: "Notifications", app_config: "Configuration système",
+  passenger: "Passagers", document: "Documents", delivery_b2c: "Livraison B2C",
+};
+
+const grouped = MODULE_ORDER.map((mod) => ({
+  module: mod,
+  label: MODULE_LABELS[mod] ?? mod,
+  perms: MISSING_PERMISSIONS.filter((p) => p.module === mod),
+})).filter((g) => g.perms.length > 0);
+
+function StatusIcon({ status }: { status: SyncPermissionDetail["status"] }) {
+  if (status === "created") return <CheckCircle className="size-3.5 shrink-0 text-emerald-500" />;
+  if (status === "skipped") return <SkipForward className="size-3.5 shrink-0 text-amber-500" />;
+  return <XCircle className="size-3.5 shrink-0 text-[color:var(--danger)]" />;
+}
+
+function SyncPermissionsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [pending, start] = useTransition();
+  const [result, setResult] = useState<SyncPermissionsResult | null>(null);
+
+  function handleClose() {
+    setResult(null);
+    onClose();
+  }
+
+  function run() {
+    start(async () => {
+      const r = await syncMissingPermissionsAction();
+      setResult(r.data ?? null);
+    });
+  }
+
+  const detailsByCode = useMemo(
+    () => new Map(result?.details.map((d) => [d.code, d])),
+    [result],
+  );
+
+  return (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title="Synchroniser les permissions manquantes"
+      description={
+        result
+          ? `Terminé — ${result.created} créée(s) · ${result.skipped} déjà présente(s) · ${result.failed} échec(s)`
+          : `${MISSING_PERMISSIONS.length} permissions identifiées comme manquantes dans le système.`
+      }
+      size="xl"
+      footer={
+        result ? (
+          <Button onClick={handleClose}>Fermer</Button>
+        ) : (
+          <>
+            <Button variant="ghost" onClick={handleClose} disabled={pending}>Annuler</Button>
+            <Button onClick={run} isLoading={pending}>
+              <Zap className="size-4" />
+              {pending ? "Synchronisation en cours…" : `Créer les ${MISSING_PERMISSIONS.length} permissions`}
+            </Button>
+          </>
+        )
+      }
+    >
+      <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto pr-1">
+        {result && (
+          <div className="flex gap-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/20 p-3">
+            <div className="flex flex-1 flex-col items-center gap-0.5 rounded-md bg-emerald-500/10 py-2">
+              <span className="text-xl font-bold text-emerald-600">{result.created}</span>
+              <span className="text-[10px] font-medium text-emerald-600">Créées</span>
+            </div>
+            <div className="flex flex-1 flex-col items-center gap-0.5 rounded-md bg-amber-500/10 py-2">
+              <span className="text-xl font-bold text-amber-600">{result.skipped}</span>
+              <span className="text-[10px] font-medium text-amber-600">Déjà présentes</span>
+            </div>
+            <div className="flex flex-1 flex-col items-center gap-0.5 rounded-md bg-[color:var(--danger)]/10 py-2">
+              <span className="text-xl font-bold text-[color:var(--danger)]">{result.failed}</span>
+              <span className="text-[10px] font-medium text-[color:var(--danger)]">Échecs</span>
+            </div>
+          </div>
+        )}
+
+        {grouped.map(({ module, label, perms }) => (
+          <div key={module} className="flex flex-col gap-1.5">
+            <h4 className="text-[10px] font-semibold uppercase tracking-widest text-[color:var(--muted-foreground)]">
+              {label}
+            </h4>
+            <div className="flex flex-col gap-1">
+              {perms.map((p) => {
+                const detail = detailsByCode.get(p.code);
+                return (
+                  <div
+                    key={p.code}
+                    className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors ${
+                      !detail
+                        ? "border-[color:var(--border)] bg-[color:var(--background)]"
+                        : detail.status === "created"
+                          ? "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30"
+                          : detail.status === "skipped"
+                            ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"
+                            : "border-[color:var(--danger)]/40 bg-[color:var(--danger)]/5"
+                    }`}
+                  >
+                    {detail && <StatusIcon status={detail.status} />}
+                    {!detail && <div className="size-3.5 shrink-0 rounded-full border-2 border-[color:var(--border)]" />}
+                    <div className="flex flex-1 flex-col gap-0.5">
+                      <span className="font-medium text-[color:var(--foreground)]">{p.name}</span>
+                      <span className="font-mono text-[10px] text-[color:var(--muted-foreground)]">{p.code}</span>
+                      {detail?.error && (
+                        <span className="text-[10px] text-[color:var(--danger)]">{detail.error}</span>
+                      )}
+                    </div>
+                    <span className="shrink-0 rounded-full bg-[color:var(--muted)] px-1.5 py-0.5 text-[9px] font-mono text-[color:var(--muted-foreground)]">
+                      {p.category}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </Modal>
   );
@@ -610,13 +755,15 @@ function RoleCard({
       {open && (
         <div className="border-t border-[color:var(--border)] px-3 pb-3 pt-2">
           <div className="mb-2 flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => { e.stopPropagation(); onManagePermissions(role); }}
-            >
-              Gérer les permissions
-            </Button>
+            <CanView permission="role.update">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); onManagePermissions(role); }}
+              >
+                Gérer les permissions
+              </Button>
+            </CanView>
           </div>
           {role.permissions.length > 0 ? (
             <ul className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
@@ -648,7 +795,7 @@ export interface RbacSectionProps {
   rolesError?: string;
   catalog: PermissionsByModule | null;
   catalogError?: string;
-  admins?: AdminUser[];
+  admins?: AdminListItem[];
 }
 
 export function RbacSection({
@@ -663,10 +810,11 @@ export function RbacSection({
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [search, setSearch] = useState("");
-  const [grantTarget, setGrantTarget] = useState<AdminUser | null>(null);
-  const [roleTarget, setRoleTarget] = useState<AdminUser | null>(null);
+  const [grantTarget, setGrantTarget] = useState<AdminListItem | null>(null);
+  const [roleTarget, setRoleTarget] = useState<AdminListItem | null>(null);
   const [createPermOpen, setCreatePermOpen] = useState(false);
   const [createRoleOpen, setCreateRoleOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const [managePermRole, setManagePermRole] = useState<RbacRole | null>(null);
 
   const myCodes = useMemo(
@@ -701,14 +849,22 @@ export function RbacSection({
           {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
           Rafraîchir
         </Button>
-        <Button size="sm" variant="outline" onClick={() => setCreatePermOpen(true)}>
-          <Shield className="size-4" />
-          Nouvelle permission
-        </Button>
-        <Button size="sm" onClick={() => setCreateRoleOpen(true)}>
-          <UserCog className="size-4" />
-          Nouveau rôle
-        </Button>
+        <CanView permission="permission.create">
+          <Button size="sm" variant="outline" onClick={() => setSyncOpen(true)}>
+            <Zap className="size-4" />
+            Synchroniser les permissions
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setCreatePermOpen(true)}>
+            <Shield className="size-4" />
+            Nouvelle permission
+          </Button>
+        </CanView>
+        <CanView permission="role.create">
+          <Button size="sm" onClick={() => setCreateRoleOpen(true)}>
+            <UserCog className="size-4" />
+            Nouveau rôle
+          </Button>
+        </CanView>
       </div>
 
       {/* ── Top row: Mon profil + Rôles ─────────────────────────────────────── */}
@@ -831,26 +987,30 @@ export function RbacSection({
                         </div>
                       </td>
                       <td className="hidden px-4 py-2.5 sm:table-cell">
-                        <Badge tone={admin.isActive ? "success" : "danger"}>
-                          {admin.isActive ? "Actif" : "Inactif"}
+                        <Badge tone={admin.status === "ACTIVE" ? "success" : "danger"}>
+                          {admin.status === "ACTIVE" ? "Actif" : "Inactif"}
                         </Badge>
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setRoleTarget(admin)}
-                          >
-                            Changer rôle
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setGrantTarget(admin)}
-                          >
-                            + Permission
-                          </Button>
+                          <CanView permission="admin.update_role">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setRoleTarget(admin)}
+                            >
+                              Changer rôle
+                            </Button>
+                          </CanView>
+                          <CanView permission="admin.grant_permission">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setGrantTarget(admin)}
+                            >
+                              + Permission
+                            </Button>
+                          </CanView>
                         </div>
                       </td>
                     </tr>
@@ -936,6 +1096,10 @@ export function RbacSection({
         onClose={() => setRoleTarget(null)}
         admin={roleTarget}
         roles={roles}
+      />
+      <SyncPermissionsModal
+        open={syncOpen}
+        onClose={() => setSyncOpen(false)}
       />
       <CreatePermissionModal
         open={createPermOpen}

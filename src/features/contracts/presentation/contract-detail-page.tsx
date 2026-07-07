@@ -48,6 +48,7 @@ import {
 } from "../application/actions";
 import { ContractBreakModal } from "./contract-break-modal";
 import { ContractSuspendModal } from "./contract-suspend-modal";
+import { CanView } from "@/shared/ui/can-view";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
@@ -261,14 +262,16 @@ function InstallmentRow({
             {INSTALLMENT_STATUS_LABELS[row.status as InstallmentStatus] ?? row.status}
           </Badge>
           {(row.status === "EN_ATTENTE" || row.status === "IMPAYEE") && (
-            <Button
-              size="sm"
-              variant={row.status === "IMPAYEE" ? "primary" : "outline"}
-              onClick={() => onPay(row.installmentId)}
-              disabled={disabled}
-            >
-              {isPaying ? <Spinner size="sm" /> : "Payer"}
-            </Button>
+            <CanView permission="contract.installment.manual_payment">
+              <Button
+                size="sm"
+                variant={row.status === "IMPAYEE" ? "primary" : "outline"}
+                onClick={() => onPay(row.installmentId)}
+                disabled={disabled}
+              >
+                {isPaying ? <Spinner size="sm" /> : "Payer"}
+              </Button>
+            </CanView>
           )}
         </div>
       </div>
@@ -389,31 +392,39 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
           <div className="flex flex-wrap items-center gap-2">
             {/* Reprendre — contrat suspendu */}
             {contract.status === "SUSPENDED" && (
-              <Button variant="outline" size="sm" onClick={() => setResumeOpen(true)} disabled={resuming}>
-                {resuming ? <Spinner size="sm" /> : <Play className="size-4" />}
-                Reprendre
-              </Button>
+              <CanView permission="contract.resume">
+                <Button variant="outline" size="sm" onClick={() => setResumeOpen(true)} disabled={resuming}>
+                  {resuming ? <Spinner size="sm" /> : <Play className="size-4" />}
+                  Reprendre
+                </Button>
+              </CanView>
             )}
             {/* Suspendre — contrat actif */}
             {contract.status === "ACTIVE" && (
-              <Button variant="outline" size="sm" onClick={() => setSuspendOpen(true)}>
-                <PauseCircle className="size-4" />
-                Suspendre
-              </Button>
+              <CanView permission="contract.suspend">
+                <Button variant="outline" size="sm" onClick={() => setSuspendOpen(true)}>
+                  <PauseCircle className="size-4" />
+                  Suspendre
+                </Button>
+              </CanView>
             )}
             {/* Débloquer le chauffeur */}
             {(contract.status === "ACTIVE" || contract.status === "SUSPENDED") && (
-              <Button variant="outline" size="sm" onClick={handleUnblock} disabled={unblocking}>
-                {unblocking ? <Spinner size="sm" /> : <Unlock className="size-4" />}
-                Débloquer le chauffeur
-              </Button>
+              <CanView permission="contract.driver.unblock">
+                <Button variant="outline" size="sm" onClick={handleUnblock} disabled={unblocking}>
+                  {unblocking ? <Spinner size="sm" /> : <Unlock className="size-4" />}
+                  Débloquer le chauffeur
+                </Button>
+              </CanView>
             )}
             {/* Résilier */}
             {canBreak && (
-              <Button variant="danger" size="sm" onClick={() => setBreakOpen(true)}>
-                <ShieldOff className="size-4" />
-                Résilier le contrat
-              </Button>
+              <CanView permission="contract.break">
+                <Button variant="danger" size="sm" onClick={() => setBreakOpen(true)}>
+                  <ShieldOff className="size-4" />
+                  Résilier le contrat
+                </Button>
+              </CanView>
             )}
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { listFilleuls } from "@/features/referrals/application/api";
 import { FilleulsListClient } from "@/features/referrals/presentation/filleuls-list-client";
 import { Card } from "@/shared/ui/card";
@@ -6,6 +7,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 export const dynamic = "force-dynamic";
 
 export default async function FilleulsPageRoute() {
+  await requirePermission("referral.view_all");
   try {
     const { referrals, total } = await listFilleuls();
     return <FilleulsListClient referrals={referrals} total={total} />;

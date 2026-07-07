@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { listPassengers } from "@/features/passengers/application/api";
 import { listAdminRides } from "@/features/rides/application/api";
 import { listAdminWallets } from "@/features/wallet/application/api";
@@ -10,6 +11,7 @@ export default async function VtcPassengerDetailPage({
 }: {
   params: Promise<{ passengerId: string }>;
 }) {
+  await requirePermission("passenger.view_all");
   const { passengerId } = await params;
 
   const [passengersRes, ridesRes, walletsRes] = await Promise.allSettled([

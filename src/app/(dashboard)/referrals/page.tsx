@@ -1,3 +1,4 @@
+import { requirePermission } from "@/features/auth/application/dal";
 import { getReferralStats, listReferrals } from "@/features/referrals/application/api";
 import { ReferralsListClient } from "@/features/referrals/presentation/referrals-list-client";
 import { Card } from "@/shared/ui/card";
@@ -6,6 +7,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 export const dynamic = "force-dynamic";
 
 export default async function ReferralsPageRoute() {
+  await requirePermission("referral.view_all");
   try {
     const [{ referrals, total }, stats] = await Promise.all([
       listReferrals(),

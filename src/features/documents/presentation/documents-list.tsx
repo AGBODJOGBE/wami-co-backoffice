@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   ShieldX,
 } from "lucide-react";
+import { CanView } from "@/shared/ui/can-view";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Modal } from "@/shared/ui/modal";
@@ -325,13 +326,15 @@ function DocumentCard({
 
       <footer className="flex flex-col gap-2 border-t border-[color:var(--border)] bg-[color:var(--muted)]/20 p-2">
         {doc.status === "PENDING" ? (
-          <div className="grid grid-cols-2 gap-2">
-            <VerifyButton doc={doc} pathHint={pathHint} />
-            <Button variant="outline" size="sm" onClick={onReject} fullWidth>
-              <ShieldX className="size-4" />
-              Rejeter
-            </Button>
-          </div>
+          <CanView permission="document.verify">
+            <div className="grid grid-cols-2 gap-2">
+              <VerifyButton doc={doc} pathHint={pathHint} />
+              <Button variant="outline" size="sm" onClick={onReject} fullWidth>
+                <ShieldX className="size-4" />
+                Rejeter
+              </Button>
+            </div>
+          </CanView>
         ) : doc.status === "REJECTED" ? (
           <div className="flex items-center justify-center gap-1.5 text-xs text-[color:var(--danger)]">
             <ShieldX className="size-3.5" />

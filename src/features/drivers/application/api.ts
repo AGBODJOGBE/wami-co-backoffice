@@ -6,6 +6,8 @@ import type {
   AdminDriver,
   AdminDriverStatus,
   AdminDriversResult,
+  DriverConnectionSession,
+  DriverSessionsResult,
   OnlineDriver,
   OnlineDriversResult,
   PendingDriversResult,
@@ -107,6 +109,32 @@ export async function listAdminDrivers(
     }
   }
   return { drivers: [], total: 0 };
+}
+
+/** GET /api/admin/drivers/:driverId/sessions — historique paginé des sessions. */
+export async function listDriverSessions(
+  driverId: string,
+  query: { page?: number; limit?: number; from?: string; to?: string } = {},
+): Promise<DriverSessionsResult> {
+  try {
+    const raw = await apiFetch<unknown>(API_ROUTES.adminDrivers.sessions(driverId), {
+      query,
+      silent: true,
+    });
+    if (raw && typeof raw === "object") {
+      const obj = raw as Record<string, unknown>;
+      return {
+        sessions: (Array.isArray(obj.sessions) ? obj.sessions : []) as DriverConnectionSession[],
+        total: (obj.total as number) ?? 0,
+        totalDurationSeconds: (obj.totalDurationSeconds as number) ?? 0,
+        page: (obj.page as number) ?? 1,
+        limit: (obj.limit as number) ?? 20,
+      };
+    }
+  } catch {
+    // graceful — sessions is non-critical
+  }
+  return { sessions: [], total: 0, totalDurationSeconds: 0, page: 1, limit: 20 };
 }
 
 /** GET /api/admin/drivers/online — same wrapping tolerance as above. */

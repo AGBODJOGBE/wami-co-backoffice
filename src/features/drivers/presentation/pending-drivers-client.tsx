@@ -29,6 +29,7 @@ import {
   relativeTime,
   type PendingDriver,
 } from "../domain/admin-driver";
+import { CanView } from "@/shared/ui/can-view";
 import {
   DriverInlineActionButton,
   SuspendDriverModal,
@@ -152,26 +153,30 @@ export function PendingDriversClient({
       align: "right",
       render: (row) => (
         <div className="flex items-center justify-end gap-2">
-          <DriverInlineActionButton
-            driverId={row.driverId}
-            action="approve"
-            label="Approuver"
-            variant="primary"
-            size="sm"
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const name = `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim();
-              setSuspendTarget({
-                driverId: row.driverId,
-                label: name || `Driver #${row.driverId.slice(0, 8)}`,
-              });
-            }}
-          >
-            Suspendre
-          </Button>
+          <CanView permission="driver.approve">
+            <DriverInlineActionButton
+              driverId={row.driverId}
+              action="approve"
+              label="Approuver"
+              variant="primary"
+              size="sm"
+            />
+          </CanView>
+          <CanView permission="driver.suspend">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const name = `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim();
+                setSuspendTarget({
+                  driverId: row.driverId,
+                  label: name || `Driver #${row.driverId.slice(0, 8)}`,
+                });
+              }}
+            >
+              Suspendre
+            </Button>
+          </CanView>
         </div>
       ),
     },
