@@ -445,12 +445,13 @@ export function RecoveryPage({ contracts, totalNonReconnu, totalRecouvre, kpis }
                 Tous les montants imputés ont été encaissés en cash.
               </p>
             </div>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/contracts">
-                <ArrowRight className="size-4" />
-                Voir tous les contrats
-              </Link>
-            </Button>
+            <Link
+              href="/contracts"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-[color:var(--foreground)] hover:bg-[color:var(--muted)] dark:bg-[color:var(--muted)]"
+            >
+              <ArrowRight className="size-4" />
+              Voir tous les contrats
+            </Link>
           </div>
         ) : sorted.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-[color:var(--muted-foreground)]">
