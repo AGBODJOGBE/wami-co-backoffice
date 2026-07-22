@@ -156,7 +156,7 @@ export function CouriersListPage({ drivers, total }: CouriersListPageProps) {
                   <CardContent className="flex flex-col gap-4 p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <Avatar name={fullName} src={d.photoUrl ?? undefined} className="size-12 text-base" />
+                        <Avatar name={fullName} className="size-12 text-base" />
                         <div className="flex flex-col leading-tight">
                           <span className="text-sm font-semibold text-[color:var(--foreground)] group-hover:text-[color:var(--primary)]">
                             {fullName}
