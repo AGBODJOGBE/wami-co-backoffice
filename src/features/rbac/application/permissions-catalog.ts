@@ -54,6 +54,8 @@ export const MISSING_PERMISSIONS: MissingPermissionEntry[] = [
   // delivery_b2c
   { code: "delivery_b2c.view_all",       name: "Voir toutes les livraisons B2C",                          module: "delivery_b2c", category: "DELIVERY_B2C" },
   { code: "delivery_b2c.manage",         name: "Gérer les livraisons B2C",                                module: "delivery_b2c", category: "DELIVERY_B2C" },
+  // fleet (suivi pilotes & véhicules)
+  { code: "fleet.monitor",            name: "Suivre les pilotes et leur activité (courses, wallet, statut)", module: "fleet",        category: "FLEET"        },
   // wallet / transactions
   { code: "wallet.credit",               name: "Créditer un wallet manuellement",                         module: "wallet",       category: "WALLET"       },
   { code: "wallet.debit",                name: "Débiter un wallet manuellement",                          module: "wallet",       category: "WALLET"       },

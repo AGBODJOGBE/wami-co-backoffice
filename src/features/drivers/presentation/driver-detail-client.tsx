@@ -12,12 +12,14 @@ import {
   History,
   MapPin,
   Navigation,
+  Pencil,
   Phone,
   RefreshCw,
   ShieldCheck,
   ShieldX,
   Star,
   TrendingUp,
+  TrendingDown,
   UserCircle,
   Wallet,
   Zap,
@@ -38,13 +40,15 @@ import {
   SuspendDriverModal,
   type DriverTarget,
 } from "./driver-action-modals";
-import { fetchDriverSessionsAction } from "../application/actions";
+import { fetchDriverSessionsAction, updateDriverInfoAction } from "../application/actions";
 import {
   ADMIN_DRIVER_STATUS_META,
   fullName,
   type AdminDriver,
   type AdminDriverStatus,
+  type DriverCommissionDebtDetail,
   type OnlineDriver,
+  type UpdateDriverInfoInput,
 } from "../domain/admin-driver";
 import {
   VEHICLE_CATEGORY_LABELS,
@@ -82,6 +86,7 @@ export interface DriverDetailClientProps {
   sessions?: DriverConnectionSession[];
   sessionsTotalDuration?: number;
   sessionsTotal?: number;
+  commissionDebt?: DriverCommissionDebtDetail | null;
 }
 
 // ─── Sessions helpers ─────────────────────────────────────────────────────────
@@ -665,6 +670,256 @@ function RidesCard({ rides }: { rides: AdminRide[] }) {
   );
 }
 
+// ─── EditDriverModal ──────────────────────────────────────────────────────────
+
+const GENDER_OPTIONS = [
+  { value: "", label: "Non précisé" },
+  { value: "MALE", label: "Homme" },
+  { value: "FEMALE", label: "Femme" },
+];
+
+function EditDriverModal({
+  open,
+  driverId,
+  initial,
+  onClose,
+}: {
+  open: boolean;
+  driverId: string;
+  initial?: AdminDriver;
+  onClose: () => void;
+}) {
+  const [firstName, setFirstName] = useState(initial?.firstName ?? "");
+  const [lastName, setLastName] = useState(initial?.lastName ?? "");
+  const [phoneNumber, setPhoneNumber] = useState(initial?.phoneNumber ?? "");
+  const [gender, setGender] = useState<"" | "MALE" | "FEMALE">("");
+  const [saving, startSave] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  if (!open) return null;
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const input: UpdateDriverInfoInput = {};
+    if (firstName.trim()) input.firstName = firstName.trim();
+    if (lastName.trim()) input.lastName = lastName.trim();
+    if (phoneNumber.trim()) input.phoneNumber = phoneNumber.trim();
+    if (gender) input.gender = gender;
+
+    startSave(async () => {
+      const res = await updateDriverInfoAction(driverId, input);
+      if (res.ok) {
+        setSuccess(true);
+        setTimeout(onClose, 800);
+      } else {
+        setError(res.message);
+      }
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl border border-[color:var(--border)] bg-[color:var(--background)] shadow-xl">
+        <div className="flex items-center justify-between border-b border-[color:var(--border)] px-6 py-4">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-[color:var(--foreground)]">
+            <Pencil className="size-4 text-[color:var(--primary)]" />
+            Modifier les informations
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-6">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                Prénom
+              </label>
+              <input
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder={initial?.firstName}
+                className="h-9 rounded-lg border border-[color:var(--border)] bg-[color:var(--background)] px-3 text-sm text-[color:var(--foreground)] placeholder:text-[color:var(--muted-foreground)] focus:outline-none focus:ring-1 focus:ring-[color:var(--primary)]"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                Nom
+              </label>
+              <input
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder={initial?.lastName}
+                className="h-9 rounded-lg border border-[color:var(--border)] bg-[color:var(--background)] px-3 text-sm text-[color:var(--foreground)] placeholder:text-[color:var(--muted-foreground)] focus:outline-none focus:ring-1 focus:ring-[color:var(--primary)]"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+              Téléphone
+            </label>
+            <input
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder={initial?.phoneNumber}
+              className="h-9 rounded-lg border border-[color:var(--border)] bg-[color:var(--background)] px-3 text-sm text-[color:var(--foreground)] placeholder:text-[color:var(--muted-foreground)] focus:outline-none focus:ring-1 focus:ring-[color:var(--primary)]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+              Genre
+            </label>
+            <select
+              value={gender}
+              onChange={(e) => setGender(e.target.value as "" | "MALE" | "FEMALE")}
+              className="h-9 rounded-lg border border-[color:var(--border)] bg-[color:var(--background)] px-3 text-sm text-[color:var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[color:var(--primary)]"
+            >
+              {GENDER_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {error && (
+            <p className="rounded-lg bg-[color:var(--danger)]/10 px-3 py-2 text-xs text-[color:var(--danger)]">
+              {error}
+            </p>
+          )}
+          {success && (
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+              Informations mises à jour.
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2 border-t border-[color:var(--border)] pt-4">
+            <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={saving}>
+              Annuler
+            </Button>
+            <Button type="submit" size="sm" isLoading={saving}>
+              Enregistrer
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── CommissionDebtCard ───────────────────────────────────────────────────────
+
+const DEBT_SOURCE_META: Record<string, { label: string; tone: "primary" | "info" | "warning" }> = {
+  RIDE:                  { label: "Course",    tone: "primary" },
+  B2C_DELIVERY:          { label: "Livraison", tone: "info"    },
+  CONTRACT_INSTALLMENT:  { label: "Contrat",   tone: "warning" },
+};
+
+function CommissionDebtCard({ debt }: { debt: DriverCommissionDebtDetail }) {
+  const hasDebt = debt.debtAmount < 0;
+
+  return (
+    <Card className={hasDebt ? "border-[color:var(--danger)]/40" : undefined}>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <TrendingDown className={`size-4 ${hasDebt ? "text-[color:var(--danger)]" : "text-[color:var(--muted-foreground)]"}`} />
+            <CardTitle>Commission & dette EARNINGS</CardTitle>
+          </div>
+          <Badge tone={hasDebt ? "danger" : "success"}>
+            {hasDebt ? `Dette : ${formatXof(Math.abs(debt.debtAmount))}` : "À jour"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col gap-4">
+          {/* Solde courant */}
+          <div className="grid grid-cols-2 gap-3 rounded-xl border border-[color:var(--border)] p-4">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                Solde EARNINGS
+              </span>
+              <span className={`text-lg font-bold tabular-nums ${debt.currentBalance < 0 ? "text-[color:var(--danger)]" : "text-[color:var(--foreground)]"}`}>
+                {formatXof(debt.currentBalance)}
+              </span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                Montant dû
+              </span>
+              <span className={`text-lg font-bold tabular-nums ${hasDebt ? "text-[color:var(--danger)]" : "text-emerald-600 dark:text-emerald-400"}`}>
+                {hasDebt ? `−${formatXof(Math.abs(debt.debtAmount))}` : formatXof(0)}
+              </span>
+            </div>
+          </div>
+
+          {/* Transactions sources */}
+          {debt.items.length === 0 ? (
+            <p className="text-sm text-[color:var(--muted-foreground)]">
+              Aucune transaction à l&apos;origine de la dette.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-[color:var(--border)] text-left text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                    <th className="pb-2 pr-4">Source</th>
+                    <th className="pb-2 pr-4">Référence</th>
+                    <th className="pb-2 pr-4 text-right">Montant</th>
+                    <th className="pb-2">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[color:var(--border)]">
+                  {debt.items.map((item) => {
+                    const meta = DEBT_SOURCE_META[item.source] ?? { label: item.source, tone: "neutral" as const };
+                    return (
+                      <tr key={item.transactionId}>
+                        <td className="py-2 pr-4">
+                          <Badge tone={meta.tone}>{meta.label}</Badge>
+                        </td>
+                        <td className="py-2 pr-4">
+                          <div className="flex flex-col">
+                            <span className="font-mono font-semibold text-[color:var(--foreground)]">
+                              {item.entityNumber}
+                            </span>
+                            <span className="text-[10px] text-[color:var(--muted-foreground)]">
+                              {item.description}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2 pr-4 text-right font-mono font-bold text-[color:var(--danger)]">
+                          −{formatXof(Math.abs(item.commissionAmount))}
+                        </td>
+                        <td className="py-2 text-[color:var(--muted-foreground)]">
+                          {formatDate(item.date)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {debt.total > debt.items.length && (
+                <p className="mt-2 text-[11px] text-[color:var(--muted-foreground)]">
+                  {debt.items.length} affichés sur {debt.total} transactions.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── DriverDetailClient ───────────────────────────────────────────────────────
 
 export function DriverDetailClient({
@@ -685,10 +940,12 @@ export function DriverDetailClient({
   sessions,
   sessionsTotalDuration,
   sessionsTotal,
+  commissionDebt,
 }: DriverDetailClientProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [suspendTarget, setSuspendTarget] = useState<DriverTarget | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   const statusMeta = ADMIN_DRIVER_STATUS_META[status];
   const displayName = enriched ? fullName(enriched) : `Driver #${driverId.slice(0, 8)}`;
@@ -758,6 +1015,12 @@ export function DriverDetailClient({
               {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
               Rafraîchir
             </Button>
+            <CanView permission="driver.update">
+              <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                <Pencil className="size-4" />
+                Modifier
+              </Button>
+            </CanView>
             {(status === "PENDING" || status === "OFFLINE") && !enriched?.isApproved && (
               <CanView permission="driver.approve">
                 <DriverInlineActionButton
@@ -1072,6 +1335,9 @@ export function DriverDetailClient({
         </div>
       </div>
 
+      {/* ── Commission & dette EARNINGS ──────────────────────────────────────── */}
+      {commissionDebt && <CommissionDebtCard debt={commissionDebt} />}
+
       {/* ── Sessions de connexion ────────────────────────────────────────────── */}
       <SessionsCard
         driverId={driverId}
@@ -1118,6 +1384,13 @@ export function DriverDetailClient({
         open={!!suspendTarget}
         target={suspendTarget}
         onClose={() => setSuspendTarget(null)}
+      />
+
+      <EditDriverModal
+        open={editOpen}
+        driverId={driverId}
+        initial={enriched}
+        onClose={() => setEditOpen(false)}
       />
     </div>
   );

@@ -72,12 +72,15 @@ export interface DeliveriesListClientProps {
   deliveries: AdminDelivery[];
   total: number;
   error?: string;
+  /** Préfixe URL pour les liens de détail. Défaut : "/delivery-b2b/shipments". */
+  basePath?: string;
 }
 
 export function DeliveriesListClient({
   deliveries,
   total,
   error,
+  basePath = "/delivery-b2b/shipments",
 }: DeliveriesListClientProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
@@ -326,7 +329,7 @@ export function DeliveriesListClient({
             rows={filtered}
             columns={columns}
             rowKey={(r) => r.id}
-            rowHref={(r) => `/delivery-b2b/shipments/${r.id}`}
+            rowHref={(r) => `${basePath}/${r.id}`}
             defaultSort={{ key: "ref", direction: "desc" }}
             emptyMessage="Aucune commande de livraison."
           />

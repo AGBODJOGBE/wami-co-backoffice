@@ -1,8 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   Camera,
   Clock3,
   CreditCard,
@@ -15,6 +16,7 @@ import {
   Snowflake,
   Truck,
   User,
+  X,
 } from "lucide-react";
 import { Avatar } from "@/shared/ui/avatar";
 import { Badge } from "@/shared/ui/badge";
@@ -31,8 +33,11 @@ import {
   type InfoRow,
 } from "@/shared/ui/detail-header";
 import { CopyableId } from "@/shared/ui/copy-button";
+import { Modal } from "@/shared/ui/modal";
 import { Spinner } from "@/shared/ui/spinner";
+import { toast } from "@/shared/ui/toast";
 import { formatDateTime, formatXof } from "@/shared/lib/format";
+import { cancelDeliveryAction } from "../application/actions";
 import {
   DELIVERY_PAYMENT_LABELS,
   DELIVERY_TYPE_LABELS,
@@ -179,14 +184,44 @@ function PhotoCard({
 
 export interface DeliveryDetailClientProps {
   delivery: AdminDeliveryDetail;
+  /** URL de retour vers la liste. Défaut : "/delivery-b2b/shipments". */
+  backPath?: string;
 }
 
-export function DeliveryDetailClient({ delivery }: DeliveryDetailClientProps) {
+const CANCELLABLE_STATUSES = new Set([
+  "PENDING",
+  "DRIVER_ASSIGNED",
+  "PICKUP_FAILED",
+  "DELIVERY_FAILED",
+]);
+
+export function DeliveryDetailClient({
+  delivery,
+  backPath = "/delivery-b2b/shipments",
+}: DeliveryDetailClientProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, startCancel] = useTransition();
   const statusMeta = deliveryStatusMeta(delivery.status);
   const isCancelled =
     delivery.status === "CANCELLED" || delivery.status === "FAILED";
+  const canCancel = CANCELLABLE_STATUSES.has(delivery.status);
+
+  function submitCancel() {
+    startCancel(async () => {
+      const res = await cancelDeliveryAction(delivery.id, cancelReason.trim() || undefined);
+      if (res.ok) {
+        toast({ kind: "success", title: "Commande annulée", description: res.message });
+        setCancelOpen(false);
+        setCancelReason("");
+        router.refresh();
+      } else {
+        toast({ kind: "error", title: "Erreur", description: res.message });
+      }
+    });
+  }
 
   const orderRows: InfoRow[] = [
     {
@@ -233,7 +268,7 @@ export function DeliveryDetailClient({ delivery }: DeliveryDetailClientProps) {
   return (
     <div className="flex flex-col gap-6">
       <DetailHeader
-        backHref="/delivery-b2b/shipments"
+        backHref={backPath}
         backLabel="Retour aux livraisons"
         eyebrow="Livraison B2C"
         title={delivery.orderNumber}
@@ -259,19 +294,32 @@ export function DeliveryDetailClient({ delivery }: DeliveryDetailClientProps) {
         }
         status={<Badge tone={statusMeta.tone}>{statusMeta.label}</Badge>}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => startRefresh(() => router.refresh())}
-            disabled={refreshing}
-          >
-            {refreshing ? (
-              <Spinner size="sm" />
-            ) : (
-              <RefreshCw className="size-4" />
+          <>
+            {canCancel && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCancelOpen(true)}
+                disabled={refreshing || cancelling}
+              >
+                <X className="size-4 text-[color:var(--danger)]" />
+                Annuler la commande
+              </Button>
             )}
-            Rafraîchir
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => startRefresh(() => router.refresh())}
+              disabled={refreshing}
+            >
+              {refreshing ? (
+                <Spinner size="sm" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+              Rafraîchir
+            </Button>
+          </>
         }
       />
 
@@ -530,6 +578,47 @@ export function DeliveryDetailClient({ delivery }: DeliveryDetailClientProps) {
         <PhotoCard title="Photo de collecte" url={delivery.pickupPhoto} />
         <PhotoCard title="Photo de livraison" url={delivery.deliveryPhoto} />
       </div>
+
+      <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} title="Annuler la commande">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-start gap-3 rounded-xl border border-[color:var(--danger)]/30 bg-[color:var(--danger)]/5 p-4">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[color:var(--danger)]" />
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-semibold text-[color:var(--danger)]">
+                Annulation irréversible
+              </p>
+              <p className="text-xs text-[color:var(--muted-foreground)]">
+                La commande <strong>{delivery.orderNumber}</strong> sera annulée immédiatement.
+                Le driver sera notifié et la commande ne pourra pas être relancée.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-[color:var(--foreground)]">
+              Motif d&apos;annulation <span className="text-[color:var(--muted-foreground)]">(optionnel)</span>
+            </label>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+              placeholder="ex: Demande du client, adresse incorrecte…"
+              className="resize-none rounded-lg border border-[color:var(--border)] bg-[color:var(--background)] px-3 py-2 text-sm outline-none focus:border-[color:var(--danger)]"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={cancelling}>
+              Fermer
+            </Button>
+            <Button
+              onClick={submitCancel}
+              disabled={cancelling}
+              className="bg-[color:var(--danger)] text-white hover:opacity-90"
+            >
+              {cancelling ? <><Spinner size="sm" /> Annulation…</> : "Confirmer l'annulation"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   Ban,
   Calendar,
   Car,
+  Download,
   Mail,
   MapPin,
   Phone,
@@ -22,8 +23,24 @@ import { DataTable, PaginationFooter, type ColumnDef } from "@/shared/ui/data-ta
 import { PageHeader } from "@/shared/ui/page-header";
 import { SearchField } from "@/shared/ui/search-field";
 import { StatCard } from "@/features/dashboard/presentation/components/stat-card";
+import { downloadCsv, timestampedFilename } from "@/shared/lib/csv";
 import { formatDate, formatXof } from "@/shared/lib/format";
 import type { PassengerRow } from "./store";
+
+// ─── CSV columns ──────────────────────────────────────────────────────────────
+
+const CSV_COLUMNS = [
+  { key: "id",        header: "ID",           value: (r: PassengerRow) => r.passengerId },
+  { key: "nom",       header: "Nom complet",  value: (r: PassengerRow) => r.fullName },
+  { key: "telephone", header: "Téléphone",    value: (r: PassengerRow) => r.phone },
+  { key: "email",     header: "Email",        value: (r: PassengerRow) => r.email ?? "" },
+  { key: "ville",     header: "Ville",        value: (r: PassengerRow) => r.city ?? "" },
+  { key: "courses",   header: "Nb courses",   value: (r: PassengerRow) => r.totalRides },
+  { key: "note",      header: "Note moy.",    value: (r: PassengerRow) => r.rating > 0 ? r.rating.toFixed(2) : "" },
+  { key: "wallet",    header: "Wallet (FCFA)", value: (r: PassengerRow) => r.walletBalance },
+  { key: "statut",    header: "Statut",       value: (r: PassengerRow) => r.isSuspended ? "Suspendu" : "Actif" },
+  { key: "inscrit",   header: "Inscrit le",   value: (r: PassengerRow) => r.createdAt ? formatDate(r.createdAt) : "" },
+] as const;
 
 // ─── Filter options ───────────────────────────────────────────────────────────
 
@@ -224,7 +241,12 @@ export function PassengersPage({ initialPassengers, total }: PassengersPageProps
         dataSource="live"
         description={`${total.toLocaleString("fr-FR")} comptes · ${activeCount.toLocaleString("fr-FR")} actifs · ${suspendedCount} suspendu${suspendedCount > 1 ? "s" : ""}`}
         actions={
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => downloadCsv(timestampedFilename("passagers"), CSV_COLUMNS, filtered)}
+          >
+            <Download className="size-4" />
             Exporter CSV
           </Button>
         }

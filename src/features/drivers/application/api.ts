@@ -6,6 +6,7 @@ import type {
   AdminDriver,
   AdminDriverStatus,
   AdminDriversResult,
+  DriverCommissionDebtDetail,
   DriverConnectionSession,
   DriverSessionsResult,
   OnlineDriver,
@@ -135,6 +136,25 @@ export async function listDriverSessions(
     // graceful — sessions is non-critical
   }
   return { sessions: [], total: 0, totalDurationSeconds: 0, page: 1, limit: 20 };
+}
+
+/** GET /api/admin/drivers/:driverId/commission-debts — transactions à l'origine de la dette EARNINGS. */
+export async function getDriverCommissionDebtDetail(
+  driverId: string,
+  query: { page?: number; limit?: number } = {},
+): Promise<DriverCommissionDebtDetail | null> {
+  try {
+    const raw = await apiFetch<unknown>(
+      API_ROUTES.adminDrivers.driverCommissionDebts(driverId),
+      { query, silent: true },
+    );
+    if (raw && typeof raw === "object") {
+      return raw as DriverCommissionDebtDetail;
+    }
+  } catch {
+    // graceful — dette est une info non-critique
+  }
+  return null;
 }
 
 /** GET /api/admin/drivers/online — same wrapping tolerance as above. */

@@ -5,6 +5,8 @@ import { DetailNotFound } from "@/shared/ui/detail-header";
 import { ApiError } from "@/shared/lib/api/types";
 import { listAdminDrivers } from "@/features/drivers/application/api";
 import { getVehicle } from "@/features/vehicles/application/api";
+import { getSystemConfigNumber } from "@/features/settings/application/api";
+import { findWalletByProfile } from "@/features/wallet/application/api";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +22,17 @@ export default async function ContractDetailRoute({
     // ── 1. Fetch contract first to get driverId / vehicleId ───────────────
     const contract = await getContract(id);
 
-    // ── 2. Parallel: installments, audit logs, driver list, vehicle ───────
+    // ── 2. Parallel: installments, audit logs, driver list, vehicle, config ──
     const vehicleId = contract.vehicle.vehicleId;
-    const [installments, auditLogsRes, driversRes, vehicleRes] =
+    const driverId = contract.driver.driverId;
+    const [installments, auditLogsRes, driversRes, vehicleRes, toleranceDays, earningsWalletRes] =
       await Promise.allSettled([
         getContractInstallments(id),
         listContractAuditLogs({ contractId: id, limit: 50 }),
         listAdminDrivers(),
         vehicleId ? getVehicle(vehicleId) : Promise.reject(new Error("no vehicleId")),
+        getSystemConfigNumber("PAYMENT_TOLERANCE_DAYS", 3),
+        driverId ? findWalletByProfile(driverId, "EARNINGS") : Promise.resolve(undefined),
       ]);
 
     // ── 3. Enrich driver stub ─────────────────────────────────────────────
@@ -74,6 +79,12 @@ export default async function ContractDetailRoute({
           auditLogsRes.status === "fulfilled"
             ? auditLogsRes.value.items
             : []
+        }
+        toleranceDays={
+          toleranceDays.status === "fulfilled" ? toleranceDays.value : 3
+        }
+        earningsWallet={
+          earningsWalletRes.status === "fulfilled" ? earningsWalletRes.value ?? null : null
         }
       />
     );

@@ -84,8 +84,18 @@ function normalizeContract(raw: unknown): Contract {
     montantPaye: (c.montantPaye ?? undefined) as number | undefined,
     montantRestant: (c.montantRestant) as number | undefined,
     echeancesTotal: (c.echeancesTotal ?? c.nbEcheances) as number | undefined,
-    echeancesPayees: (c.echeancesPayees ?? c.nbPaies) as number | undefined,
+    echeancesPayees: (() => {
+      // Le backend ne retourne pas echeancesPayees directement — on le calcule
+      const explicit = c.echeancesPayees ?? c.nbPaies;
+      if (explicit !== undefined && explicit !== null) return explicit as number;
+      const paye = c.montantPaye as number | undefined;
+      const parEch = (c.montantMensuel ?? c.montantEcheance) as number | undefined;
+      if (paye != null && parEch && parEch > 0) return Math.floor(paye / parEch);
+      return undefined;
+    })(),
     nbImpayes: (c.nbImpayes ?? undefined) as number | undefined,
+    montantNonReconnu: (c.montantNonReconnu ?? undefined) as number | undefined,
+    montantRecouvre: (c.montantRecouvre ?? undefined) as number | undefined,
     createdAt: (c.createdAt ?? "") as string,
     updatedAt: (c.updatedAt ?? "") as string,
     breakReason: (c.brokenReason ?? c.breakReason ?? c.motifRupture ?? null) as string | null,
@@ -130,6 +140,9 @@ function normalizeInstallment(raw: unknown): ContractInstallment {
     contractId: r.contractId as string | undefined,
     numero: (r.numero ?? 0) as number,
     montant: (r.montant ?? 0) as number,
+    montantPaye: r.montantPaye as number | undefined,
+    montantRestant: r.montantRestant as number | undefined,
+    montantRecouvre: r.montantRecouvre as number | undefined,
     dateEcheance: (r.dateEcheance ?? "") as string,
     datePaiement: (r.datePaiement ?? null) as string | null,
     status: (r.statut ?? r.status ?? "EN_ATTENTE") as import("../domain/contract").InstallmentStatus,
@@ -191,7 +204,44 @@ export async function listContracts(
 }
 
 export async function getContractKpis(): Promise<ContractKpis> {
-  return apiFetch<ContractKpis>(API_ROUTES.adminContracts.kpis());
+  const raw = await apiFetch<unknown>(API_ROUTES.adminContracts.kpis());
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const inst = (r.installments ?? {}) as Record<string, number>;
+  const fin  = (r.financials  ?? {}) as Record<string, number>;
+  const con  = (r.contracts   ?? {}) as Record<string, number>;
+  const blk  = (r.blocking    ?? {}) as Record<string, number>;
+  return {
+    contracts: {
+      total:     con.total     ?? 0,
+      active:    con.active    ?? 0,
+      suspended: con.suspended ?? 0,
+      completed: con.completed ?? 0,
+      broken:    con.broken    ?? 0,
+      terminated:con.terminated,
+    },
+    financials: {
+      totalMontantTotal:          fin.totalMontantTotal         ?? 0,
+      totalMontantPaye:           fin.totalMontantPaye          ?? 0,
+      totalMontantRestant:        fin.totalMontantRestant       ?? 0,
+      totalResidualDebt:          fin.totalResidualDebt         ?? 0,
+      totalDownPayment:           fin.totalDownPayment,
+      totalMontantNetAFinancer:   fin.totalMontantNetAFinancer,
+    },
+    installments: {
+      enAttente:              inst.enAttente              ?? 0,
+      enRecouvrement:         inst.enRecouvrement         ?? 0,
+      partiellementRecouvree: inst.partiellementRecouvree ?? 0,
+      payee:                  inst.payee                  ?? 0,
+      impayee:                inst.impayee                ?? 0,
+      annulee:                inst.annulee                ?? 0,
+      overdueCount:           inst.overdueCount           ?? 0,
+    },
+    blocking: {
+      atRiskCount:  blk.atRiskCount  ?? 0,
+      blockedCount: blk.blockedCount ?? 0,
+      threshold:    blk.threshold    ?? 2,
+    },
+  };
 }
 
 export interface ListAuditLogsParams {
@@ -226,6 +276,30 @@ export async function listContractAuditLogs(
     };
   }
   return empty;
+}
+
+// ─── Recouvrement cash-basis (Lot D) ─────────────────────────────────────────
+
+export interface RecoveryListResult {
+  contracts: Contract[];
+  /** Somme de montantNonReconnu sur tous les contrats en cours de recouvrement */
+  totalNonReconnu: number;
+  /** Somme de montantRecouvre sur tous les contrats en cours de recouvrement */
+  totalRecouvre: number;
+}
+
+/**
+ * Retourne tous les contrats avec au moins 1 FCFA en recouvrement cash
+ * (montantNonReconnu > 0). Pas de filtre statut — un contrat SUSPENDU ou
+ * même ROMPU peut encore avoir du montantNonReconnu tant que le chauffeur
+ * n'a pas remboursé via son wallet.
+ */
+export async function listContractsInRecovery(): Promise<RecoveryListResult> {
+  const result = await listContracts({ limit: 500 });
+  const inRecovery = result.items.filter((c) => (c.montantNonReconnu ?? 0) > 0);
+  const totalNonReconnu = inRecovery.reduce((s, c) => s + (c.montantNonReconnu ?? 0), 0);
+  const totalRecouvre   = inRecovery.reduce((s, c) => s + (c.montantRecouvre  ?? 0), 0);
+  return { contracts: inRecovery, totalNonReconnu, totalRecouvre };
 }
 
 export async function getContract(id: string): Promise<Contract> {

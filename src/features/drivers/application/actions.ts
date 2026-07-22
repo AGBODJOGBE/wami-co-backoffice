@@ -5,7 +5,7 @@ import { API_ROUTES } from "@/shared/config/api-routes";
 import { apiFetch } from "@/shared/lib/api/server";
 import { ApiError } from "@/shared/lib/api/types";
 import { listDriverSessions } from "./api";
-import type { DriverSessionsResult, DriverStatusChangeResult } from "../domain/admin-driver";
+import type { DriverSessionsResult, DriverStatusChangeResult, UpdateDriverInfoInput } from "../domain/admin-driver";
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -26,6 +26,22 @@ function fail<T>(error: unknown, fallback: string): ActionResult<T> {
     ok: false,
     message: error instanceof Error ? error.message : fallback,
   };
+}
+
+export async function updateDriverInfoAction(
+  driverId: string,
+  input: UpdateDriverInfoInput,
+): Promise<ActionResult> {
+  try {
+    await apiFetch(API_ROUTES.adminDrivers.updateInfo(driverId), {
+      method: "PATCH",
+      body: input,
+    });
+    refresh(driverId);
+    return { ok: true, message: "Informations mises à jour." };
+  } catch (e) {
+    return fail(e, "Mise à jour impossible.");
+  }
 }
 
 export async function fetchDriverSessionsAction(

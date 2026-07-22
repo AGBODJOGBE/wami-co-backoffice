@@ -10,6 +10,7 @@ import {
   Car,
   CheckCircle2,
   Clock,
+  Download,
   ExternalLink,
   RefreshCw,
   Users,
@@ -29,6 +30,7 @@ import { Spinner } from "@/shared/ui/spinner";
 import { Tabs } from "@/shared/ui/tabs";
 import { Textarea } from "@/shared/ui/textarea";
 import { toast } from "@/shared/ui/toast";
+import { type CsvColumn, downloadCsv, timestampedFilename } from "@/shared/lib/csv";
 import { formatDate, formatDateTime, formatXof } from "@/shared/lib/format";
 import {
   creditWalletAction,
@@ -197,6 +199,17 @@ function OverviewTab({
 
 // ─── Wallets list ─────────────────────────────────────────────────────────────
 
+const WALLET_CSV_COLUMNS: readonly CsvColumn<AdminWallet>[] = [
+  { key: "type",      header: "Type",               value: (w) => walletMeta(w.walletType).label },
+  { key: "owner",     header: "Propriétaire",        value: (w) => w.ownerName || "" },
+  { key: "phone",     header: "Téléphone",           value: (w) => w.ownerPhone || "" },
+  { key: "main",      header: "Principal (FCFA)",    value: (w) => w.mainBalance },
+  { key: "bonus",     header: "Bonus (FCFA)",        value: (w) => w.bonusBalance },
+  { key: "referral",  header: "Parrainage (FCFA)",   value: (w) => w.referralBalance },
+  { key: "total",     header: "Total (FCFA)",        value: (w) => w.totalBalance },
+  { key: "status",    header: "Statut",              value: (w) => w.status === "ACTIVE" ? "Actif" : w.status },
+];
+
 function WalletsTab({ wallets }: { wallets: AdminWallet[] }) {
   const [search, setSearch] = useState("");
 
@@ -320,6 +333,15 @@ function WalletsTab({ wallets }: { wallets: AdminWallet[] }) {
           onChange={(e) => setSearch(e.target.value)}
           className="w-full sm:flex-1 sm:min-w-72"
         />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => downloadCsv(timestampedFilename("wallets"), WALLET_CSV_COLUMNS, filtered)}
+          disabled={filtered.length === 0}
+        >
+          <Download className="size-4" />
+          Exporter CSV
+        </Button>
       </div>
       <Card className="overflow-hidden p-0">
         <DataTable
@@ -335,6 +357,19 @@ function WalletsTab({ wallets }: { wallets: AdminWallet[] }) {
 }
 
 // ─── Transactions récentes ────────────────────────────────────────────────────
+
+const TX_CSV_COLUMNS: readonly CsvColumn<AdminTransaction>[] = [
+  { key: "date",      header: "Date",             value: (t) => formatDateTime(t.createdAt) },
+  { key: "owner",     header: "Propriétaire",     value: (t) => t.ownerName },
+  { key: "phone",     header: "Téléphone",        value: (t) => t.ownerPhone },
+  { key: "wallet",    header: "Wallet",           value: (t) => walletMeta(t.walletType).label },
+  { key: "type",      header: "Type",             value: (t) => txMeta(t.type).label },
+  { key: "direction", header: "Sens",             value: (t) => t.direction === "CREDIT" ? "Entrée" : "Sortie" },
+  { key: "amount",    header: "Montant (FCFA)",   value: (t) => t.amount },
+  { key: "before",    header: "Avant (FCFA)",     value: (t) => t.balanceBefore },
+  { key: "after",     header: "Après (FCFA)",     value: (t) => t.balanceAfter },
+  { key: "desc",      header: "Description",      value: (t) => t.description },
+];
 
 function TransactionsTab({ transactions }: { transactions: AdminTransaction[] }) {
   const [search, setSearch] = useState("");
@@ -442,31 +477,49 @@ function TransactionsTab({ transactions }: { transactions: AdminTransaction[] })
         />
         <Combobox
           options={[
-            { value: "ALL", label: "Type : tous" },
-            { value: "RECHARGE",               label: "Dépôts"           },
-            { value: "RIDE_EARNINGS",           label: "Gains courses"    },
-            { value: "COMMISSION_REVENUE",      label: "Commission VTC"   },
-            { value: "B2C_COMMISSION_REVENUE",  label: "Commission B2C"   },
-            { value: "CONTRACT_INSTALLMENT_REVENUE", label: "Contrats"   },
-            { value: "WITHDRAWAL",             label: "Retraits"          },
-            { value: "ADMIN_CREDIT",           label: "Crédits admin"     },
-            { value: "BONUS_CREDIT",           label: "Bonus"             },
+            { value: "ALL",                                label: "Type : tous"                    },
+            { value: "RECHARGE",                           label: "Dépôts MoMo"                    },
+            { value: "RIDE_EARNINGS",                      label: "Gains courses VTC"              },
+            { value: "COMMISSION_REVENUE",                 label: "Commission VTC"                 },
+            { value: "B2C_COMMISSION_REVENUE",             label: "Commission B2C"                 },
+            { value: "SUBSCRIPTION_REVENUE",               label: "Revenu abonnement B2B"          },
+            { value: "CONTRACT_INSTALLMENT_REVENUE",       label: "Revenu échéance contrat"        },
+            { value: "CONTRACT_INSTALLMENT_MANUAL_PAYMENT",label: "Paiement manuel contrat"        },
+            { value: "CASH_COMMISSION_REVENUE",            label: "Recouvrement commission cash"   },
+            { value: "MILESTONE_BONUS",                    label: "Bonus palier courses"           },
+            { value: "ACTIVITY_BONUS",                     label: "Bonus activité (4U V3)"         },
+            { value: "QUALITY_BONUS",                      label: "Bonus qualité (4U V3)"          },
+            { value: "BONUS_CREDIT",                       label: "Bonus promotionnel"             },
+            { value: "WELCOME_BONUS",                      label: "Bonus de bienvenue"             },
+            { value: "WITHDRAWAL",                         label: "Retraits"                       },
+            { value: "ADMIN_CREDIT",                       label: "Crédits admin"                  },
           ]}
           value={typeFilter}
           onChange={setTypeFilter}
-          className="sm:w-52"
+          className="sm:w-60"
         />
       </div>
 
-      <div className="flex items-center justify-between text-xs text-[color:var(--muted-foreground)]">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[color:var(--muted-foreground)]">
         <span>{filtered.length} transaction{filtered.length > 1 ? "s" : ""} affichée{filtered.length > 1 ? "s" : ""}</span>
-        <Link
-          href="/wallet/transactions"
-          className="inline-flex items-center gap-1 font-medium text-[color:var(--primary)] hover:underline"
-        >
-          Voir l'historique complet
-          <ExternalLink className="size-3" />
-        </Link>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => downloadCsv(timestampedFilename("transactions-wallet"), TX_CSV_COLUMNS, filtered)}
+            disabled={filtered.length === 0}
+          >
+            <Download className="size-4" />
+            Exporter CSV
+          </Button>
+          <Link
+            href="/wallet/transactions"
+            className="inline-flex items-center gap-1 font-medium text-[color:var(--primary)] hover:underline"
+          >
+            Voir l'historique complet
+            <ExternalLink className="size-3" />
+          </Link>
+        </div>
       </div>
 
       <Card className="overflow-hidden p-0">
@@ -483,6 +536,20 @@ function TransactionsTab({ transactions }: { transactions: AdminTransaction[] })
 }
 
 // ─── Retraits ─────────────────────────────────────────────────────────────────
+
+const WITHDRAWAL_CSV_COLUMNS: readonly CsvColumn<Withdrawal>[] = [
+  { key: "owner",     header: "Propriétaire",       value: (w) => w.ownerName || "" },
+  { key: "phone",     header: "Téléphone",           value: (w) => w.ownerPhone || "" },
+  { key: "wallet",    header: "Wallet",              value: (w) => w.walletType ? walletMeta(w.walletType).label : "" },
+  { key: "amount",    header: "Montant (FCFA)",      value: (w) => w.amount },
+  { key: "method",    header: "Méthode",             value: (w) => WITHDRAWAL_METHOD_LABELS[w.method] ?? w.method },
+  { key: "recipient", header: "Destinataire",        value: (w) => w.recipientDetails?.phone || w.recipientDetails?.accountName || "" },
+  { key: "status",    header: "Statut",              value: (w) => WITHDRAWAL_STATUS_LABELS[w.status] ?? w.status },
+  { key: "reference", header: "Référence",           value: (w) => w.reference || "" },
+  { key: "date",      header: "Date demande",        value: (w) => formatDate(w.createdAt ?? w.requestedAt ?? "") },
+  { key: "processed", header: "Date traitement",     value: (w) => w.processedAt ? formatDate(w.processedAt) : "" },
+  { key: "reason",    header: "Motif de refus",      value: (w) => w.failureReason || "" },
+];
 
 function WithdrawalsTab({ withdrawals, total }: { withdrawals: Withdrawal[]; total: number }) {
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -539,6 +606,15 @@ function WithdrawalsTab({ withdrawals, total }: { withdrawals: Withdrawal[]; tot
           onChange={setMethodFilter}
           className="sm:w-48"
         />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => downloadCsv(timestampedFilename("retraits"), WITHDRAWAL_CSV_COLUMNS, filtered)}
+          disabled={filtered.length === 0}
+        >
+          <Download className="size-4" />
+          Exporter CSV
+        </Button>
       </div>
       <Card className="overflow-hidden p-0">
         <table className="w-full text-sm">

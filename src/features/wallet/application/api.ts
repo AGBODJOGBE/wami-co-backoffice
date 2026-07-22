@@ -58,10 +58,11 @@ export async function listAdminWallets(filters?: {
 
 export async function findWalletByProfile(
   profileId: string,
+  walletType?: string,
 ): Promise<AdminWallet | undefined> {
   if (!profileId) return undefined;
-  const { wallets } = await listAdminWallets();
-  return wallets.find((w) => w.profileId === profileId);
+  const { wallets } = await listAdminWallets(walletType ? { walletType } : undefined);
+  return wallets.find((w) => w.profileId === profileId && (!walletType || w.walletType === walletType));
 }
 
 // ─── Transactions ─────────────────────────────────────────────────────────────

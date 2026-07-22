@@ -2,6 +2,7 @@ import { requirePermission } from "@/features/auth/application/dal";
 import { listDocumentsByOwner } from "@/features/documents/application/api";
 import { DriverDetailClient } from "@/features/drivers/presentation/driver-detail-client";
 import {
+  getDriverCommissionDebtDetail,
   listAdminDrivers,
   listDriverSessions,
   listOnlineDrivers,
@@ -9,6 +10,7 @@ import {
 import type {
   AdminDriver,
   AdminDriverStatus,
+  DriverCommissionDebtDetail,
   OnlineDriver,
 } from "@/features/drivers/domain/admin-driver";
 import { listDriverVehicles } from "@/features/vehicles/application/api";
@@ -74,13 +76,15 @@ export default async function VtcDriverDetailPage({
     walletRes,
     recentRidesRes,
     sessionsRes,
+    commissionDebtRes,
   ] = await Promise.allSettled([
     listAdminDrivers(),
     listOnlineDrivers(),
     listDriverVehicles(driverId),
-    findWalletByProfile(driverId),
+    findWalletByProfile(driverId, "EARNINGS"),
     listRidesByDriver(driverId, 6),
     listDriverSessions(driverId, { limit: 20 }),
+    getDriverCommissionDebtDetail(driverId),
   ]);
 
   const enriched: AdminDriver | undefined =
@@ -126,6 +130,8 @@ export default async function VtcDriverDetailPage({
     recentRidesRes.status === "fulfilled" ? recentRidesRes.value : [];
   const sessionsData =
     sessionsRes.status === "fulfilled" ? sessionsRes.value : null;
+  const commissionDebt: DriverCommissionDebtDetail | null =
+    commissionDebtRes.status === "fulfilled" ? commissionDebtRes.value : null;
 
   const category = enriched?.category ?? fallbackCategory;
 
@@ -163,6 +169,7 @@ export default async function VtcDriverDetailPage({
       sessions={sessionsData?.sessions}
       sessionsTotalDuration={sessionsData?.totalDurationSeconds}
       sessionsTotal={sessionsData?.total}
+      commissionDebt={commissionDebt}
     />
   );
 }

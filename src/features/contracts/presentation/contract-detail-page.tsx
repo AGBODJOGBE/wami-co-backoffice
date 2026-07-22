@@ -10,11 +10,13 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Download,
   FileText,
   PauseCircle,
   Play,
   ShieldAlert,
   ShieldOff,
+  TrendingDown,
   Unlock,
   User,
   XCircle,
@@ -26,39 +28,55 @@ import { ConfirmModal } from "@/shared/ui/confirm-modal";
 import { Spinner } from "@/shared/ui/spinner";
 import { toast } from "@/shared/ui/toast";
 import { formatDate } from "@/shared/lib/format";
+import { downloadCsv, timestampedFilename, type CsvColumn } from "@/shared/lib/csv";
 import {
   AUDIT_LOG_ACTION_LABELS,
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_TONES,
   INSTALLMENT_STATUS_LABELS,
+  MANUAL_PAYMENT_METHOD_LABELS,
   PAYMENT_FREQUENCY_LABELS,
   driverFullName,
   formatXof,
+  isPartialStatus,
   vehicleLabel,
   type Contract,
   type ContractAuditLog,
   type ContractInstallment,
   type ContractStatus,
   type InstallmentStatus,
+  type ManualPaymentMethod,
 } from "../domain/contract";
 import {
   recordManualPaymentAction,
   resumeContractAction,
   unblockDriverAction,
 } from "../application/actions";
+import { Modal } from "@/shared/ui/modal";
+import type { AdminWallet } from "@/features/wallet/domain/wallet";
 import { ContractBreakModal } from "./contract-break-modal";
 import { ContractSuspendModal } from "./contract-suspend-modal";
 import { CanView } from "@/shared/ui/can-view";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-// ─── Constantes ───────────────────────────────────────────────────────────────
+// ─── Colonnes CSV échéancier ──────────────────────────────────────────────────
 
-const TOLERANCE_DAYS = 3;
+const INSTALLMENT_CSV_COLUMNS: CsvColumn<ContractInstallment>[] = [
+  { key: "numero",          header: "N°",                   value: (r) => r.numero },
+  { key: "dateEcheance",    header: "Date échéance",         value: (r) => formatDate(r.dateEcheance) },
+  { key: "montant",         header: "Montant (FCFA)",        value: (r) => r.montant },
+  { key: "montantPaye",     header: "Imputé (FCFA)",         value: (r) => r.montantPaye ?? "" },
+  { key: "montantRecouvre", header: "Encaissé cash (FCFA)",  value: (r) => r.montantRecouvre ?? "" },
+  { key: "montantRestant",  header: "Restant (FCFA)",        value: (r) => r.montantRestant ?? "" },
+  { key: "statut",          header: "Statut",                value: (r) => INSTALLMENT_STATUS_LABELS[r.status] ?? r.status },
+  { key: "datePaiement",    header: "Date paiement",         value: (r) => r.datePaiement ? formatDate(r.datePaiement) : "" },
+  { key: "penalite",        header: "Pénalité (FCFA)",       value: (r) => r.penalite ?? 0 },
+];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getOverdueInfo(row: ContractInstallment) {
+function getOverdueInfo(row: ContractInstallment, toleranceDays: number) {
   if (row.status !== "EN_ATTENTE" || !row.dateEcheance) return null;
   const due = new Date(row.dateEcheance);
   const today = new Date();
@@ -66,7 +84,7 @@ function getOverdueInfo(row: ContractInstallment) {
   due.setHours(0, 0, 0, 0);
   const diffDays = Math.floor((today.getTime() - due.getTime()) / 86_400_000);
   if (diffDays <= 0) return null;
-  return { diffDays, daysUntilImpayee: Math.max(0, TOLERANCE_DAYS - diffDays + 1) };
+  return { diffDays, daysUntilImpayee: Math.max(0, toleranceDays - diffDays + 1) };
 }
 
 function isFuture(dateStr: string) {
@@ -94,7 +112,7 @@ function KpiBlock({
     neutral: "text-[color:var(--foreground)]",
     success: "text-emerald-600 dark:text-emerald-400",
     warning: "text-amber-600 dark:text-amber-400",
-    danger: "text-red-600 dark:text-red-400",
+    danger:  "text-red-600 dark:text-red-400",
     primary: "text-[color:var(--primary)]",
   };
   return (
@@ -134,67 +152,180 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
 // ─── Timeline d'audit ─────────────────────────────────────────────────────────
 
 const AUDIT_ICON: Record<string, { icon: React.ElementType; color: string }> = {
-  CONTRACT_CREATED:       { icon: FileText,     color: "text-sky-500 bg-sky-50 dark:bg-sky-950/40" },
-  CONTRACT_TERMINATED:    { icon: CheckCircle2, color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40" },
-  CONTRACT_BROKEN:        { icon: XCircle,      color: "text-red-500 bg-red-50 dark:bg-red-950/40" },
-  INSTALLMENT_PAID:       { icon: CheckCircle2, color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40" },
-  INSTALLMENT_UNPAID:     { icon: AlertTriangle,color: "text-amber-500 bg-amber-50 dark:bg-amber-950/40" },
-  DRIVER_BLOCKED:         { icon: ShieldAlert,  color: "text-red-500 bg-red-50 dark:bg-red-950/40" },
-  DRIVER_UNBLOCKED:       { icon: Unlock,       color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40" },
-  MANUAL_PAYMENT_RECORDED:{ icon: CheckCircle2, color: "text-sky-500 bg-sky-50 dark:bg-sky-950/40" },
+  CONTRACT_CREATED:             { icon: FileText,      color: "text-sky-500 bg-sky-50 dark:bg-sky-950/40" },
+  CONTRACT_RESUMED:             { icon: Play,          color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40" },
+  CONTRACT_SUSPENDED:           { icon: PauseCircle,   color: "text-amber-500 bg-amber-50 dark:bg-amber-950/40" },
+  CONTRACT_TERMINATED:          { icon: CheckCircle2,  color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40" },
+  CONTRACT_BROKEN:              { icon: XCircle,       color: "text-red-500 bg-red-50 dark:bg-red-950/40" },
+  INSTALLMENT_PAID:             { icon: CheckCircle2,  color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40" },
+  INSTALLMENT_PARTIALLY_PAID:   { icon: PauseCircle,   color: "text-amber-500 bg-amber-50 dark:bg-amber-950/40" },
+  INSTALLMENT_UNPAID:           { icon: AlertTriangle, color: "text-amber-500 bg-amber-50 dark:bg-amber-950/40" },
+  INSTALLMENT_RECOVERY_RESTORED:{ icon: CheckCircle2,  color: "text-sky-500 bg-sky-50 dark:bg-sky-950/40" },
+  INSTALLMENT_LOCKED_DEFAULTED: { icon: AlertTriangle, color: "text-red-500 bg-red-50 dark:bg-red-950/40" },
+  DRIVER_BLOCKED:               { icon: ShieldAlert,   color: "text-red-500 bg-red-50 dark:bg-red-950/40" },
+  DRIVER_UNBLOCKED:             { icon: Unlock,        color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40" },
+  MANUAL_PAYMENT_RECORDED:      { icon: CheckCircle2,  color: "text-sky-500 bg-sky-50 dark:bg-sky-950/40" },
+  CONTRACT_DEBT_RECONCILED:     { icon: ShieldAlert,   color: "text-violet-500 bg-violet-50 dark:bg-violet-950/40" },
+  PLATFORM_REVENUE_RECOGNIZED:  { icon: TrendingDown,  color: "text-violet-500 bg-violet-50 dark:bg-violet-950/40" },
+  CAUTION_RESTITUEE:            { icon: CheckCircle2,  color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40" },
 };
+
+// ─── Formateur de détails d'audit ─────────────────────────────────────────────
+
+const AUDIT_DETAIL_KEY_LABELS: Record<string, string> = {
+  montantPaye:            "Imputé",
+  montantRecouvre:        "Encaissé",
+  montantRestant:         "Restant",
+  montantRestantEcheance: "Restant éch.",
+  montantTotal:           "Total",
+  montant:                "Montant",
+  montantEcheance:        "Montant éch.",
+  imputedAmount:          "Imputé",
+  debtAmount:             "Dette",
+  amount:                 "Montant",
+  walletBalance:          "Solde wallet",
+  numeroEcheance:         "Échéance",
+  installmentNumber:      "Échéance",
+  installmentsSettled:    "Soldées",
+  installmentsPartiallyPaid: "Partielles",
+  contractCompleted:      "Contrat soldé",
+  nbImpayes:              "Impayées",
+  threshold:              "Seuil",
+  reason:                 "Motif",
+  recoveredAmount:        "Recouvré",
+  platformShare:          "Part PLATFORM",
+  montantNonReconnuAvant: "Non reconnu avant",
+  montantNonReconnuApres: "Non reconnu après",
+  paymentMethod:          "Mode paiement",
+  reference:              "Référence",
+};
+
+const AMOUNT_KEYS = new Set([
+  "montantPaye", "montantRecouvre", "montantRestant", "montantRestantEcheance",
+  "montantTotal", "montant", "montantEcheance", "imputedAmount", "debtAmount",
+  "amount", "walletBalance", "recoveredAmount", "platformShare",
+  "montantNonReconnuAvant", "montantNonReconnuApres",
+]);
+
+const PAYMENT_METHOD_DISPLAY: Record<string, string> = {
+  ESPECES:      "Espèces",
+  MOBILE_MONEY: "Mobile Money",
+};
+
+function formatAuditDetailValue(key: string, value: unknown): string {
+  if (AMOUNT_KEYS.has(key) && typeof value === "number") return formatXof(value);
+  if (typeof value === "boolean") return value ? "oui" : "non";
+  if ((key === "numeroEcheance" || key === "installmentNumber") && value != null) return `#${value}`;
+  if (key === "paymentMethod" && typeof value === "string") return PAYMENT_METHOD_DISPLAY[value] ?? value;
+  return String(value);
+}
+
+function renderAuditDetails(details: Record<string, unknown>): string {
+  return Object.entries(details)
+    .filter(([, v]) => v != null && v !== "")
+    .map(([k, v]) => `${AUDIT_DETAIL_KEY_LABELS[k] ?? k} : ${formatAuditDetailValue(k, v)}`)
+    .join(" · ");
+}
 
 // ─── Ligne d'échéance ─────────────────────────────────────────────────────────
 
 function InstallmentRow({
   row,
   isLast,
-  onPay,
-  isPaying,
+  onPaySuggested,
   disabled,
+  toleranceDays,
 }: {
   row: ContractInstallment;
   isLast: boolean;
-  onPay: (id: string) => void;
-  isPaying: boolean;
+  onPaySuggested: (amount: number) => void;
   disabled: boolean;
+  toleranceDays: number;
 }) {
-  const overdue = getOverdueInfo(row);
-  const future = row.status === "EN_ATTENTE" && isFuture(row.dateEcheance);
+  const overdue  = getOverdueInfo(row, toleranceDays);
+  const future   = row.status === "EN_ATTENTE" && isFuture(row.dateEcheance);
+  const isPartial = isPartialStatus(row.status);
 
-  // Couleur du connecteur vertical
+  // Connecteur vertical
   const connectorColor =
-    row.status === "PAYEE"    ? "bg-emerald-400"
-    : row.status === "IMPAYEE" ? "bg-red-400"
-    : overdue                  ? "bg-amber-400"
+    row.status === "PAYEE"               ? "bg-emerald-400"
+    : row.status === "IMPAYEE"           ? "bg-red-400"
+    : row.status === "EN_RECOUVREMENT"   ? "bg-sky-400"
+    : isPartial                          ? "bg-amber-400"
+    : overdue                            ? "bg-amber-400"
     : "bg-[color:var(--border)]";
 
   // Icone du statut
   const StatusIcon =
-    row.status === "PAYEE"    ? CheckCircle2
-    : row.status === "IMPAYEE" ? AlertTriangle
-    : row.status === "ANNULEE" ? XCircle
-    : overdue                  ? AlertTriangle
+    row.status === "PAYEE"               ? CheckCircle2
+    : row.status === "IMPAYEE"           ? AlertTriangle
+    : row.status === "ANNULEE"           ? XCircle
+    : row.status === "EN_RECOUVREMENT"   ? TrendingDown
+    : isPartial                          ? PauseCircle
+    : overdue                            ? AlertTriangle
     : Clock;
 
   const iconColor =
-    row.status === "PAYEE"    ? "text-emerald-500"
-    : row.status === "IMPAYEE" ? "text-red-500"
-    : row.status === "ANNULEE" ? "text-[color:var(--muted-foreground)]"
-    : overdue                  ? "text-amber-500"
+    row.status === "PAYEE"               ? "text-emerald-500"
+    : row.status === "IMPAYEE"           ? "text-red-500"
+    : row.status === "ANNULEE"           ? "text-[color:var(--muted-foreground)]"
+    : row.status === "EN_RECOUVREMENT"   ? "text-sky-500"
+    : isPartial                          ? "text-amber-500"
+    : overdue                            ? "text-amber-500"
     : "text-[color:var(--muted-foreground)]";
 
   const rowBg =
-    row.status === "PAYEE"    ? "bg-emerald-50/40 dark:bg-emerald-950/10"
-    : row.status === "IMPAYEE" ? "bg-red-50/60 dark:bg-red-950/20"
-    : overdue                  ? "bg-amber-50/60 dark:bg-amber-950/20"
+    row.status === "PAYEE"               ? "bg-emerald-50/40 dark:bg-emerald-950/10"
+    : row.status === "IMPAYEE"           ? "bg-red-50/60 dark:bg-red-950/20"
+    : row.status === "EN_RECOUVREMENT"   ? "bg-sky-50/40 dark:bg-sky-950/10"
+    : isPartial                          ? "bg-amber-50/60 dark:bg-amber-950/20"
+    : overdue                            ? "bg-amber-50/60 dark:bg-amber-950/20"
     : "";
+
+  // Montant affiché à droite
+  const displayedAmount =
+    isPartial && row.montantPaye != null
+      ? formatXof(row.montantRestant ?? (row.montant - row.montantPaye))
+      : formatXof(row.montant);
+
+  const amountColor =
+    row.status === "PAYEE"              ? "text-emerald-600 dark:text-emerald-400"
+    : row.status === "IMPAYEE"          ? "text-red-600 dark:text-red-400"
+    : row.status === "EN_RECOUVREMENT"  ? "text-sky-600 dark:text-sky-400"
+    : isPartial                         ? "text-amber-600 dark:text-amber-400"
+    : "text-[color:var(--foreground)]";
+
+  // Badge tone
+  const badgeTone =
+    row.status === "PAYEE"              ? "success"
+    : row.status === "IMPAYEE"          ? "danger"
+    : row.status === "EN_RECOUVREMENT"  ? "info"
+    : isPartial                         ? "warning"
+    : row.status === "ANNULEE"          ? "neutral"
+    : overdue                           ? "warning"
+    : "neutral" as const;
+
+  // Action button: montrer si imputable ou à régler
+  const showPayButton =
+    row.status === "EN_ATTENTE" ||
+    row.status === "IMPAYEE"    ||
+    isPartial                   ||
+    (row.status === "EN_RECOUVREMENT" && (row.montantRestant ?? 0) > 0);
+
+  const payButtonLabel =
+    row.status === "IMPAYEE"          ? "Régler"
+    : row.status === "EN_RECOUVREMENT"? "Compléter"
+    : isPartial                       ? "Compléter"
+    : "Avancer";
+
+  const payButtonVariant =
+    (row.status === "IMPAYEE" || isPartial) ? "primary" : "outline";
 
   return (
     <div className={`relative flex gap-4 px-5 py-3 transition-colors ${rowBg} ${row.status === "ANNULEE" ? "opacity-40" : ""}`}>
       {/* Connecteur vertical */}
       <div className="flex flex-col items-center">
-        <div className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-white bg-white shadow-sm dark:border-[color:var(--background)] dark:bg-[color:var(--background)]`}>
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-white bg-white shadow-sm dark:border-[color:var(--background)] dark:bg-[color:var(--background)]">
           <StatusIcon className={`size-4 ${iconColor}`} />
         </div>
         {!isLast && (
@@ -238,38 +369,105 @@ function InstallmentRow({
               )}
             </div>
           )}
-          {row.status === "IMPAYEE" && (
-            <span className="mt-0.5 text-[11px] font-semibold text-red-600 dark:text-red-400">
-              Échéance impayée — paiement manuel requis
-            </span>
-          )}
+
+          {/* IMPAYEE */}
+          {row.status === "IMPAYEE" && (() => {
+            const retard = row.retardJours ?? 0;
+            return (
+              <div className="mt-0.5 flex flex-col gap-0">
+                <span className="text-[11px] font-semibold text-red-600 dark:text-red-400">
+                  Échéance impayée — paiement manuel requis
+                  {retard > 0 && <span className="ml-1 font-normal">· {retard} j de retard</span>}
+                </span>
+                {row.penalite != null && row.penalite > 0 && (
+                  <span className="text-[11px] text-red-500 dark:text-red-400">
+                    Pénalité : <strong>{formatXof(row.penalite)}</strong>
+                  </span>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* EN_RECOUVREMENT — imputation faite, recouvrement cash en cours */}
+          {row.status === "EN_RECOUVREMENT" && row.montantPaye != null && (() => {
+            const recouvre = row.montantRecouvre ?? 0;
+            const pct = row.montantPaye > 0 ? Math.min(100, Math.round((recouvre / row.montantPaye) * 100)) : 0;
+            return (
+              <div className="mt-1 flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <div className="relative h-1.5 w-20 overflow-hidden rounded-full bg-sky-100 dark:bg-sky-900/40">
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full bg-sky-500 transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-semibold text-sky-600 dark:text-sky-400">{pct}% encaissé</span>
+                </div>
+                <span className="text-[11px] text-sky-700 dark:text-sky-300">
+                  {formatXof(row.montantPaye)} imputé ·{" "}
+                  {recouvre > 0
+                    ? <><strong>{formatXof(recouvre)}</strong> encaissé cash</>
+                    : <span className="italic">recouvrement en attente</span>
+                  }
+                </span>
+              </div>
+            );
+          })()}
+
+          {/* PARTIELLEMENT_RECOUVREE ou PARTIELLE */}
+          {isPartial && row.montantPaye != null && (() => {
+            const restant = row.montantRestant ?? (row.montant - row.montantPaye);
+            const recouvre = row.montantRecouvre ?? 0;
+            const pct = row.montant > 0 ? Math.min(100, Math.round((row.montantPaye / row.montant) * 100)) : 0;
+            return (
+              <div className="mt-1 flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <div className="relative h-1.5 w-20 overflow-hidden rounded-full bg-amber-100 dark:bg-amber-900/40">
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full bg-amber-500 transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">{pct}%</span>
+                </div>
+                <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                  {formatXof(row.montantPaye)} imputé ·{" "}
+                  <strong className="text-amber-800 dark:text-amber-200">{formatXof(restant)}</strong> restant
+                </span>
+                {recouvre > 0 && (
+                  <span className="text-[11px] text-sky-600 dark:text-sky-400">
+                    {formatXof(recouvre)} encaissé cash
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Droite : montant + badge + action */}
         <div className="flex items-center gap-3">
-          <span className={`font-mono text-sm font-semibold ${row.status === "PAYEE" ? "text-emerald-600 dark:text-emerald-400" : row.status === "IMPAYEE" ? "text-red-600 dark:text-red-400" : "text-[color:var(--foreground)]"}`}>
-            {formatXof(row.montant)}
-          </span>
-          <Badge
-            tone={
-              row.status === "PAYEE"    ? "success"
-              : row.status === "IMPAYEE" ? "danger"
-              : row.status === "ANNULEE" ? "neutral"
-              : overdue                  ? "warning"
-              : "neutral"
-            }
-          >
+          <div className="flex flex-col items-end gap-0">
+            <span className={`font-mono text-sm font-semibold ${amountColor}`}>
+              {displayedAmount}
+            </span>
+            {isPartial && row.montantPaye != null && (
+              <span className="font-mono text-[10px] text-[color:var(--muted-foreground)]">
+                sur {formatXof(row.montant)}
+              </span>
+            )}
+          </div>
+          <Badge tone={badgeTone}>
             {INSTALLMENT_STATUS_LABELS[row.status as InstallmentStatus] ?? row.status}
           </Badge>
-          {(row.status === "EN_ATTENTE" || row.status === "IMPAYEE") && (
+          {showPayButton && (
             <CanView permission="contract.installment.manual_payment">
               <Button
                 size="sm"
-                variant={row.status === "IMPAYEE" ? "primary" : "outline"}
-                onClick={() => onPay(row.installmentId)}
+                variant={payButtonVariant}
+                onClick={() => onPaySuggested(row.montantRestant ?? row.montant)}
                 disabled={disabled}
               >
-                {isPaying ? <Spinner size="sm" /> : "Payer"}
+                {payButtonLabel}
               </Button>
             </CanView>
           )}
@@ -285,26 +483,58 @@ interface Props {
   contract: Contract;
   installments: ContractInstallment[];
   auditLogs?: ContractAuditLog[];
+  toleranceDays?: number;
+  earningsWallet?: AdminWallet | null;
 }
 
-export function ContractDetailPage({ contract, installments, auditLogs = [] }: Props) {
+export function ContractDetailPage({ contract, installments, auditLogs = [], toleranceDays = 3, earningsWallet = null }: Props) {
   const router = useRouter();
   const [breakOpen, setBreakOpen] = useState(false);
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
-  const [payingId, setPayingId] = useState<string | null>(null);
+  const [manualPayOpen, setManualPayOpen] = useState(false);
+  const [manualPayAmountStr, setManualPayAmountStr] = useState("");
+  const [manualPayMethod, setManualPayMethod] = useState<ManualPaymentMethod>("ESPECES");
+  const [manualPayReference, setManualPayReference] = useState("");
   const [unblocking, startUnblock] = useTransition();
   const [resuming, startResume] = useTransition();
+  const [paying, startPaying] = useTransition();
   const [showAllInstallments, setShowAllInstallments] = useState(false);
 
   const canBreak = contract.status === "ACTIVE" || contract.status === "SUSPENDED";
 
-  function handleManualPayment(installmentId: string) {
-    setPayingId(installmentId);
-    recordManualPaymentAction(installmentId, contract.contractId).then((r) => {
-      setPayingId(null);
+  function openManualPay(suggestedAmount?: number) {
+    setManualPayAmountStr(suggestedAmount != null ? String(suggestedAmount) : "");
+    setManualPayReference("");
+    setManualPayMethod("ESPECES");
+    setManualPayOpen(true);
+  }
+
+  function submitManualPayment() {
+    const amount = parseInt(manualPayAmountStr.replace(/\s/g, ""), 10);
+    if (!amount || amount <= 0) return;
+    if (!manualPayReference.trim()) return;
+    startPaying(async () => {
+      const r = await recordManualPaymentAction(
+        contract.contractId,
+        amount,
+        manualPayMethod,
+        manualPayReference.trim(),
+      );
+      setManualPayOpen(false);
       if (r.ok) {
-        toast({ kind: "success", title: "Paiement enregistré", description: r.message });
+        const settled = r.data?.installmentsSettled ?? 0;
+        const partial = r.data?.installmentsPartiallyPaid ?? 0;
+        const parts = [
+          settled > 0 ? `${settled} échéance${settled > 1 ? "s" : ""} soldée${settled > 1 ? "s" : ""}` : null,
+          partial > 0 ? `${partial} partielle${partial > 1 ? "s" : ""}` : null,
+          r.data?.contractCompleted ? "Contrat terminé !" : null,
+        ].filter(Boolean);
+        toast({
+          kind: "success",
+          title: "Paiement enregistré",
+          description: parts.length > 0 ? parts.join(" · ") : r.message,
+        });
         router.refresh();
       } else {
         toast({ kind: "error", title: "Échec", description: r.message });
@@ -337,16 +567,26 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
     });
   }
 
-  // Stats d'avancement
-  const paid    = installments.filter((i) => i.status === "PAYEE").length;
-  const unpaid  = installments.filter((i) => i.status === "IMPAYEE").length;
-  const pending = installments.filter((i) => i.status === "EN_ATTENTE").length;
-  const total   = installments.length;
-  const paidAmt = contract.montantPaye ?? installments.filter(i => i.status === "PAYEE").reduce((s, i) => s + i.montant, 0);
+  // ── Stats d'avancement ──────────────────────────────────────────────────────
+  const paid         = installments.filter((i) => i.status === "PAYEE").length;
+  const unpaid       = installments.filter((i) => i.status === "IMPAYEE").length;
+  const inRecovery   = installments.filter((i) => i.status === "EN_RECOUVREMENT").length;
+  const partial      = installments.filter((i) => isPartialStatus(i.status)).length;
+  const pending      = installments.filter((i) => i.status === "EN_ATTENTE").length;
+  const total        = installments.length;
 
-  // Échéances affichées — par défaut : toutes sauf les futures au-delà de +5
+  const fullyPaidAmt  = installments.filter((i) => i.status === "PAYEE").reduce((s, i) => s + i.montant, 0);
+  const partialPaidAmt= installments.filter((i) => isPartialStatus(i.status)).reduce((s, i) => s + (i.montantPaye ?? 0), 0);
+  const inRecoveryAmt = installments.filter((i) => i.status === "EN_RECOUVREMENT").reduce((s, i) => s + i.montant, 0);
+  const paidAmt       = contract.montantPaye ?? (fullyPaidAmt + partialPaidAmt + inRecoveryAmt);
+  const remainingAmt  = contract.montantRestant ?? Math.max(0, contract.montantTotal - paidAmt);
+
+  // Cash-basis — dette non encore encaissée côté PLATFORM
+  const montantNonReconnu = contract.montantNonReconnu ?? 0;
+
+  // Impayés + EN_RECOUVREMENT en tête de liste (nécessitent une action / surveillance)
   const overdueOrUnpaid = installments.filter(
-    (i) => i.status === "IMPAYEE" || getOverdueInfo(i) !== null,
+    (i) => i.status === "IMPAYEE" || isPartialStatus(i.status) || getOverdueInfo(i, toleranceDays) !== null,
   );
   const PREVIEW_COUNT = 15;
   const displayedInstallments = showAllInstallments
@@ -357,6 +597,11 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
     () => [...auditLogs].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()),
     [auditLogs],
   );
+
+  const manualPayFormValid =
+    !!manualPayAmountStr &&
+    parseInt(manualPayAmountStr, 10) > 0 &&
+    manualPayReference.trim().length > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -390,7 +635,6 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Reprendre — contrat suspendu */}
             {contract.status === "SUSPENDED" && (
               <CanView permission="contract.resume">
                 <Button variant="outline" size="sm" onClick={() => setResumeOpen(true)} disabled={resuming}>
@@ -399,7 +643,6 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
                 </Button>
               </CanView>
             )}
-            {/* Suspendre — contrat actif */}
             {contract.status === "ACTIVE" && (
               <CanView permission="contract.suspend">
                 <Button variant="outline" size="sm" onClick={() => setSuspendOpen(true)}>
@@ -408,7 +651,6 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
                 </Button>
               </CanView>
             )}
-            {/* Débloquer le chauffeur */}
             {(contract.status === "ACTIVE" || contract.status === "SUSPENDED") && (
               <CanView permission="contract.driver.unblock">
                 <Button variant="outline" size="sm" onClick={handleUnblock} disabled={unblocking}>
@@ -417,7 +659,6 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
                 </Button>
               </CanView>
             )}
-            {/* Résilier */}
             {canBreak && (
               <CanView permission="contract.break">
                 <Button variant="danger" size="sm" onClick={() => setBreakOpen(true)}>
@@ -447,6 +688,23 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
         </div>
       )}
 
+      {/* Alerte cash-basis : dette non encore encaissée côté PLATFORM */}
+      {montantNonReconnu > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-5 py-4 dark:border-sky-800 dark:bg-sky-950/30">
+          <TrendingDown className="mt-0.5 size-5 shrink-0 text-sky-500" />
+          <div className="flex flex-col gap-0.5">
+            <p className="text-sm font-semibold text-sky-700 dark:text-sky-300">
+              Recouvrement cash en cours — {formatXof(montantNonReconnu)}
+            </p>
+            <p className="text-xs text-sky-600/80 dark:text-sky-400/80">
+              Ce montant a été imputé sur l'échéancier via le wallet du chauffeur (découvert autorisé),
+              mais n'a pas encore été encaissé en cash par la plateforme. Le recouvrement est progressif
+              à chaque crédit de gains du chauffeur.
+            </p>
+          </div>
+        </div>
+      )}
+
       {contract.breakReason && (
         <div className="flex items-start gap-3 rounded-xl border border-[color:var(--danger)]/30 bg-red-50 px-5 py-4 dark:bg-red-500/10">
           <XCircle className="mt-0.5 size-5 shrink-0 text-[color:var(--danger)]" />
@@ -461,7 +719,6 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
 
       {/* ── Hero financier ── */}
       <Card className="overflow-hidden p-0">
-        {/* Top strip coloré selon avancement */}
         <div className={`h-1.5 w-full ${unpaid > 0 ? "bg-red-500" : paid === total ? "bg-emerald-500" : "bg-[color:var(--primary)]"}`} />
 
         <div className="grid gap-0 divide-y divide-[color:var(--border)] sm:grid-cols-4 sm:divide-x sm:divide-y-0 p-0">
@@ -480,30 +737,33 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
             )}
           </div>
 
-          {/* Payé */}
+          {/* Imputé (= débit wallet total) */}
           <div className="flex flex-col gap-1 p-5">
             <span className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--muted-foreground)]">
-              Déjà payé
+              Imputé (wallet)
             </span>
             <span className="font-mono text-xl font-bold text-emerald-600 dark:text-emerald-400">
               {formatXof(paidAmt)}
             </span>
             <span className="text-xs text-[color:var(--muted-foreground)]">
-              {paid} / {total} échéance{total > 1 ? "s" : ""}
+              {paid} payée{paid > 1 ? "s" : ""}
+              {inRecovery > 0 && <span className="ml-1 font-medium text-sky-600 dark:text-sky-400">· {inRecovery} en recouv.</span>}
+              {partial > 0 && <span className="ml-1 font-medium text-amber-600 dark:text-amber-400">· {partial} partielle{partial > 1 ? "s" : ""}</span>}
+              {" "}/{" "}{total}
             </span>
           </div>
 
-          {/* Restant */}
+          {/* Encaissé cash (hors découvert) */}
           <div className="flex flex-col gap-1 p-5">
             <span className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--muted-foreground)]">
-              Restant à payer
+              Encaissé cash
             </span>
-            <span className={`font-mono text-xl font-bold ${(contract.montantRestant ?? 0) > 0 ? "text-[color:var(--foreground)]" : "text-emerald-600 dark:text-emerald-400"}`}>
-              {formatXof(contract.montantRestant ?? 0)}
+            <span className={`font-mono text-xl font-bold ${montantNonReconnu > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+              {formatXof(contract.montantRecouvre ?? Math.max(0, paidAmt - montantNonReconnu))}
             </span>
-            {unpaid > 0 && (
-              <span className="text-xs font-medium text-red-600 dark:text-red-400">
-                dont {unpaid} impayée{unpaid > 1 ? "s" : ""}
+            {montantNonReconnu > 0 && (
+              <span className="text-xs font-medium text-sky-600 dark:text-sky-400">
+                {formatXof(montantNonReconnu)} en recouvrement
               </span>
             )}
           </div>
@@ -514,10 +774,14 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
               Progression
             </span>
             <div className="flex flex-col gap-2">
-              <ProgressBar value={paid} max={total} />
+              <ProgressBar value={paidAmt} max={contract.montantTotal} />
               <div className="flex justify-between text-[10px] text-[color:var(--muted-foreground)]">
-                <span>{paid} payée{paid > 1 ? "s" : ""}</span>
-                <span>{pending} à venir</span>
+                <span>
+                  {paid} payée{paid > 1 ? "s" : ""}
+                  {partial > 0 ? ` · ${partial} partielle${partial > 1 ? "s" : ""}` : ""}
+                  {inRecovery > 0 ? ` · ${inRecovery} en recouv.` : ""}
+                </span>
+                <span>{remainingAmt > 0 ? formatXof(remainingAmt) + " restant" : "Soldé"}</span>
               </div>
             </div>
           </div>
@@ -584,13 +848,29 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
               </div>
             ))}
           </dl>
-          {/* Nb impayés */}
-          {(contract.nbImpayes ?? 0) > 0 && (
-            <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 dark:border-red-800 dark:bg-red-950/30">
-              <AlertTriangle className="size-3.5 text-red-500" />
-              <span className="text-xs font-semibold text-red-700 dark:text-red-300">
-                {contract.nbImpayes} impayé{(contract.nbImpayes ?? 0) > 1 ? "s" : ""}
-              </span>
+          {earningsWallet != null && (
+            <div className={`mt-4 rounded-lg border px-3 py-2.5 ${
+              earningsWallet.totalBalance < 0
+                ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30"
+                : "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/20"
+            }`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--muted-foreground)]">
+                  Solde Gains
+                </span>
+                <span className={`font-mono text-sm font-bold ${
+                  earningsWallet.totalBalance < 0
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-emerald-600 dark:text-emerald-400"
+                }`}>
+                  {earningsWallet.totalBalance < 0 ? "−" : "+"}{formatXof(Math.abs(earningsWallet.totalBalance))}
+                </span>
+              </div>
+              {earningsWallet.totalBalance < 0 && (
+                <p className="mt-1 text-[11px] text-red-600 dark:text-red-400">
+                  Le driver doit <strong>{formatXof(Math.abs(earningsWallet.totalBalance))}</strong> à la plateforme — bloqué jusqu'au remboursement
+                </p>
+              )}
             </div>
           )}
         </Card>
@@ -632,7 +912,7 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
         <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 dark:border-amber-800 dark:bg-amber-950/30">
           <Clock className="size-3.5 text-amber-500" />
           <span className="text-xs text-amber-700 dark:text-amber-300">
-            Tolérance de paiement : <strong>3 jours</strong> — IMPAYÉE au 4e jour de retard
+            Tolérance de paiement : <strong>{toleranceDays} jour{toleranceDays > 1 ? "s" : ""}</strong> — IMPAYÉE au {toleranceDays + 1}e jour de retard
           </span>
         </div>
       </div>
@@ -640,14 +920,24 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
       {/* ── Échéancier timeline ── */}
       <Card className="overflow-hidden p-0">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[color:var(--border)] px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--border)] px-5 py-4">
           <div className="flex flex-col gap-0.5">
             <h2 className="text-sm font-semibold text-[color:var(--foreground)]">
               Échéancier
               {contract.frequencePaiement === "JOURNALIER" ? " · dimanches exclus" : ""}
             </h2>
             <p className="text-xs text-[color:var(--muted-foreground)]">
-              {total} échéances · {paid} payées · {pending} à venir
+              {total} échéances · {paid} payées
+              {inRecovery > 0 && (
+                <span className="ml-1 font-semibold text-sky-600 dark:text-sky-400">
+                  · {inRecovery} en recouvrement
+                </span>
+              )}
+              {partial > 0 && (
+                <span className="ml-1 font-semibold text-amber-600 dark:text-amber-400">
+                  · {partial} partielle{partial > 1 ? "s" : ""}
+                </span>
+              )}
               {unpaid > 0 && (
                 <span className="ml-1 font-semibold text-red-600 dark:text-red-400">
                   · {unpaid} impayée{unpaid > 1 ? "s" : ""}
@@ -655,21 +945,53 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
               )}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-3 text-[10px] text-[color:var(--muted-foreground)]">
-              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-emerald-400" />Payée</span>
-              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-400" />Retard</span>
-              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-red-400" />Impayée</span>
-              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[color:var(--border)]" />À venir</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <CanView permission="contract.installment.manual_payment">
+              {(contract.status === "ACTIVE" || contract.status === "SUSPENDED") && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => openManualPay()}
+                  disabled={paying}
+                >
+                  {paying ? <Spinner size="sm" /> : null}
+                  Paiement manuel
+                </Button>
+              )}
+            </CanView>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                downloadCsv(
+                  timestampedFilename(`echeancier-${contract.contractId.slice(0, 8)}`),
+                  INSTALLMENT_CSV_COLUMNS,
+                  installments,
+                )
+              }
+              disabled={installments.length === 0}
+            >
+              <Download className="size-4" />
+              Exporter
+            </Button>
+          </div>
+          {/* Légende */}
+          <div className="hidden w-full sm:flex sm:w-auto items-center gap-3 text-[10px] text-[color:var(--muted-foreground)]">
+            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-emerald-400" />Payée</span>
+            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-sky-400" />En recouv.</span>
+            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-400" />Partielle</span>
+            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-400 opacity-60" />Retard</span>
+            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-red-400" />Impayée</span>
+            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-[color:var(--border)]" />À venir</span>
           </div>
         </div>
 
-        {/* Impayés en tête si contrat suspendu */}
+        {/* Impayés/partiels en tête */}
         {overdueOrUnpaid.length > 0 && !showAllInstallments && (
-          <div className="border-b border-[color:var(--border)] bg-red-50/50 px-5 py-2 dark:bg-red-950/10">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">
-              ⚠ Échéances nécessitant une action immédiate
+          <div className="flex items-center gap-2 border-b border-red-200 bg-red-100 px-5 py-2.5 dark:border-red-800/60 dark:bg-red-950/40">
+            <AlertTriangle className="size-3.5 shrink-0 text-red-500" />
+            <p className="text-[11px] font-bold uppercase tracking-wide text-red-700 dark:text-red-300">
+              {overdueOrUnpaid.length} échéance{overdueOrUnpaid.length > 1 ? "s" : ""} nécessitant une action immédiate
             </p>
           </div>
         )}
@@ -681,20 +1003,18 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
           </div>
         ) : (
           <div className="divide-y divide-[color:var(--border)]/60">
-            {/* Impayées toujours en premier si pas tout affiché */}
             {!showAllInstallments && overdueOrUnpaid.length > 0 &&
-              overdueOrUnpaid.map((row, idx) => (
+              overdueOrUnpaid.map((row) => (
                 <InstallmentRow
                   key={row.installmentId + "-pinned"}
                   row={row}
                   isLast={false}
-                  onPay={handleManualPayment}
-                  isPaying={payingId === row.installmentId}
-                  disabled={!!payingId}
+                  onPaySuggested={openManualPay}
+                  disabled={paying}
+                  toleranceDays={toleranceDays}
                 />
               ))
             }
-            {/* Autres échéances */}
             {displayedInstallments
               .filter(
                 (r) =>
@@ -706,15 +1026,14 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
                   key={row.installmentId}
                   row={row}
                   isLast={idx === arr.length - 1 && !showAllInstallments}
-                  onPay={handleManualPayment}
-                  isPaying={payingId === row.installmentId}
-                  disabled={!!payingId}
+                  onPaySuggested={openManualPay}
+                  disabled={paying}
+                  toleranceDays={toleranceDays}
                 />
               ))}
           </div>
         )}
 
-        {/* Bouton voir tout */}
         {total > PREVIEW_COUNT && (
           <button
             type="button"
@@ -722,15 +1041,9 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
             className="flex w-full items-center justify-center gap-2 border-t border-[color:var(--border)] py-3 text-xs font-medium text-[color:var(--muted-foreground)] transition hover:bg-[color:var(--muted)]/40 hover:text-[color:var(--foreground)]"
           >
             {showAllInstallments ? (
-              <>
-                <ChevronUp className="size-3.5" />
-                Réduire
-              </>
+              <><ChevronUp className="size-3.5" />Réduire</>
             ) : (
-              <>
-                <ChevronDown className="size-3.5" />
-                Voir les {total - PREVIEW_COUNT} échéances restantes
-              </>
+              <><ChevronDown className="size-3.5" />Voir les {total - PREVIEW_COUNT} échéances restantes</>
             )}
           </button>
         )}
@@ -752,15 +1065,12 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
               const isLast = idx === auditSorted.length - 1;
               return (
                 <li key={log.id} className="relative flex gap-4 pb-5 last:pb-0">
-                  {/* Ligne verticale */}
                   {!isLast && (
                     <div className="absolute left-[15px] top-8 bottom-0 w-px bg-[color:var(--border)]" />
                   )}
-                  {/* Icone */}
                   <div className={`relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full ${meta.color}`}>
                     <Icon className="size-4" />
                   </div>
-                  {/* Texte */}
                   <div className="flex flex-1 flex-col gap-0.5 pt-1">
                     <span className="text-sm font-medium text-[color:var(--foreground)]">
                       {AUDIT_LOG_ACTION_LABELS[log.action] ?? log.action}
@@ -775,10 +1085,8 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
                       </span>
                     </div>
                     {log.details && Object.keys(log.details).length > 0 && (
-                      <span className="font-mono text-[10px] text-[color:var(--muted-foreground)]">
-                        {Object.entries(log.details)
-                          .map(([k, v]) => `${k}: ${v}`)
-                          .join(" · ")}
+                      <span className="text-[11px] text-[color:var(--muted-foreground)]">
+                        {renderAuditDetails(log.details)}
                       </span>
                     )}
                   </div>
@@ -788,6 +1096,102 @@ export function ContractDetailPage({ contract, installments, auditLogs = [] }: P
           </ol>
         </Card>
       )}
+
+      {/* ── Modal paiement manuel ── */}
+      <Modal
+        open={manualPayOpen}
+        onClose={() => !paying && setManualPayOpen(false)}
+        title="Paiement manuel"
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setManualPayOpen(false)} disabled={paying}>
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              onClick={submitManualPayment}
+              isLoading={paying}
+              disabled={paying || !manualPayFormValid}
+            >
+              Enregistrer
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-[color:var(--muted-foreground)]">
+          Montant collecté hors plateforme (cash ou MoMo direct). Le système imputera automatiquement
+          sur les échéances ouvertes de la plus ancienne à la plus récente.
+        </p>
+
+        <div className="mt-4 flex flex-col gap-4">
+          {/* Montant */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-[color:var(--foreground)]">
+              Montant (FCFA) <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={manualPayAmountStr}
+              onChange={(e) => setManualPayAmountStr(e.target.value)}
+              placeholder="Ex : 5000"
+              autoFocus
+              className="w-full rounded-lg border border-[color:var(--border)] bg-[color:var(--background)] px-3 py-2 font-mono text-sm text-[color:var(--foreground)] outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary)]/20"
+            />
+            {manualPayAmountStr && parseInt(manualPayAmountStr, 10) > 0 && (
+              <span className="text-[11px] text-[color:var(--muted-foreground)]">
+                {formatXof(parseInt(manualPayAmountStr, 10))}
+              </span>
+            )}
+          </div>
+
+          {/* Mode de paiement */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-[color:var(--foreground)]">
+              Mode de paiement <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-2">
+              {(["ESPECES", "MOBILE_MONEY"] as ManualPaymentMethod[]).map((method) => (
+                <button
+                  key={method}
+                  type="button"
+                  onClick={() => setManualPayMethod(method)}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                    manualPayMethod === method
+                      ? "border-[color:var(--primary)] bg-[color:var(--primary-soft)] text-[color:var(--primary)]"
+                      : "border-[color:var(--border)] bg-[color:var(--background)] text-[color:var(--muted-foreground)] hover:border-[color:var(--primary)]/40"
+                  }`}
+                >
+                  {MANUAL_PAYMENT_METHOD_LABELS[method]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Référence */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-[color:var(--foreground)]">
+              {manualPayMethod === "MOBILE_MONEY" ? "N° de transaction opérateur" : "N° de reçu"}{" "}
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={manualPayReference}
+              onChange={(e) => setManualPayReference(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && manualPayFormValid && submitManualPayment()}
+              placeholder={manualPayMethod === "MOBILE_MONEY" ? "Ex : TXN-20240115-001" : "Ex : REC-2024-001"}
+              className="w-full rounded-lg border border-[color:var(--border)] bg-[color:var(--background)] px-3 py-2 text-sm text-[color:var(--foreground)] outline-none focus:border-[color:var(--primary)] focus:ring-2 focus:ring-[color:var(--primary)]/20"
+            />
+            <span className="text-[11px] text-[color:var(--muted-foreground)]">
+              {manualPayMethod === "MOBILE_MONEY"
+                ? "Numéro fourni par l'opérateur comme preuve du transfert."
+                : "Numéro du reçu papier remis au chauffeur."}
+            </span>
+          </div>
+        </div>
+      </Modal>
 
       <ContractBreakModal
         open={breakOpen}

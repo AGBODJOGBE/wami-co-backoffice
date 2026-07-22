@@ -5,12 +5,12 @@ import {
   AlertTriangle,
   Banknote,
   Bike,
+  CheckCircle2,
   Clock,
-  Gauge,
   PackageCheck,
   PackageOpen,
-  TrendingUp,
   Truck,
+  XCircle,
 } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -22,37 +22,82 @@ import {
 } from "@/shared/ui/card";
 import { PageHeader } from "@/shared/ui/page-header";
 import { StatCard } from "@/features/dashboard/presentation/components/stat-card";
-import { formatXof } from "@/shared/lib/format";
+import { formatRelative, formatXof } from "@/shared/lib/format";
 import {
-  DASHBOARD_KPIS,
-  PLANNED_ROUNDS,
-  SHIPMENTS,
-  COURIERS,
-} from "../domain/mock";
-import {
-  COURIER_STATUS_META,
-  SHIPMENT_STATUS_META,
-} from "../domain/types";
+  IN_FLIGHT_DELIVERY_STATUSES,
+  REVENUE_DELIVERY_STATUSES,
+  deliveryStatusMeta,
+  type AdminDelivery,
+} from "@/features/delivery-b2c/domain/delivery";
 
-export function DeliveryB2bDashboardPage() {
-  const kpis = DASHBOARD_KPIS;
-  const onlineCouriers = COURIERS.filter((c) => c.status === "ONLINE" || c.status === "BUSY");
-  const recentShipments = SHIPMENTS.slice(0, 6);
-  const topCouriers = [...COURIERS]
-    .sort((a, b) => b.totalDeliveries - a.totalDeliveries)
-    .slice(0, 4);
+export interface DeliveryB2bDashboardPageProps {
+  deliveries: AdminDelivery[];
+  total: number;
+}
+
+export function DeliveryB2bDashboardPage({
+  deliveries,
+  total,
+}: DeliveryB2bDashboardPageProps) {
+  // ── KPIs calculés depuis la liste réelle ────────────────────────────────
+  let inFlight = 0;
+  let delivered = 0;
+  let pending = 0;
+  let failedOrCancelled = 0;
+  let revenueDelivered = 0;
+  let revenueInFlight = 0;
+
+  for (const d of deliveries) {
+    if (IN_FLIGHT_DELIVERY_STATUSES.has(d.status)) {
+      inFlight += 1;
+      revenueInFlight += d.finalPrice || d.estimatedPrice;
+    }
+    if (REVENUE_DELIVERY_STATUSES.has(d.status)) {
+      delivered += 1;
+      revenueDelivered += d.finalPrice || d.estimatedPrice;
+    }
+    if (d.status === "PENDING") pending += 1;
+    if (d.status === "FAILED" || d.status === "CANCELLED") failedOrCancelled += 1;
+  }
+
+  // 6 dernières commandes (déjà triées desc par le backend)
+  const recent = deliveries.slice(0, 6);
+
+  // Alertes construites sur données réelles
+  const alerts: { tone: "danger" | "warning" | "info"; title: string; description: string }[] = [];
+  if (failedOrCancelled > 0) {
+    alerts.push({
+      tone: "danger",
+      title: `${failedOrCancelled} commande${failedOrCancelled > 1 ? "s" : ""} en échec ou annulée${failedOrCancelled > 1 ? "s" : ""}`,
+      description: "Consultez la liste pour identifier les motifs.",
+    });
+  }
+  if (pending > 0) {
+    alerts.push({
+      tone: "warning",
+      title: `${pending} commande${pending > 1 ? "s" : ""} en attente de driver`,
+      description: "Aucun livreur assigné — dispatch en cours.",
+    });
+  }
+  if (alerts.length === 0) {
+    alerts.push({
+      tone: "info",
+      title: "Aucune alerte opérationnelle",
+      description: "Toutes les commandes sont en cours de traitement normalement.",
+    });
+  }
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="Livraison B2B — temps quasi-réel"
+        eyebrow="Livraison B2C — temps réel"
         title="Tableau de bord livraison"
-        dataSource="mock"
-        dataSourceHint="Module Livraison B2B en design — données de démo. Sera branché sur l'API quand les endpoints seront livrés."
-        description="Pulse du jour — commandes, flotte de livreurs, revenus et SLA."
+        dataSource="live"
+        dataSourceHint="Agrégé depuis GET /api/admin/delivery — commandes individuelles passager → driver."
+        description="Vue d'ensemble des commandes en cours, du revenu et des alertes opérationnelles."
         actions={
           <>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" disabled>
               <Banknote className="size-4" />
               Export comptable
             </Button>
@@ -66,54 +111,50 @@ export function DeliveryB2bDashboardPage() {
         }
       />
 
+      {/* ── KPI tiles ──────────────────────────────────────────────────── */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Commandes du jour"
-          value={String(kpis.todayShipments)}
-          trend={{
-            value: `+${kpis.revenueDeltaPct.toFixed(1)} % vs hier`,
-            direction: "up",
-          }}
-          helper={`${kpis.delivered} livrées · ${kpis.inTransit} en route`}
+          label="Total chargé"
+          value={String(total)}
+          trend={{ value: "toutes périodes", direction: "flat" }}
+          helper={`${delivered} livrées · ${inFlight} en cours`}
           icon={PackageOpen}
           tone="primary"
         />
         <StatCard
-          label="SLA à l'heure"
-          value={`${kpis.onTimeRate.toFixed(1)} %`}
-          trend={{ value: "vs cible 90 %", direction: "up" }}
-          helper={`Délai moyen : ${kpis.averageDeliveryMinutes} min`}
-          icon={Gauge}
+          label="Livrées"
+          value={String(delivered)}
+          trend={{ value: formatXof(revenueDelivered), direction: "up" }}
+          helper="revenue encaissé"
+          icon={CheckCircle2}
           tone="success"
         />
         <StatCard
-          label="Revenus du jour"
-          value={formatXof(kpis.revenueFcfaToday)}
-          trend={{
-            value: `+${kpis.revenueDeltaPct.toFixed(1)} %`,
-            direction: "up",
-          }}
-          helper="commission incluse"
-          icon={TrendingUp}
-          tone="secondary"
+          label="En cours"
+          value={String(inFlight)}
+          trend={{ value: formatXof(revenueInFlight), direction: "flat" }}
+          helper="revenus en transit"
+          icon={Truck}
+          tone="primary"
         />
         <StatCard
-          label="Livreurs actifs"
-          value={`${kpis.activeCouriers} / ${kpis.totalCouriers}`}
-          trend={{ value: `${onlineCouriers.length} en ligne`, direction: "flat" }}
-          helper={`Top zone : ${kpis.topZone}`}
-          icon={Bike}
-          tone="success"
+          label="Échecs / annulées"
+          value={String(failedOrCancelled)}
+          trend={{ value: pending > 0 ? `${pending} sans driver` : "aucune en attente", direction: failedOrCancelled > 0 ? "down" : "flat" }}
+          helper="FAILED + CANCELLED"
+          icon={XCircle}
+          tone={failedOrCancelled > 0 ? "warning" : "neutral"}
         />
       </section>
 
+      {/* ── Activité récente + Alertes ─────────────────────────────────── */}
       <section className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <PackageCheck className="size-5 text-[color:var(--primary)]" />
-                <CardTitle>Activité — dernières commandes</CardTitle>
+                <CardTitle>Activité récente</CardTitle>
               </div>
               <Link
                 href="/delivery-b2b/shipments"
@@ -124,36 +165,43 @@ export function DeliveryB2bDashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <ul className="flex flex-col divide-y divide-[color:var(--border)]">
-              {recentShipments.map((s) => {
-                const meta = SHIPMENT_STATUS_META[s.status];
-                return (
-                  <li
-                    key={s.id}
-                    className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="flex size-9 items-center justify-center rounded-lg bg-[color:var(--primary-soft)] text-[color:var(--primary)]">
-                        <PackageOpen className="size-4" />
-                      </span>
-                      <div className="flex flex-col leading-tight">
-                        <span className="font-mono text-xs text-[color:var(--foreground)]">
-                          {s.reference}
+            {recent.length === 0 ? (
+              <p className="py-8 text-center text-sm italic text-[color:var(--muted-foreground)]">
+                Aucune commande chargée.
+              </p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-[color:var(--border)]">
+                {recent.map((d) => {
+                  const meta = deliveryStatusMeta(d.status);
+                  return (
+                    <li key={d.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[color:var(--primary-soft)] text-[color:var(--primary)]">
+                          <PackageOpen className="size-4" />
                         </span>
-                        <span className="text-sm font-medium text-[color:var(--foreground)]">
-                          {s.senderName} → {s.dropoff.city}
-                        </span>
-                        <span className="text-xs text-[color:var(--muted-foreground)]">
-                          {s.distanceKm.toFixed(1)} km · {formatXof(s.price)}
-                          {s.courierName ? ` · ${s.courierName}` : ""}
-                        </span>
+                        <div className="flex flex-col leading-tight">
+                          <span className="font-mono text-xs font-semibold text-[color:var(--foreground)]">
+                            {d.orderNumber}
+                          </span>
+                          <span className="text-sm text-[color:var(--foreground)]">
+                            {d.passenger?.name ?? "—"}
+                            {d.driver ? ` → ${d.driver.name}` : " · sans driver"}
+                          </span>
+                          <span className="text-xs text-[color:var(--muted-foreground)]">
+                            {formatXof(d.finalPrice || d.estimatedPrice)}
+                            {" · "}
+                            {formatRelative(d.createdAt)}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <Badge tone={meta.tone}>{meta.label}</Badge>
-                  </li>
-                );
-              })}
-            </ul>
+                      <Link href={`/delivery-b2b/shipments/${d.id}`}>
+                        <Badge tone={meta.tone}>{meta.label}</Badge>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </CardContent>
         </Card>
 
@@ -166,155 +214,81 @@ export function DeliveryB2bDashboardPage() {
           </CardHeader>
           <CardContent>
             <ul className="flex flex-col gap-3">
-              <AlertItem
-                tone="danger"
-                title={`${kpis.failed} livraisons en échec aujourd'hui`}
-                description="Destinataire absent (3 cas), adresse introuvable (4 cas)."
-                action="Relancer"
-              />
-              <AlertItem
-                tone="warning"
-                title={`${kpis.pendingPickup} commandes en attente de livreur`}
-                description="Plus vieille demande il y a 38 min sur Calavi-Centre."
-                action="Forcer dispatch"
-              />
-              <AlertItem
-                tone="info"
-                title="Pic d'activité prévu 17h-19h"
-                description="Trafic dense Cotonou-Calavi — pré-positionner 4 motos."
-                action="Notifier livreurs"
-              />
+              {alerts.map((a, i) => {
+                const COLORS = {
+                  danger: "bg-[color:var(--danger)]/10 text-[color:var(--danger)]",
+                  warning: "bg-[color:var(--warning)]/10 text-[color:var(--warning)]",
+                  info: "bg-[color:var(--primary-soft)] text-[color:var(--primary)]",
+                } as const;
+                const ICONS = {
+                  danger: AlertTriangle,
+                  warning: Clock,
+                  info: CheckCircle2,
+                } as const;
+                const Icon = ICONS[a.tone];
+                return (
+                  <li key={i} className="flex items-start gap-3">
+                    <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${COLORS[a.tone]}`}>
+                      <Icon className="size-4" />
+                    </span>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-[color:var(--foreground)]">{a.title}</p>
+                      <p className="text-xs text-[color:var(--muted-foreground)]">{a.description}</p>
+                      {a.tone !== "info" && (
+                        <Link
+                          href="/delivery-b2b/shipments"
+                          className="mt-1 inline-block text-xs font-medium text-[color:var(--primary)] hover:underline"
+                        >
+                          Voir dans la liste →
+                        </Link>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </CardContent>
         </Card>
       </section>
 
+      {/* ── Sections B2B — backend manquant ────────────────────────────── */}
       <section className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <Card className="border-dashed opacity-70">
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Truck className="size-5 text-[color:var(--primary)]" />
-              <CardTitle>Tournées en cours</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Truck className="size-5 text-[color:var(--muted-foreground)]" />
+                <CardTitle className="text-[color:var(--muted-foreground)]">Tournées B2B</CardTitle>
+              </div>
+              <Badge tone="neutral">Bientôt</Badge>
             </div>
           </CardHeader>
           <CardContent>
-            <ul className="flex flex-col gap-3">
-              {PLANNED_ROUNDS.map((r) => {
-                const done = r.stops.filter((s) => s.status === "DONE").length;
-                return (
-                  <li
-                    key={r.id}
-                    className="flex flex-col gap-1 rounded-lg border border-[color:var(--border)] bg-[color:var(--background)] p-3"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-[color:var(--foreground)]">
-                        {r.name}
-                      </span>
-                      <Badge tone="primary">{r.vehicle}</Badge>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-[color:var(--muted-foreground)]">
-                      <span>{r.courierName}</span>
-                      <span>
-                        {done}/{r.stops.length} stops · {r.totalDistanceKm.toFixed(0)} km
-                      </span>
-                    </div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[color:var(--muted)]">
-                      <div
-                        className="h-full rounded-full bg-[color:var(--primary)] transition-all"
-                        style={{
-                          width: `${(done / r.stops.length) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <p className="text-sm text-[color:var(--muted-foreground)]">
+              Nécessite <code className="font-mono text-xs">GET /api/admin/delivery/rounds</code>.
+              Les tournées (création, suivi, arrêts) seront visibles ici une fois l'endpoint admin disponible.
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-dashed opacity-70">
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bike className="size-5 text-[color:var(--primary)]" />
-              <CardTitle>Top livreurs du mois</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Bike className="size-5 text-[color:var(--muted-foreground)]" />
+                <CardTitle className="text-[color:var(--muted-foreground)]">Top livreurs</CardTitle>
+              </div>
+              <Badge tone="neutral">Bientôt</Badge>
             </div>
           </CardHeader>
           <CardContent>
-            <ul className="flex flex-col gap-3">
-              {topCouriers.map((c, i) => {
-                const meta = COURIER_STATUS_META[c.status];
-                return (
-                  <li
-                    key={c.id}
-                    className="flex items-center gap-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--background)] p-3"
-                  >
-                    <span className="flex size-9 items-center justify-center rounded-full bg-[color:var(--primary-soft)] text-sm font-semibold text-[color:var(--primary)]">
-                      #{i + 1}
-                    </span>
-                    <div className="flex flex-1 flex-col leading-tight">
-                      <span className="text-sm font-medium text-[color:var(--foreground)]">
-                        {c.fullName}
-                      </span>
-                      <span className="text-xs text-[color:var(--muted-foreground)]">
-                        {c.totalDeliveries} livraisons · ★ {c.rating.toFixed(1)}
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge tone={meta.tone}>{meta.label}</Badge>
-                      <span className="text-xs font-semibold text-[color:var(--foreground)]">
-                        {formatXof(c.monthRevenueFcfa)}
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <p className="text-sm text-[color:var(--muted-foreground)]">
+              Nécessite <code className="font-mono text-xs">GET /api/admin/delivery/couriers</code>.
+              Classement par livraisons, note et revenus mensuels à venir.
+            </p>
           </CardContent>
         </Card>
       </section>
     </div>
-  );
-}
-
-function AlertItem({
-  tone,
-  title,
-  description,
-  action,
-}: {
-  tone: "danger" | "warning" | "info";
-  title: string;
-  description: string;
-  action: string;
-}) {
-  const COLORS = {
-    danger: "bg-[color:var(--danger)]/10 text-[color:var(--danger)]",
-    warning: "bg-[color:var(--warning)]/10 text-[color:var(--warning)]",
-    info: "bg-[color:var(--primary-soft)] text-[color:var(--primary)]",
-  } as const;
-  const ICONS = {
-    danger: AlertTriangle,
-    warning: Clock,
-    info: TrendingUp,
-  } as const;
-  const Icon = ICONS[tone];
-  return (
-    <li className="flex items-start gap-3">
-      <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${COLORS[tone]}`}>
-        <Icon className="size-4" />
-      </span>
-      <div className="flex-1">
-        <p className="text-sm font-medium text-[color:var(--foreground)]">
-          {title}
-        </p>
-        <p className="text-xs text-[color:var(--muted-foreground)]">
-          {description}
-        </p>
-        <button className="mt-1 cursor-pointer text-xs font-medium text-[color:var(--primary)] hover:underline">
-          {action} →
-        </button>
-      </div>
-    </li>
   );
 }

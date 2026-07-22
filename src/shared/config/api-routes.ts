@@ -59,6 +59,12 @@ export const API_ROUTES = {
       `/api/admin/drivers/${driverId}/reactivate`,
     /** GET — historique paginé des sessions de connexion d'un driver. Query: page, limit, from, to. */
     sessions: (driverId: string) => `/api/admin/drivers/${driverId}/sessions`,
+    /** PATCH — modifier les infos personnelles du driver (firstName, lastName, phoneNumber, email, gender, address). */
+    updateInfo: (driverId: string) => `/api/admin/drivers/${driverId}/info`,
+    /** GET — liste tous les drivers en dette (walletEARNINGS < 0). Query: page, limit. */
+    commissionDebts: () => "/api/admin/drivers/commission-debts",
+    /** GET — détail des transactions à l'origine de la dette d'un driver. Query: page, limit. */
+    driverCommissionDebts: (driverId: string) => `/api/admin/drivers/${driverId}/commission-debts`,
   },
 
   // ─── Admin: partners ───────────────────────────────────────────────────────
@@ -175,6 +181,8 @@ export const API_ROUTES = {
     list: () => "/api/admin/delivery",
     /** GET — full enriched detail (parcel, recipient, OTP, photos…). */
     detail: (orderId: string) => `/api/admin/delivery/${orderId}`,
+    /** DELETE — cancel any delivery (body: { reason? }). */
+    cancel: (orderId: string) => `/api/admin/delivery/${orderId}`,
   },
 
   // ─── Admin: wallets ────────────────────────────────────────────────────────
@@ -267,9 +275,9 @@ export const API_ROUTES = {
     detail: (id: string) => `/api/admin/contracts/${id}`,
     /** GET  — échéancier d'un contrat */
     installments: (id: string) => `/api/admin/contracts/${id}/installments`,
-    /** POST — paiement manuel d'une échéance (hors plateforme) */
-    manualPayment: (installmentId: string) =>
-      `/api/admin/contracts/installments/${installmentId}/manual-payment`,
+    /** POST — paiement manuel hors wallet contre la dette d'un contrat. Body: { amount } */
+    manualPayment: (contractId: string) =>
+      `/api/admin/contracts/${contractId}/manual-payment`,
     /** POST — résilier un contrat. Body: { reason } */
     break: (id: string) => `/api/admin/contracts/${id}/break`,
     /** POST — suspendre un contrat actif. Body: { reason? } */
@@ -326,7 +334,7 @@ export const API_ROUTES = {
       `/api/app-config/${appType}/${platform}`,
   },
 
-  // ─── Admin: driver bonus par paliers ─────────────────────────────────────
+  // ─── Admin: driver bonus — Système C (Paliers / Bienvenue) ──────────────
   adminDriverBonus: {
     /** GET  — liste tous les barèmes (query: vehicleCategory?, isActive?). */
     configs: () => "/api/admin/driver-bonus/config",
@@ -344,6 +352,50 @@ export const API_ROUTES = {
     deactivateConfig: (id: string) => `/api/admin/driver-bonus/config/${id}/deactivate`,
     /** GET  — historique des bonus déjà versés (query: driverId?, vehicleCategory?, from?, to?, page?, limit?). */
     awards: () => "/api/admin/driver-bonus/awards",
+
+    // ── Système A — Activité quotidienne ─────────────────────────────────
+    /** GET  — liste barèmes activité (query: vehicleCategory?, isActive?, includeDeleted?). */
+    activityConfigs: () => "/api/admin/driver-bonus/activity-config",
+    /** POST — créer un barème activité. Body: { name, description?, vehicleCategory, tiers }. */
+    createActivityConfig: () => "/api/admin/driver-bonus/activity-config",
+    /** GET  — détail d'un barème activité. */
+    activityConfig: (id: string) => `/api/admin/driver-bonus/activity-config/${id}`,
+    /** PUT  — mettre à jour. */
+    updateActivityConfig: (id: string) => `/api/admin/driver-bonus/activity-config/${id}`,
+    /** DELETE — soft-delete. */
+    deleteActivityConfig: (id: string) => `/api/admin/driver-bonus/activity-config/${id}`,
+    /** POST — activer. */
+    activateActivityConfig: (id: string) => `/api/admin/driver-bonus/activity-config/${id}/activate`,
+    /** POST — désactiver. */
+    deactivateActivityConfig: (id: string) => `/api/admin/driver-bonus/activity-config/${id}/deactivate`,
+    /** GET  — journal journalier (query: driverId?, vehicleCategory?, from?, to?, paid?, page?, limit?). */
+    activityLedger: () => "/api/admin/driver-bonus/activity-ledger",
+    /** GET  — payouts versés (query: driverId?, from?, to?, page?, limit?). */
+    activityPayouts: () => "/api/admin/driver-bonus/activity-payouts",
+
+    // ── Système B — Qualité mensuelle ─────────────────────────────────────
+    /** GET  — liste barèmes qualité. */
+    qualityConfigs: () => "/api/admin/driver-bonus/quality-config",
+    /** POST — créer un barème qualité. Body: { name, description?, vehicleCategory, minRidesPerMonth, tiers }. */
+    createQualityConfig: () => "/api/admin/driver-bonus/quality-config",
+    /** GET  — détail. */
+    qualityConfig: (id: string) => `/api/admin/driver-bonus/quality-config/${id}`,
+    /** PUT  — mettre à jour. */
+    updateQualityConfig: (id: string) => `/api/admin/driver-bonus/quality-config/${id}`,
+    /** DELETE — soft-delete. */
+    deleteQualityConfig: (id: string) => `/api/admin/driver-bonus/quality-config/${id}`,
+    /** POST — activer. */
+    activateQualityConfig: (id: string) => `/api/admin/driver-bonus/quality-config/${id}/activate`,
+    /** POST — désactiver. */
+    deactivateQualityConfig: (id: string) => `/api/admin/driver-bonus/quality-config/${id}/deactivate`,
+    /** GET  — journal mensuel (query: driverId?, vehicleCategory?, from?, to?, page?, limit?). */
+    qualityLedger: () => "/api/admin/driver-bonus/quality-ledger",
+
+    // ── RunConfig — Cadence & kill-switches ───────────────────────────────
+    /** GET  — singleton RunConfig. */
+    runConfig: () => "/api/admin/driver-bonus/run-config",
+    /** PUT  — mettre à jour le RunConfig. Body: tous champs optionnels. */
+    updateRunConfig: () => "/api/admin/driver-bonus/run-config",
   },
 
   // ─── Admin: driver welcome bonus campaign ─────────────────────────────────

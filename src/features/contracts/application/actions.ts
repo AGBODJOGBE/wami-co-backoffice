@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { API_ROUTES } from "@/shared/config/api-routes";
 import { apiFetch } from "@/shared/lib/api/server";
 import { ApiError } from "@/shared/lib/api/types";
-import type { Contract, CreateContractInput } from "../domain/contract";
+import type { Contract, CreateContractInput, ManualPaymentMethod } from "../domain/contract";
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -50,19 +50,48 @@ export async function createContractAction(
 
 // ─── Manual payment ───────────────────────────────────────────────────────────
 
+export interface ManualPaymentResult {
+  contract: Contract;
+  amount: number;
+  imputedAmount: number;
+  installmentsSettled: number;
+  installmentsPartiallyPaid: number;
+  contractCompleted: boolean;
+}
+
+/**
+ * Enregistre un paiement manuel (cash / MoMo hors plateforme) contre la dette
+ * d'un contrat. Le backend impute le montant sur les échéances ouvertes de la
+ * plus ancienne à la plus récente via InstallmentLadderImputationService.
+ *
+ * `paymentMethod` et `reference` sont obligatoires depuis le Lot D §3bis :
+ *   - ESPECES      → reference = numéro de reçu papier
+ *   - MOBILE_MONEY → reference = numéro de transaction opérateur
+ */
 export async function recordManualPaymentAction(
-  installmentId: string,
   contractId: string,
-): Promise<ActionResult> {
+  amount: number,
+  paymentMethod: ManualPaymentMethod,
+  reference: string,
+): Promise<ActionResult<ManualPaymentResult>> {
   try {
-    await apiFetch<unknown>(API_ROUTES.adminContracts.manualPayment(installmentId), {
+    const raw = await apiFetch<unknown>(API_ROUTES.adminContracts.manualPayment(contractId), {
       method: "POST",
+      body: { amount, paymentMethod, reference },
     });
+    const data =
+      raw && typeof raw === "object" && "data" in (raw as Record<string, unknown>)
+        ? (raw as Record<string, unknown>).data
+        : raw;
     revalidatePath("/contracts");
     revalidatePath(`/contracts/${contractId}`);
-    return { ok: true, message: "Paiement manuel enregistré avec succès." };
+    return {
+      ok: true,
+      message: "Paiement manuel enregistré.",
+      data: data as ManualPaymentResult,
+    };
   } catch (e) {
-    return fail(e, "Impossible d'enregistrer le paiement.");
+    return fail<ManualPaymentResult>(e, "Impossible d'enregistrer le paiement.");
   }
 }
 

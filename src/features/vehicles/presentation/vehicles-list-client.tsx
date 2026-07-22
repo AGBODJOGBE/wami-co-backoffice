@@ -315,7 +315,19 @@ export function VehiclesListClient({
       header: "",
       align: "right",
       render: (row) => (
-        <DropdownMenu groups={buildMenu(row)} />
+        <div className="flex items-center justify-end gap-2">
+          {row.ownership === "PLATFORM" && row.status === "AVAILABLE" && can("vehicle.manage") && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAssignTarget(row)}
+            >
+              <UserCog className="size-3.5" />
+              Assigner
+            </Button>
+          )}
+          <DropdownMenu groups={buildMenu(row)} />
+        </div>
       ),
     },
   ];

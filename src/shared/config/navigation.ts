@@ -15,11 +15,13 @@ import {
   Megaphone,
   Package,
   PackageOpen,
+  Radio,
   Route as RouteIcon,
   Settings,
   ShoppingBag,
   Star,
   Tag,
+  TrendingDown,
   TrendingUp,
   UserCheck,
   UserPlus,
@@ -80,7 +82,7 @@ export const navSections: NavSection[] = [
       {
         label: "VTC",
         icon: Car,
-        requiredPermissions: ["ride.view_all", "driver.view_all", "passenger.view_all", "vehicle.view_all"],
+        requiredPermissions: ["ride.view_all", "driver.view_all", "passenger.view_all", "vehicle.view_all", "fleet.monitor"],
         children: [
           {
             href: "/vtc/rides",
@@ -109,6 +111,13 @@ export const navSections: NavSection[] = [
             icon: Car,
             dataSource: "live",
             requiredPermissions: ["vehicle.view_all"],
+          },
+          {
+            href: "/vtc/fleet",
+            label: "Suivi flotte",
+            icon: Radio,
+            dataSource: "live",
+            requiredPermissions: ["fleet.monitor"],
           },
         ],
       },
@@ -281,11 +290,25 @@ export const navSections: NavSection[] = [
         requiredPermissions: ["pricing.grid.configure"],
       },
       {
-        href: "/contracts",
         label: "Contrats location-vente",
         icon: FileText,
-        dataSource: "live",
         requiredPermissions: ["contract.view_all"],
+        children: [
+          {
+            href: "/contracts",
+            label: "Tous les contrats",
+            icon: ListChecks,
+            dataSource: "live",
+            requiredPermissions: ["contract.view_all"],
+          },
+          {
+            href: "/contracts/recovery",
+            label: "Recouvrements en cours",
+            icon: TrendingDown,
+            dataSource: "live",
+            requiredPermissions: ["contract.view_all"],
+          },
+        ],
       },
       {
         label: "Wallet & transactions",

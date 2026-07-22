@@ -39,6 +39,8 @@ export default async function SettingsPageRoute() {
   const appConfigs = appConfigRes.status === "fulfilled" ? appConfigRes.value : [];
   const allSystemConfigs = systemConfigsRes.status === "fulfilled" ? systemConfigsRes.value : [];
   const toleranceConfig = allSystemConfigs.find((c) => c.key === "PAYMENT_TOLERANCE_DAYS") ?? null;
+  // PAYMENT_TOLERANCE_DAYS has its own dedicated card — exclude it from the generic list
+  const otherSystemConfigs = allSystemConfigs.filter((c) => c.key !== "PAYMENT_TOLERANCE_DAYS");
   const welcomeBonus = welcomeBonusRes.status === "fulfilled" ? welcomeBonusRes.value : null;
 
   return (
@@ -110,7 +112,7 @@ export default async function SettingsPageRoute() {
                 }
                 toleranceConfig={toleranceConfig}
                 welcomeBonus={welcomeBonus}
-                systemConfigs={allSystemConfigs}
+                systemConfigs={otherSystemConfigs}
               />
             ),
           },

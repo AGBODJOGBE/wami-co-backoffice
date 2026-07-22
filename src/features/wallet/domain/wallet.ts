@@ -52,14 +52,19 @@ export type TransactionType =
   | "DELIVERY_PAYMENT"
   | "DELIVERY_COMMISSION"
   | "B2B_DELIVERY_REVENUE"
+  // Abonnements livraison B2B
+  | "SUBSCRIPTION_PAYMENT"
+  | "SUBSCRIPTION_REVENUE"
   // Livraison B2C
   | "B2C_PAYMENT"
   | "B2C_EARNINGS"
   | "B2C_COMMISSION"
   | "B2C_COMMISSION_REVENUE"
-  // Contrats
+  // Contrats location-vente
   | "CONTRACT_INSTALLMENT"
   | "CONTRACT_INSTALLMENT_REVENUE"
+  | "CONTRACT_INSTALLMENT_MANUAL_PAYMENT"
+  | "CONTRACT_REVENUE_RETROACTIVE_REVERSAL"
   // Véhicule
   | "VEHICLE_RENTAL"
   | "VEHICLE_RENTAL_REVENUE"
@@ -68,7 +73,11 @@ export type TransactionType =
   // Bonus & récompenses
   | "BONUS_CREDIT"
   | "REFERRAL_REWARD"
+  | "MILESTONE_BONUS"
+  | "ACTIVITY_BONUS"
+  | "QUALITY_BONUS"
   | "BONUS_EXPIRY"
+  | "WELCOME_BONUS"
   // Corrections admin
   | "REFUND"
   | "ADJUSTMENT"
@@ -83,8 +92,11 @@ export type TransactionType =
   // Annulations
   | "CANCELLATION_FEE"
   | "CANCELLATION_INDEMNITY"
-  // Recouvrement
+  | "CANCELLATION_INDEMNITY_ADVANCE"
+  // Recouvrement dettes
   | "DEBT_COLLECTION"
+  | "CASH_COMMISSION_DEBT"
+  | "CASH_COMMISSION_REVENUE"
   // Fallback
   | "ADMIN_CREDIT"
   | "ADMIN_DEBIT"
@@ -124,54 +136,66 @@ export const TRANSACTION_TYPE_META: Record<
   { label: string; tone: "success" | "danger" | "warning" | "primary" | "info" | "neutral"; group: string }
 > = {
   // Recharges
-  RECHARGE:                     { label: "Dépôt Mobile Money",         tone: "success",  group: "Dépôts"          },
-  PREPAID_RECHARGE:             { label: "Dépôt partenaire",           tone: "success",  group: "Dépôts"          },
+  RECHARGE:                              { label: "Dépôt Mobile Money",              tone: "success",  group: "Dépôts"          },
+  PREPAID_RECHARGE:                      { label: "Dépôt partenaire",                tone: "success",  group: "Dépôts"          },
   // Courses VTC
-  RIDE_PAYMENT:                 { label: "Paiement course",            tone: "danger",   group: "Courses"         },
-  RIDE_EARNINGS:                { label: "Gains course",               tone: "success",  group: "Courses"         },
-  COMMISSION:                   { label: "Commission ForYou",          tone: "warning",  group: "Courses"         },
-  COMMISSION_REVENUE:           { label: "Revenu commission",          tone: "primary",  group: "Courses"         },
+  RIDE_PAYMENT:                          { label: "Paiement course",                 tone: "danger",   group: "Courses"         },
+  RIDE_EARNINGS:                         { label: "Gains course",                    tone: "success",  group: "Courses"         },
+  COMMISSION:                            { label: "Commission ForYou",               tone: "warning",  group: "Courses"         },
+  COMMISSION_REVENUE:                    { label: "Revenu commission VTC",           tone: "primary",  group: "Courses"         },
   // Livraison B2B
-  DELIVERY_PAYMENT:             { label: "Paiement livraison B2B",     tone: "danger",   group: "Livraison B2B"   },
-  DELIVERY_COMMISSION:          { label: "Commission livraison",       tone: "warning",  group: "Livraison B2B"   },
-  B2B_DELIVERY_REVENUE:         { label: "Revenu livraison B2B",       tone: "primary",  group: "Livraison B2B"   },
+  DELIVERY_PAYMENT:                      { label: "Paiement livraison B2B",          tone: "danger",   group: "Livraison B2B"   },
+  DELIVERY_COMMISSION:                   { label: "Commission livraison",            tone: "warning",  group: "Livraison B2B"   },
+  B2B_DELIVERY_REVENUE:                  { label: "Revenu livraison B2B",            tone: "primary",  group: "Livraison B2B"   },
+  // Abonnements livraison B2B
+  SUBSCRIPTION_PAYMENT:                  { label: "Paiement abonnement",             tone: "danger",   group: "Livraison B2B"   },
+  SUBSCRIPTION_REVENUE:                  { label: "Revenu abonnement",               tone: "primary",  group: "Livraison B2B"   },
   // Livraison B2C
-  B2C_PAYMENT:                  { label: "Paiement livraison B2C",     tone: "danger",   group: "Livraison B2C"   },
-  B2C_EARNINGS:                 { label: "Gains livraison B2C",        tone: "success",  group: "Livraison B2C"   },
-  B2C_COMMISSION:               { label: "Commission B2C",             tone: "warning",  group: "Livraison B2C"   },
-  B2C_COMMISSION_REVENUE:       { label: "Revenu commission B2C",      tone: "primary",  group: "Livraison B2C"   },
-  // Contrats
-  CONTRACT_INSTALLMENT:         { label: "Échéance contrat",           tone: "danger",   group: "Contrats"        },
-  CONTRACT_INSTALLMENT_REVENUE: { label: "Revenu échéance contrat",    tone: "primary",  group: "Contrats"        },
+  B2C_PAYMENT:                           { label: "Paiement livraison B2C",          tone: "danger",   group: "Livraison B2C"   },
+  B2C_EARNINGS:                          { label: "Gains livraison B2C",             tone: "success",  group: "Livraison B2C"   },
+  B2C_COMMISSION:                        { label: "Commission B2C",                  tone: "warning",  group: "Livraison B2C"   },
+  B2C_COMMISSION_REVENUE:                { label: "Revenu commission B2C",           tone: "primary",  group: "Livraison B2C"   },
+  // Contrats location-vente
+  CONTRACT_INSTALLMENT:                  { label: "Échéance contrat",                tone: "danger",   group: "Contrats"        },
+  CONTRACT_INSTALLMENT_REVENUE:          { label: "Revenu échéance contrat",         tone: "primary",  group: "Contrats"        },
+  CONTRACT_INSTALLMENT_MANUAL_PAYMENT:   { label: "Paiement manuel contrat",         tone: "info",     group: "Contrats"        },
+  CONTRACT_REVENUE_RETROACTIVE_REVERSAL: { label: "Annulation revenu rétroactif",    tone: "warning",  group: "Contrats"        },
   // Véhicule
-  VEHICLE_RENTAL:               { label: "Location véhicule",          tone: "danger",   group: "Véhicule"        },
-  VEHICLE_RENTAL_REVENUE:       { label: "Revenu location véhicule",   tone: "primary",  group: "Véhicule"        },
+  VEHICLE_RENTAL:                        { label: "Location véhicule",               tone: "danger",   group: "Véhicule"        },
+  VEHICLE_RENTAL_REVENUE:                { label: "Revenu location véhicule",        tone: "primary",  group: "Véhicule"        },
   // Retraits
-  WITHDRAWAL:                   { label: "Retrait",                    tone: "danger",   group: "Retraits"        },
+  WITHDRAWAL:                            { label: "Retrait",                         tone: "danger",   group: "Retraits"        },
   // Bonus & récompenses
-  BONUS_CREDIT:                 { label: "Bonus",                      tone: "success",  group: "Bonus"           },
-  REFERRAL_REWARD:              { label: "Récompense parrainage",       tone: "success",  group: "Bonus"           },
-  BONUS_EXPIRY:                 { label: "Expiration bonus",           tone: "neutral",  group: "Bonus"           },
+  BONUS_CREDIT:                          { label: "Bonus promotionnel",              tone: "success",  group: "Bonus"           },
+  REFERRAL_REWARD:                       { label: "Récompense parrainage",           tone: "success",  group: "Bonus"           },
+  MILESTONE_BONUS:                       { label: "Bonus palier courses",            tone: "success",  group: "Bonus"           },
+  ACTIVITY_BONUS:                        { label: "Bonus activité (4U V3)",          tone: "success",  group: "Bonus"           },
+  QUALITY_BONUS:                         { label: "Bonus qualité (4U V3)",           tone: "success",  group: "Bonus"           },
+  BONUS_EXPIRY:                          { label: "Expiration bonus",                tone: "neutral",  group: "Bonus"           },
+  WELCOME_BONUS:                         { label: "Bonus de bienvenue",              tone: "success",  group: "Bonus"           },
   // Corrections
-  REFUND:                       { label: "Remboursement",              tone: "success",  group: "Admin"           },
-  ADJUSTMENT:                   { label: "Ajustement",                 tone: "info",     group: "Admin"           },
-  ADMIN_CREDIT:                 { label: "Crédit admin",               tone: "info",     group: "Admin"           },
-  ADMIN_DEBIT:                  { label: "Débit admin",                tone: "danger",   group: "Admin"           },
-  CREDIT:                       { label: "Crédit",                     tone: "success",  group: "Admin"           },
-  DEBIT:                        { label: "Débit",                      tone: "danger",   group: "Admin"           },
+  REFUND:                                { label: "Remboursement",                   tone: "success",  group: "Admin"           },
+  ADJUSTMENT:                            { label: "Ajustement",                      tone: "info",     group: "Admin"           },
+  ADMIN_CREDIT:                          { label: "Crédit admin",                    tone: "info",     group: "Admin"           },
+  ADMIN_DEBIT:                           { label: "Débit admin",                     tone: "danger",   group: "Admin"           },
+  CREDIT:                                { label: "Crédit",                          tone: "success",  group: "Admin"           },
+  DEBIT:                                 { label: "Débit",                           tone: "danger",   group: "Admin"           },
   // Consolidation
-  BALANCE_CONSOLIDATION:        { label: "Consolidation (source)",     tone: "neutral",  group: "Consolidation"   },
-  CONSOLIDATION_CREDIT:         { label: "Consolidation (destination)", tone: "success", group: "Consolidation"   },
-  CONSOLIDATION_FEE_REVENUE:    { label: "Frais consolidation",        tone: "primary",  group: "Consolidation"   },
+  BALANCE_CONSOLIDATION:                 { label: "Consolidation (source)",          tone: "neutral",  group: "Consolidation"   },
+  CONSOLIDATION_CREDIT:                  { label: "Consolidation (destination)",     tone: "success",  group: "Consolidation"   },
+  CONSOLIDATION_FEE_REVENUE:             { label: "Frais consolidation",             tone: "primary",  group: "Consolidation"   },
   // P2P
-  P2P_TRANSFER_SENT:            { label: "Transfert P2P (envoi)",      tone: "danger",   group: "P2P"             },
-  P2P_TRANSFER_RECEIVED:        { label: "Transfert P2P (reçu)",       tone: "success",  group: "P2P"             },
-  P2P_FEE_REVENUE:              { label: "Frais transfert P2P",        tone: "primary",  group: "P2P"             },
+  P2P_TRANSFER_SENT:                     { label: "Transfert P2P (envoi)",           tone: "danger",   group: "P2P"             },
+  P2P_TRANSFER_RECEIVED:                 { label: "Transfert P2P (reçu)",            tone: "success",  group: "P2P"             },
+  P2P_FEE_REVENUE:                       { label: "Frais transfert P2P",             tone: "primary",  group: "P2P"             },
   // Annulations
-  CANCELLATION_FEE:             { label: "Frais d'annulation",         tone: "danger",   group: "Annulations"     },
-  CANCELLATION_INDEMNITY:       { label: "Indemnité annulation",       tone: "success",  group: "Annulations"     },
-  // Recouvrement
-  DEBT_COLLECTION:              { label: "Recouvrement dette",         tone: "warning",  group: "Recouvrement"    },
+  CANCELLATION_FEE:                      { label: "Frais d'annulation",              tone: "danger",   group: "Annulations"     },
+  CANCELLATION_INDEMNITY:                { label: "Indemnité annulation",            tone: "success",  group: "Annulations"     },
+  CANCELLATION_INDEMNITY_ADVANCE:        { label: "Avance indemnité (ForYou)",       tone: "warning",  group: "Annulations"     },
+  // Recouvrement dettes
+  DEBT_COLLECTION:                       { label: "Recouvrement dette passager",     tone: "warning",  group: "Recouvrement"    },
+  CASH_COMMISSION_DEBT:                  { label: "Créance commission cash",         tone: "danger",   group: "Recouvrement"    },
+  CASH_COMMISSION_REVENUE:               { label: "Recouvrement commission cash",    tone: "primary",  group: "Recouvrement"    },
 };
 
 // ─── Withdrawal ───────────────────────────────────────────────────────────────

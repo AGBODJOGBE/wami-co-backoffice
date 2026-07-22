@@ -1,196 +1,82 @@
 "use client";
 
-import {
-  CheckCircle2,
-  Circle,
-  Clock,
-  MapPin,
-  Plus,
-  Route as RouteIcon,
-  Truck,
-} from "lucide-react";
-import { Avatar } from "@/shared/ui/avatar";
+import { ClipboardList, Route as RouteIcon } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
-import { Button } from "@/shared/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/shared/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { PageHeader } from "@/shared/ui/page-header";
-import { StatCard } from "@/features/dashboard/presentation/components/stat-card";
-import { formatXof } from "@/shared/lib/format";
-import { VEHICLE_LABELS } from "../domain/types";
-import { PLANNED_ROUNDS } from "../domain/mock";
 
 export function PlanningPage() {
-  const totalStops = PLANNED_ROUNDS.reduce((s, r) => s + r.stops.length, 0);
-  const doneStops = PLANNED_ROUNDS.reduce(
-    (s, r) => s + r.stops.filter((x) => x.status === "DONE").length,
-    0,
-  );
-  const totalRevenue = PLANNED_ROUNDS.reduce(
-    (s, r) => s + r.estimatedRevenue,
-    0,
-  );
-  const totalKm = PLANNED_ROUNDS.reduce((s, r) => s + r.totalDistanceKm, 0);
-
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Livraison B2B"
-        title="Planning du jour"
+        title="Tournées & planning"
         dataSource="mock"
-        description="Tournées en cours et programmées — assignation, ordre des stops, ETA."
-        actions={
-          <Button size="sm">
-            <Plus className="size-4" />
-            Nouvelle tournée
-          </Button>
-        }
+        dataSourceHint="Endpoint admin manquant — GET /api/admin/delivery/rounds à créer côté backend."
+        description="Création et suivi des tournées B2B — groupes de stops, livreur assigné, progression."
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Tournées du jour"
-          value={String(PLANNED_ROUNDS.length)}
-          trend={{ value: "actives", direction: "flat" }}
-          helper={`${PLANNED_ROUNDS.filter((r) => r.stops.some((s) => s.status === "PENDING")).length} en cours`}
-          icon={RouteIcon}
-          tone="primary"
-        />
-        <StatCard
-          label="Stops réalisés"
-          value={`${doneStops} / ${totalStops}`}
-          trend={{
-            value: `${Math.round((doneStops / totalStops) * 100)} %`,
-            direction: "up",
-          }}
-          helper="taux d'avancement"
-          icon={CheckCircle2}
-          tone="success"
-        />
-        <StatCard
-          label="Distance cumulée"
-          value={`${totalKm.toFixed(0)} km`}
-          trend={{ value: "voiture+moto", direction: "flat" }}
-          helper="estimée selon ordre stops"
-          icon={Truck}
-          tone="secondary"
-        />
-        <StatCard
-          label="Revenu estimé"
-          value={formatXof(totalRevenue)}
-          trend={{ value: "à toucher aujourd'hui", direction: "up" }}
-          helper="hors imprévus"
-          icon={Truck}
-          tone="warning"
-        />
-      </section>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="border-dashed">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <RouteIcon className="size-5 text-[color:var(--muted-foreground)]" />
+                <CardTitle className="text-[color:var(--muted-foreground)]">Tournées actives</CardTitle>
+              </div>
+              <Badge tone="neutral">Endpoint manquant</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col items-center gap-4 py-10 text-center">
+              <RouteIcon className="size-12 text-[color:var(--muted-foreground)]" />
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-medium text-[color:var(--foreground)]">
+                  Nécessite un endpoint admin
+                </p>
+                <p className="text-xs text-[color:var(--muted-foreground)]">
+                  Le backend B2B dispose de <code className="font-mono">POST /api/delivery/rounds</code> (création par admin) et des routes driver pour le lifecycle, mais pas encore de <code className="font-mono">GET /api/admin/delivery/rounds</code> pour lister les tournées côté admin.
+                </p>
+              </div>
+              <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/30 px-4 py-3 text-left text-xs">
+                <p className="mb-1 font-semibold text-[color:var(--foreground)]">Routes B2B existantes (backend prêt) :</p>
+                <ul className="flex flex-col gap-0.5 text-[color:var(--muted-foreground)]">
+                  <li><code className="font-mono">POST   /api/delivery/rounds</code> — créer une tournée</li>
+                  <li><code className="font-mono">PATCH  /api/delivery/rounds/:id/accept</code> — driver accepte</li>
+                  <li><code className="font-mono">PATCH  /api/delivery/rounds/:id/start</code> — départ entrepôt</li>
+                  <li><code className="font-mono">PATCH  /api/delivery/rounds/:id/start-tour</code> — début livraisons</li>
+                  <li><code className="font-mono">PATCH  /api/delivery/rounds/:id/complete</code> — tournée terminée</li>
+                </ul>
+                <p className="mt-2 font-semibold text-[color:var(--foreground)]">À créer :</p>
+                <ul className="flex flex-col gap-0.5 text-[color:var(--muted-foreground)]">
+                  <li><code className="font-mono">GET    /api/admin/delivery/rounds</code> — liste admin</li>
+                  <li><code className="font-mono">GET    /api/admin/delivery/rounds/:id</code> — détail</li>
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
-        {PLANNED_ROUNDS.map((r) => {
-          const done = r.stops.filter((s) => s.status === "DONE").length;
-          return (
-            <Card key={r.id}>
-              <CardHeader>
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base">{r.name}</CardTitle>
-                    <Badge tone="primary">{VEHICLE_LABELS[r.vehicle]}</Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Avatar
-                      name={r.courierName}
-                      className="size-8 text-xs"
-                    />
-                    <div className="flex flex-col leading-tight">
-                      <span className="text-sm font-medium">
-                        {r.courierName}
-                      </span>
-                      <span className="text-[10px] text-[color:var(--muted-foreground)]">
-                        {r.zone}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-3 flex items-center justify-between text-xs">
-                  <span className="text-[color:var(--muted-foreground)]">
-                    {done}/{r.stops.length} stops
-                  </span>
-                  <span className="font-semibold">
-                    {formatXof(r.estimatedRevenue)}
-                  </span>
-                </div>
-                <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-[color:var(--muted)]">
-                  <div
-                    className="h-full rounded-full bg-[color:var(--primary)] transition-all"
-                    style={{ width: `${(done / r.stops.length) * 100}%` }}
-                  />
-                </div>
-
-                <ol className="relative ml-3 flex flex-col gap-3 border-l border-[color:var(--border)] pl-4">
-                  {r.stops.map((s, i) => (
-                    <li key={i} className="relative">
-                      <span
-                        className={
-                          "absolute -left-[19px] flex size-3 items-center justify-center rounded-full border-2 border-[color:var(--background)] " +
-                          (s.status === "DONE"
-                            ? "bg-[color:var(--success)]"
-                            : "bg-[color:var(--warning)]")
-                        }
-                      />
-                      <div className="flex flex-col">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-medium text-[color:var(--foreground)]">
-                            {s.type === "PICKUP" ? "Collecte" : "Livraison"} ·{" "}
-                            <span className="font-mono">{s.reference}</span>
-                          </span>
-                          <span className="text-[10px] text-[color:var(--muted-foreground)]">
-                            {s.scheduledAt}
-                          </span>
-                        </div>
-                        <span className="inline-flex items-center gap-1 text-[10px] text-[color:var(--muted-foreground)]">
-                          <MapPin className="size-2.5" />
-                          {s.address}, {s.city}
-                        </span>
-                        {s.status === "PENDING" ? (
-                          <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-[color:var(--warning)]">
-                            <Clock className="size-2.5" />à venir
-                          </span>
-                        ) : (
-                          <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-[color:var(--success)]">
-                            <CheckCircle2 className="size-2.5" />
-                            réalisé
-                          </span>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                  <li className="relative">
-                    <Circle className="absolute -left-[19px] size-3 text-[color:var(--muted-foreground)]" />
-                    <span className="text-[10px] text-[color:var(--muted-foreground)]">
-                      Fin prévue · 16:00
-                    </span>
-                  </li>
-                </ol>
-
-                <div className="mt-4 flex items-center justify-end gap-2">
-                  <Button variant="outline" size="sm">
-                    Réordonner
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    Voir sur la carte
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </section>
+        <Card className="border-dashed">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="size-5 text-[color:var(--muted-foreground)]" />
+                <CardTitle className="text-[color:var(--muted-foreground)]">Créer une tournée</CardTitle>
+              </div>
+              <Badge tone="neutral">Bientôt</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col items-center gap-4 py-10 text-center">
+              <ClipboardList className="size-12 text-[color:var(--muted-foreground)]" />
+              <p className="text-sm text-[color:var(--muted-foreground)]">
+                Formulaire de création de tournée (sélection d'ordres B2B, assignation livreur, séquençage des stops) disponible une fois l'endpoint de listing déployé.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

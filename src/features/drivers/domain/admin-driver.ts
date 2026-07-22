@@ -136,6 +136,73 @@ export interface DriverSessionsResult {
   limit: number;
 }
 
+// ─── UpdateDriverInfo ─────────────────────────────────────────────────────────
+
+export interface UpdateDriverInfoInput {
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  email?: string;
+  gender?: "MALE" | "FEMALE";
+  address?: {
+    city: string;
+    quarter: string;
+    street?: string;
+    details?: string;
+    landmark?: string;
+  };
+}
+
+// ─── Commission debts ─────────────────────────────────────────────────────────
+
+export interface DriverCommissionDebtRow {
+  driverId: string;
+  walletId: string;
+  driverName: string;
+  driverPhone: string;
+  driverStatus: string;
+  debtAmount: number;
+  mainBalance: number;
+  bonusBalance: number;
+  referralBalance: number;
+  updatedAt: string;
+}
+
+export interface DriverCommissionDebtsListResult {
+  drivers: DriverCommissionDebtRow[];
+  total: number;
+  totalDebtAmount: number;
+  page: number;
+  limit: number;
+}
+
+export type DebtSource = "RIDE" | "B2C_DELIVERY" | "CONTRACT_INSTALLMENT";
+
+export interface DriverDebtItem {
+  transactionId: string;
+  source: DebtSource;
+  entityId: string;
+  entityNumber: string;
+  commissionAmount: number;
+  description: string;
+  date: string;
+}
+
+export interface DriverCommissionDebtDetail {
+  driverId: string;
+  walletId: string;
+  driverName: string;
+  driverPhone: string;
+  debtAmount: number;
+  currentBalance: number;
+  items: DriverDebtItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function fullName(d: { firstName?: string; lastName?: string }): string {
   return `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim();
 }

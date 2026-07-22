@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Car,
   CheckCircle2,
+  Download,
   FileText,
   Plus,
   RefreshCw,
@@ -28,6 +29,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { SearchField } from "@/shared/ui/search-field";
 import { Spinner } from "@/shared/ui/spinner";
 import { formatDate } from "@/shared/lib/format";
+import { downloadCsv, timestampedFilename, type CsvColumn } from "@/shared/lib/csv";
 import type { AdminDriver } from "@/features/drivers/domain/admin-driver";
 import type { VehicleSummary } from "@/features/vehicles/domain/vehicle";
 import {
@@ -43,6 +45,27 @@ import {
 } from "../domain/contract";
 import { ContractCreateModal } from "./contract-create-modal";
 import { CanView } from "@/shared/ui/can-view";
+
+// ─── Colonnes CSV ─────────────────────────────────────────────────────────────
+
+const CONTRACT_CSV_COLUMNS: CsvColumn<Contract>[] = [
+  { key: "id",              header: "ID Contrat",        value: (r) => r.contractId },
+  { key: "chauffeur",       header: "Chauffeur",          value: (r) => driverFullName(r.driver) },
+  { key: "telephone",       header: "Téléphone",          value: (r) => r.driver.phoneNumber ?? "" },
+  { key: "vehicule",        header: "Véhicule",           value: (r) => vehicleLabel(r.vehicle) },
+  { key: "immatriculation", header: "Immatriculation",    value: (r) => r.vehicle.licensePlate ?? "" },
+  { key: "montantTotal",    header: "Montant total (FCFA)",value: (r) => r.montantTotal },
+  { key: "montantPaye",     header: "Payé (FCFA)",        value: (r) => r.montantPaye ?? "" },
+  { key: "montantRestant",  header: "Restant (FCFA)",     value: (r) => r.montantRestant ?? "" },
+  { key: "frequence",       header: "Fréquence",          value: (r) => PAYMENT_FREQUENCY_LABELS[r.frequencePaiement] },
+  { key: "duree",           header: "Durée (mois)",       value: (r) => r.dureeMois },
+  { key: "debut",           header: "Début",              value: (r) => formatDate(r.dateDebut) },
+  { key: "fin",             header: "Fin prévue",         value: (r) => r.dateFin ? formatDate(r.dateFin) : "" },
+  { key: "statut",          header: "Statut",             value: (r) => CONTRACT_STATUS_LABELS[r.status as ContractStatus] ?? r.status },
+  { key: "echeancesPayees", header: "Échéances payées",   value: (r) => r.echeancesPayees ?? "" },
+  { key: "echeancesTotal",  header: "Échéances total",    value: (r) => r.echeancesTotal ?? "" },
+  { key: "nbImpayes",       header: "Nb impayés",         value: (r) => r.nbImpayes ?? 0 },
+];
 
 // ─── Options filtre statut ────────────────────────────────────────────────────
 
@@ -329,6 +352,15 @@ export function ContractsPage({ contracts, total, error, drivers, vehicles, kpis
             >
               {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
               Rafraîchir
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadCsv(timestampedFilename("contrats"), CONTRACT_CSV_COLUMNS, filtered)}
+              disabled={filtered.length === 0}
+            >
+              <Download className="size-4" />
+              Exporter CSV
             </Button>
             <CanView permission="contract.create">
               <Button size="sm" onClick={() => setCreateOpen(true)}>

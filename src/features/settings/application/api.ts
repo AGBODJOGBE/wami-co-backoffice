@@ -33,7 +33,6 @@ export interface SystemConfigEntry {
   updatedBy?: string;
   version?: number;
   updatedAt?: string;
-  createdAt?: string;
 }
 
 export interface WelcomeBonusCampaign {
@@ -59,27 +58,25 @@ export async function getWelcomeBonusCampaign(): Promise<WelcomeBonusCampaign | 
 /** Retourne toutes les clés de configuration système. */
 export async function listSystemConfigs(): Promise<SystemConfigEntry[]> {
   try {
-    const raw = await apiFetch<SystemConfigEntry[]>(API_ROUTES.systemConfig.list());
+    const raw = await apiFetch<SystemConfigEntry[]>(API_ROUTES.systemConfig.list(), {
+      silent: true,
+    });
     return Array.isArray(raw) ? raw : [];
   } catch {
     return [];
   }
 }
 
-/** Lit une clé de configuration système. Retourne null si la route n'existe pas. */
-export async function getSystemConfig(key: string): Promise<SystemConfigEntry | null> {
+/** Lit une clé de config système et la retourne parsée en nombre (fallback si erreur). */
+export async function getSystemConfigNumber(key: string, fallback: number): Promise<number> {
   try {
-    const raw = await apiFetch<unknown>(API_ROUTES.systemConfig.get(key));
-    if (!raw || typeof raw !== "object") return null;
-    const r = raw as Record<string, unknown>;
-    const entry = (r.data ?? r) as Record<string, unknown>;
-    return {
-      key: (entry.key ?? key) as string,
-      value: (entry.value ?? "") as string,
-      type: (entry.type ?? "INTEGER") as string,
-      updatedAt: (entry.updatedAt ?? undefined) as string | undefined,
-    };
+    const raw = await apiFetch<{ key: string; value: string; type: string }>(
+      API_ROUTES.systemConfig.get(key),
+      { silent: true },
+    );
+    const parsed = parseInt(raw?.value ?? "", 10);
+    return isNaN(parsed) ? fallback : parsed;
   } catch {
-    return null;
+    return fallback;
   }
 }
