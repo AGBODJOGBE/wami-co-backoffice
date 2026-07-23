@@ -137,15 +137,16 @@ export async function suspendContractAction(
 
 export async function resumeContractAction(
   contractId: string,
+  reason?: string,
 ): Promise<ActionResult> {
   try {
     await apiFetch<unknown>(API_ROUTES.adminContracts.resume(contractId), {
       method: "POST",
-      body: {},
+      body: reason ? { reason } : {},
     });
     revalidatePath("/contracts");
     revalidatePath(`/contracts/${contractId}`);
-    return { ok: true, message: "Contrat repris — statut Actif." };
+    return { ok: true, message: "Contrat repris — statut Actif. Les dates d'échéances ont été repositionnées." };
   } catch (e) {
     return fail(e, "Impossible de reprendre le contrat.");
   }

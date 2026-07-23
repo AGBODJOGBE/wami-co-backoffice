@@ -156,6 +156,12 @@ export interface Contract {
    * (= montantPaye − montantNonReconnu).
    */
   montantRecouvre?: number;
+  /**
+   * Cash-basis (Lot D) — montant total restant à recouvrer
+   * (= montantRestant + montantNonReconnu).
+   * Calculé par le backend au moment du GET.
+   */
+  resteARecouvrer?: number;
   createdAt: string;
   updatedAt: string;
   breakReason?: string | null;

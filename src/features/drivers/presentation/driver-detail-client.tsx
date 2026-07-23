@@ -74,6 +74,12 @@ import {
   type DriverBonusNotificationType,
   type NotificationItem,
 } from "@/features/notifications/domain/notification";
+import {
+  VEHICLE_CATEGORY_META,
+  type DriverBonusAward,
+  type DriverBonusActivityDailyLedger,
+  type DriverBonusQualityMonthlyLedger,
+} from "@/features/driver-bonus/domain/driver-bonus";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -97,6 +103,9 @@ export interface DriverDetailClientProps {
   sessionsTotal?: number;
   commissionDebt?: DriverCommissionDebtDetail | null;
   driverNotifications?: NotificationItem[];
+  bonusAwards?: DriverBonusAward[];
+  bonusActivity?: DriverBonusActivityDailyLedger[];
+  bonusQuality?: DriverBonusQualityMonthlyLedger[];
 }
 
 // ─── Sessions helpers ─────────────────────────────────────────────────────────
@@ -952,6 +961,9 @@ export function DriverDetailClient({
   sessionsTotal,
   commissionDebt,
   driverNotifications = [],
+  bonusAwards = [],
+  bonusActivity = [],
+  bonusQuality = [],
 }: DriverDetailClientProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
@@ -1348,6 +1360,155 @@ export function DriverDetailClient({
 
       {/* ── Commission & dette EARNINGS ──────────────────────────────────────── */}
       {commissionDebt && <CommissionDebtCard debt={commissionDebt} />}
+
+      {/* ── Bonus 4U V3 ─────────────────────────────────────────────────────── */}
+      {(bonusAwards.length > 0 || bonusActivity.length > 0 || bonusQuality.length > 0) && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Star className="size-4 fill-[color:var(--warning)] text-[color:var(--warning)]" />
+              <CardTitle>Bonus 4U V3</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-6">
+
+              {/* Paliers Bienvenue (Système C) */}
+              {bonusAwards.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                    Paliers Bienvenue
+                  </h4>
+                  <div className="flex flex-col divide-y divide-[color:var(--border)]">
+                    {bonusAwards.map((a) => {
+                      const catMeta = VEHICLE_CATEGORY_META[a.vehicleCategory];
+                      return (
+                        <div key={a.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                          <div className="flex items-center gap-2.5">
+                            <span className="flex size-7 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--warning)]/15">
+                              <Star className="size-3.5 fill-[color:var(--warning)] text-[color:var(--warning)]" />
+                            </span>
+                            <div className="flex flex-col leading-tight">
+                              <span className="text-xs font-semibold text-[color:var(--foreground)]">
+                                {a.ridesThreshold} courses atteintes
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <Badge tone={catMeta?.tone ?? "neutral"} className="text-[10px]">
+                                  {catMeta?.label ?? a.vehicleCategory}
+                                </Badge>
+                                <span className="text-[10px] text-[color:var(--muted-foreground)]">
+                                  {formatDate(a.awardedAt)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <span className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                            +{formatXof(a.bonusAmount)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Bonus Qualité mensuel (Système B) */}
+              {bonusQuality.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                    Bonus Qualité (mensuel)
+                  </h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-[color:var(--border)] text-left text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                          <th className="pb-2 pr-3">Mois</th>
+                          <th className="pb-2 pr-3">Catégorie</th>
+                          <th className="pb-2 pr-3 text-center">Courses</th>
+                          <th className="pb-2 pr-3 text-center">Note moy.</th>
+                          <th className="pb-2 text-right">Bonus</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[color:var(--border)]">
+                        {bonusQuality.map((q) => {
+                          const catMeta = VEHICLE_CATEGORY_META[q.vehicleCategory];
+                          return (
+                            <tr key={q.id}>
+                              <td className="py-2 pr-3 font-mono text-[color:var(--foreground)]">{q.yearMonth}</td>
+                              <td className="py-2 pr-3">
+                                <Badge tone={catMeta?.tone ?? "neutral"} className="text-[10px]">
+                                  {catMeta?.label ?? q.vehicleCategory}
+                                </Badge>
+                              </td>
+                              <td className="py-2 pr-3 text-center text-[color:var(--foreground)]">{q.ridesCount}</td>
+                              <td className="py-2 pr-3 text-center">
+                                <span className="inline-flex items-center gap-1">
+                                  <Star className="size-3 fill-[color:var(--warning)] text-[color:var(--warning)]" />
+                                  <span className="font-semibold">{q.averageRating.toFixed(2)}</span>
+                                </span>
+                              </td>
+                              <td className="py-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                +{formatXof(q.bonusAmount)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Bonus Activité quotidien (Système A) */}
+              {bonusActivity.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                    Bonus Activité (jours récents)
+                  </h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-[color:var(--border)] text-left text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                          <th className="pb-2 pr-3">Date</th>
+                          <th className="pb-2 pr-3">Catégorie</th>
+                          <th className="pb-2 pr-3 text-center">Courses</th>
+                          <th className="pb-2 pr-3 text-center">Palier %</th>
+                          <th className="pb-2 text-right">Bonus</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[color:var(--border)]">
+                        {bonusActivity.map((a) => {
+                          const catMeta = VEHICLE_CATEGORY_META[a.vehicleCategory];
+                          return (
+                            <tr key={a.id}>
+                              <td className="py-2 pr-3 font-mono text-[color:var(--foreground)]">
+                                {formatDate(a.activityDate)}
+                              </td>
+                              <td className="py-2 pr-3">
+                                <Badge tone={catMeta?.tone ?? "neutral"} className="text-[10px]">
+                                  {catMeta?.label ?? a.vehicleCategory}
+                                </Badge>
+                              </td>
+                              <td className="py-2 pr-3 text-center text-[color:var(--foreground)]">{a.ridesCount}</td>
+                              <td className="py-2 pr-3 text-center text-[color:var(--muted-foreground)]">
+                                {a.tierPctApplied}%
+                              </td>
+                              <td className="py-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                +{formatXof(a.bonusAmount)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Sessions de connexion ────────────────────────────────────────────── */}
       <SessionsCard

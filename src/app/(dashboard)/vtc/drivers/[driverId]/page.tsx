@@ -17,6 +17,16 @@ import { listDriverVehicles } from "@/features/vehicles/application/api";
 import { findWalletByProfile } from "@/features/wallet/application/api";
 import { listRidesByDriver } from "@/features/rides/application/api";
 import { getNotificationHistory } from "@/features/notifications/application/api";
+import {
+  listDriverBonusAwards,
+  listActivityLedger,
+  listQualityLedger,
+} from "@/features/driver-bonus/application/api";
+import type {
+  DriverBonusAward,
+  DriverBonusActivityDailyLedger,
+  DriverBonusQualityMonthlyLedger,
+} from "@/features/driver-bonus/domain/driver-bonus";
 import { DetailNotFound } from "@/shared/ui/detail-header";
 
 export const dynamic = "force-dynamic";
@@ -100,10 +110,13 @@ export default async function VtcDriverDetailPage({
 
   const userId = enriched?.userId ?? fallbackUserId;
 
-  // Documents + notifications need the userId — fetch them after we know it.
-  const [documentsRes, notificationsRes] = await Promise.allSettled([
+  // Documents + notifications + bonus need the userId — fetch them after we know it.
+  const [documentsRes, notificationsRes, bonusAwardsRes, bonusActivityRes, bonusQualityRes] = await Promise.allSettled([
     userId ? listDocumentsByOwner(userId, "DRIVER") : Promise.resolve([]),
     userId ? getNotificationHistory({ recipientId: userId, limit: 20 }) : Promise.resolve(null),
+    driverId ? listDriverBonusAwards({ driverId, limit: 10 }) : Promise.resolve(null),
+    driverId ? listActivityLedger({ driverId, paid: true, limit: 10 }) : Promise.resolve(null),
+    driverId ? listQualityLedger({ driverId, limit: 6 }) : Promise.resolve(null),
   ]);
 
   const documents =
@@ -120,6 +133,19 @@ export default async function VtcDriverDetailPage({
   const driverNotifications =
     notificationsRes.status === "fulfilled" && notificationsRes.value
       ? notificationsRes.value.notifications
+      : [];
+
+  const bonusAwards: DriverBonusAward[] =
+    bonusAwardsRes.status === "fulfilled" && bonusAwardsRes.value
+      ? bonusAwardsRes.value.awards
+      : [];
+  const bonusActivity: DriverBonusActivityDailyLedger[] =
+    bonusActivityRes.status === "fulfilled" && bonusActivityRes.value
+      ? bonusActivityRes.value.items
+      : [];
+  const bonusQuality: DriverBonusQualityMonthlyLedger[] =
+    bonusQualityRes.status === "fulfilled" && bonusQualityRes.value
+      ? bonusQualityRes.value.items
       : [];
 
   const vehicles =
@@ -178,6 +204,9 @@ export default async function VtcDriverDetailPage({
       sessionsTotal={sessionsData?.total}
       commissionDebt={commissionDebt}
       driverNotifications={driverNotifications}
+      bonusAwards={bonusAwards}
+      bonusActivity={bonusActivity}
+      bonusQuality={bonusQuality}
     />
   );
 }
