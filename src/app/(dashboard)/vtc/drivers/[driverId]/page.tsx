@@ -16,6 +16,7 @@ import type {
 import { listDriverVehicles } from "@/features/vehicles/application/api";
 import { findWalletByProfile } from "@/features/wallet/application/api";
 import { listRidesByDriver } from "@/features/rides/application/api";
+import { getNotificationHistory } from "@/features/notifications/application/api";
 import { DetailNotFound } from "@/shared/ui/detail-header";
 
 export const dynamic = "force-dynamic";
@@ -99,13 +100,14 @@ export default async function VtcDriverDetailPage({
 
   const userId = enriched?.userId ?? fallbackUserId;
 
-  // Documents need the userId — fetch them after we know it.
-  const documentsRes = await Promise.allSettled([
+  // Documents + notifications need the userId — fetch them after we know it.
+  const [documentsRes, notificationsRes] = await Promise.allSettled([
     userId ? listDocumentsByOwner(userId, "DRIVER") : Promise.resolve([]),
-  ]).then((r) => r[0]);
+    userId ? getNotificationHistory({ recipientId: userId, limit: 20 }) : Promise.resolve(null),
+  ]);
 
   const documents =
-    documentsRes.status === "fulfilled" ? documentsRes.value : [];
+    documentsRes.status === "fulfilled" ? (documentsRes.value ?? []) : [];
   const documentsError =
     documentsRes.status === "rejected"
       ? documentsRes.reason instanceof Error
@@ -114,6 +116,11 @@ export default async function VtcDriverDetailPage({
       : userId
         ? undefined
         : "userId manquant — impossible de charger les documents.";
+
+  const driverNotifications =
+    notificationsRes.status === "fulfilled" && notificationsRes.value
+      ? notificationsRes.value.notifications
+      : [];
 
   const vehicles =
     vehiclesRes.status === "fulfilled" ? vehiclesRes.value : [];
@@ -170,6 +177,7 @@ export default async function VtcDriverDetailPage({
       sessionsTotalDuration={sessionsData?.totalDurationSeconds}
       sessionsTotal={sessionsData?.total}
       commissionDebt={commissionDebt}
+      driverNotifications={driverNotifications}
     />
   );
 }

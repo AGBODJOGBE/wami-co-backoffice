@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowRight,
+  Bell,
   Car as CarIcon,
   CheckCircle2,
   Clock,
@@ -65,6 +66,14 @@ import {
   type AdminRide,
 } from "@/features/rides/domain/admin-ride";
 import type { DriverConnectionSession, SessionEndReason } from "../domain/admin-driver";
+import {
+  CHANNEL_META,
+  DRIVER_BONUS_NOTIFICATION_META,
+  STATUS_META,
+  isDriverBonusNotification,
+  type DriverBonusNotificationType,
+  type NotificationItem,
+} from "@/features/notifications/domain/notification";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -87,6 +96,7 @@ export interface DriverDetailClientProps {
   sessionsTotalDuration?: number;
   sessionsTotal?: number;
   commissionDebt?: DriverCommissionDebtDetail | null;
+  driverNotifications?: NotificationItem[];
 }
 
 // ─── Sessions helpers ─────────────────────────────────────────────────────────
@@ -941,6 +951,7 @@ export function DriverDetailClient({
   sessionsTotalDuration,
   sessionsTotal,
   commissionDebt,
+  driverNotifications = [],
 }: DriverDetailClientProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
@@ -1379,6 +1390,77 @@ export function DriverDetailClient({
           )}
         </CardContent>
       </Card>
+
+      {/* ── Notifications récentes du chauffeur ──────────────────────────────── */}
+      {driverNotifications.length > 0 && (() => {
+        const bonusCount = driverNotifications.filter((n) => isDriverBonusNotification(n.type)).length;
+        return (
+          <Card className="overflow-hidden p-0">
+            <CardHeader className="px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Bell className="size-4 text-[color:var(--primary)]" />
+                  <CardTitle>Notifications récentes ({driverNotifications.length})</CardTitle>
+                </div>
+                {bonusCount > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--warning)]/40 bg-[color:var(--warning)]/10 px-2.5 py-0.5 text-[11px] font-semibold text-[color:var(--warning)]">
+                    <Star className="size-3 fill-[color:var(--warning)]" />
+                    {bonusCount} bonus 4U V3
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <div className="divide-y divide-[color:var(--border)]">
+              {driverNotifications.slice(0, 20).map((n) => {
+                const chMeta   = CHANNEL_META[n.channel];
+                const stMeta   = STATUS_META[n.status];
+                const isBonus  = isDriverBonusNotification(n.type);
+                const bonusMeta = isBonus ? DRIVER_BONUS_NOTIFICATION_META[n.type as DriverBonusNotificationType] : null;
+
+                return (
+                  <div
+                    key={n.id}
+                    className={`flex items-start gap-3 px-5 py-3 ${isBonus ? "bg-[color:var(--warning)]/5" : ""}`}
+                  >
+                    {/* Icon slot — star for bonus, plain dot otherwise */}
+                    {isBonus ? (
+                      <span className="mt-0.5 flex size-6 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--warning)]/20">
+                        <Star className="size-3.5 fill-[color:var(--warning)] text-[color:var(--warning)]" />
+                      </span>
+                    ) : (
+                      <span className="mt-2 size-1.5 flex-shrink-0 rounded-full bg-[color:var(--muted-foreground)]" />
+                    )}
+
+                    <div className="flex flex-col gap-1 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {isBonus && (
+                          <Badge tone="warning" className="text-[10px]">Bonus 4U V3</Badge>
+                        )}
+                        <Badge tone={chMeta?.tone ?? "neutral"} className="text-[10px]">
+                          {chMeta?.label ?? n.channel}
+                        </Badge>
+                        <Badge tone={stMeta?.tone ?? "neutral"} className="text-[10px]">
+                          {stMeta?.label ?? n.status}
+                        </Badge>
+                        <span className={`text-[10px] ${isBonus ? "font-semibold text-[color:var(--warning)]" : "font-mono text-[color:var(--muted-foreground)]"}`}>
+                          {bonusMeta ? bonusMeta.label : n.type.replace(/_/g, " ").toLowerCase()}
+                        </span>
+                      </div>
+                      <p className={`truncate text-xs ${isBonus ? "font-medium text-emerald-700 dark:text-emerald-400" : "text-[color:var(--foreground)]"}`}>
+                        {n.message}
+                      </p>
+                    </div>
+
+                    <span className="shrink-0 text-[10px] text-[color:var(--muted-foreground)]">
+                      {formatDateTime(n.createdAt)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        );
+      })()}
 
       <SuspendDriverModal
         open={!!suspendTarget}

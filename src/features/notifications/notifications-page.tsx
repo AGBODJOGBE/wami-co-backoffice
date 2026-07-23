@@ -1,32 +1,24 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
-  CheckCheck,
-  Download,
-  Eye,
+  CheckCircle2,
   Megaphone,
   Pencil,
   Plus,
   RefreshCw,
-  Search,
   Send,
   Sparkles,
   Trash2,
-  TrendingUp,
-  X,
   XCircle,
-  CheckCircle2,
-  Clock,
 } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Combobox } from "@/shared/ui/combobox";
 import { ConfirmModal } from "@/shared/ui/confirm-modal";
-import { DataTable, PaginationFooter, type ColumnDef } from "@/shared/ui/data-table";
 import { DropdownMenu } from "@/shared/ui/dropdown-menu";
 import { Input } from "@/shared/ui/input";
 import { Modal } from "@/shared/ui/modal";
@@ -35,18 +27,7 @@ import { Tabs } from "@/shared/ui/tabs";
 import { Textarea } from "@/shared/ui/textarea";
 import { toast } from "@/shared/ui/toast";
 import { StatCard } from "@/features/dashboard/presentation/components/stat-card";
-import { type CsvColumn, downloadCsv, timestampedFilename } from "@/shared/lib/csv";
-import { formatDateTime } from "@/shared/lib/format";
-import {
-  CHANNEL_META,
-  NOTIFICATION_TYPE_GROUPS,
-  PRIORITY_META,
-  STATUS_META,
-  type NotificationHistory,
-  type NotificationItem,
-  type NotificationStats,
-} from "./domain/notification";
-import { markNotificationReadAction } from "./application/actions";
+import { STATUS_META, type NotificationStats } from "./domain/notification";
 import {
   useNotificationsStore,
   type Audience,
@@ -60,7 +41,6 @@ import {
 
 export interface NotificationsPageProps {
   stats: NotificationStats;
-  history: NotificationHistory;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -73,274 +53,13 @@ const AUDIENCE_OPTIONS = [
 ];
 
 const CATEGORY_OPTIONS = [
-  { value: "Onboarding",    label: "Onboarding"    },
-  { value: "Promo",         label: "Promo"         },
-  { value: "Transactionnel",label: "Transactionnel"},
-  { value: "Réactivation",  label: "Réactivation"  },
+  { value: "Onboarding",     label: "Onboarding"     },
+  { value: "Promo",          label: "Promo"           },
+  { value: "Transactionnel", label: "Transactionnel"  },
+  { value: "Réactivation",   label: "Réactivation"    },
 ];
 
-const TYPE_OPTIONS = [
-  { value: "ALL", label: "Type : tous" },
-  ...NOTIFICATION_TYPE_GROUPS.flatMap((g) =>
-    g.types.map((t) => ({ value: t, label: t.replace(/_/g, " ").toLowerCase() })),
-  ),
-];
-
-const CSV_COLUMNS: readonly CsvColumn<NotificationItem>[] = [
-  { key: "createdAt", header: "Date",       value: (n) => formatDateTime(n.createdAt) },
-  { key: "type",      header: "Type",       value: (n) => n.type },
-  { key: "channel",   header: "Canal",      value: (n) => CHANNEL_META[n.channel]?.label ?? n.channel },
-  { key: "priority",  header: "Priorité",   value: (n) => PRIORITY_META[n.priority]?.label ?? n.priority },
-  { key: "status",    header: "Statut",     value: (n) => STATUS_META[n.status]?.label ?? n.status },
-  { key: "message",   header: "Message",    value: (n) => n.message },
-  { key: "isRead",    header: "Lu",         value: (n) => n.isRead ? "Oui" : "Non" },
-  { key: "sentAt",    header: "Envoyé le",  value: (n) => n.sentAt ? formatDateTime(n.sentAt) : "" },
-  { key: "entity",    header: "Entité liée",value: (n) => n.relatedEntity ? `${n.relatedEntity.type}:${n.relatedEntity.id}` : "" },
-];
-
-// ─── Journal tab (LIVE) ───────────────────────────────────────────────────────
-
-function JournalTab({
-  history,
-}: {
-  history: NotificationHistory;
-}) {
-  const router = useRouter();
-  const [search,         setSearch]         = useState("");
-  const [channelFilter,  setChannelFilter]  = useState("ALL");
-  const [statusFilter,   setStatusFilter]   = useState("ALL");
-  const [priorityFilter, setPriorityFilter] = useState("ALL");
-  const [typeFilter,     setTypeFilter]     = useState("ALL");
-  const [isPending, startTransition] = useTransition();
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return history.notifications.filter((n) => {
-      if (channelFilter  !== "ALL" && n.channel  !== channelFilter)  return false;
-      if (statusFilter   !== "ALL" && n.status   !== statusFilter)   return false;
-      if (priorityFilter !== "ALL" && n.priority !== priorityFilter) return false;
-      if (typeFilter     !== "ALL" && n.type     !== typeFilter)     return false;
-      if (q) {
-        const hay = `${n.message} ${n.type} ${n.id}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [history.notifications, search, channelFilter, statusFilter, priorityFilter, typeFilter]);
-
-  const hasFilters = search || channelFilter !== "ALL" || statusFilter !== "ALL" ||
-    priorityFilter !== "ALL" || typeFilter !== "ALL";
-
-  function clearFilters() {
-    setSearch(""); setChannelFilter("ALL"); setStatusFilter("ALL");
-    setPriorityFilter("ALL"); setTypeFilter("ALL");
-  }
-
-  async function handleMarkRead(id: string) {
-    const res = await markNotificationReadAction(id);
-    if (res.success) {
-      toast({ kind: "success", title: "Marquée comme lue" });
-      startTransition(() => router.refresh());
-    } else {
-      toast({ kind: "error", title: "Erreur", description: res.error });
-    }
-  }
-
-  const columns: ColumnDef<NotificationItem>[] = [
-    {
-      key: "createdAt",
-      header: "Date",
-      sortAccessor: (row) => row.createdAt,
-      render: (row) => (
-        <span className="text-xs text-[color:var(--muted-foreground)]">
-          {formatDateTime(row.createdAt)}
-        </span>
-      ),
-    },
-    {
-      key: "type",
-      header: "Type",
-      render: (row) => (
-        <span className="text-xs font-mono text-[color:var(--foreground)]">
-          {row.type.replace(/_/g, " ").toLowerCase()}
-        </span>
-      ),
-    },
-    {
-      key: "channel",
-      header: "Canal",
-      render: (row) => {
-        const m = CHANNEL_META[row.channel];
-        return <Badge tone={m?.tone ?? "neutral"}>{m?.label ?? row.channel}</Badge>;
-      },
-    },
-    {
-      key: "priority",
-      header: "Priorité",
-      render: (row) => {
-        const m = PRIORITY_META[row.priority];
-        return <Badge tone={m?.tone ?? "neutral"}>{m?.label ?? row.priority}</Badge>;
-      },
-    },
-    {
-      key: "message",
-      header: "Message",
-      render: (row) => (
-        <span className="block max-w-[280px] truncate text-xs text-[color:var(--muted-foreground)]">
-          {row.message}
-        </span>
-      ),
-    },
-    {
-      key: "status",
-      header: "Statut",
-      render: (row) => {
-        const m = STATUS_META[row.status];
-        const Icon = row.status === "DELIVERED" ? CheckCircle2
-          : row.status === "FAILED"    ? XCircle
-          : row.status === "SENT"      ? Send
-          : Clock;
-        return (
-          <span className="inline-flex items-center gap-1">
-            <Icon className={`size-3.5 ${
-              row.status === "DELIVERED" ? "text-emerald-500"
-              : row.status === "FAILED"  ? "text-red-500"
-              : "text-amber-500"
-            }`} />
-            <Badge tone={m?.tone ?? "neutral"}>{m?.label ?? row.status}</Badge>
-          </span>
-        );
-      },
-    },
-    {
-      key: "isRead",
-      header: "Lu",
-      render: (row) =>
-        row.isRead ? (
-          <CheckCheck className="size-4 text-emerald-500" />
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleMarkRead(row.id)}
-            disabled={isPending}
-            className="h-6 px-2 text-xs"
-          >
-            Marquer lu
-          </Button>
-        ),
-    },
-    {
-      key: "entity",
-      header: "Entité",
-      render: (row) =>
-        row.relatedEntity ? (
-          <span className="text-xs text-[color:var(--muted-foreground)]">
-            {row.relatedEntity.type}
-          </span>
-        ) : (
-          <span className="text-xs text-[color:var(--muted-foreground)]">—</span>
-        ),
-    },
-  ];
-
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Filtres */}
-      <div className="flex flex-col gap-3 rounded-xl border border-[color:var(--border)] bg-white p-4 dark:bg-[color:var(--muted)]">
-        <div className="flex flex-wrap items-center gap-3">
-          <Input
-            leftIcon={<Search className="size-4" />}
-            placeholder="Rechercher type, message, ID…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full sm:flex-1 sm:min-w-64"
-          />
-          <Combobox
-            options={[
-              { value: "ALL",       label: "Canal : tous"  },
-              { value: "PUSH",      label: "Push FCM"      },
-              { value: "SMS",       label: "SMS"           },
-              { value: "EMAIL",     label: "Email"         },
-              { value: "WEBSOCKET", label: "WebSocket"     },
-            ]}
-            value={channelFilter}
-            onChange={setChannelFilter}
-            className="sm:w-40"
-          />
-          <Combobox
-            options={[
-              { value: "ALL",       label: "Statut : tous" },
-              { value: "DELIVERED", label: "Livrée"        },
-              { value: "SENT",      label: "Envoyée"       },
-              { value: "PENDING",   label: "En attente"    },
-              { value: "FAILED",    label: "Échouée"       },
-            ]}
-            value={statusFilter}
-            onChange={setStatusFilter}
-            className="sm:w-40"
-          />
-          <Combobox
-            options={[
-              { value: "ALL",      label: "Priorité : toutes" },
-              { value: "CRITICAL", label: "Critique"          },
-              { value: "HIGH",     label: "Élevée"            },
-              { value: "NORMAL",   label: "Normale"           },
-              { value: "LOW",      label: "Faible"            },
-            ]}
-            value={priorityFilter}
-            onChange={setPriorityFilter}
-            className="sm:w-44"
-          />
-          <Combobox
-            options={TYPE_OPTIONS.slice(0, 20)}
-            value={typeFilter}
-            onChange={setTypeFilter}
-            className="sm:w-52"
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-[color:var(--muted-foreground)]">
-            {filtered.length.toLocaleString()} notification{filtered.length > 1 ? "s" : ""} affichée{filtered.length > 1 ? "s" : ""}
-            {hasFilters ? ` (sur ${history.notifications.length.toLocaleString()})` : ""}
-            {history.total > history.notifications.length
-              ? ` · ${history.total.toLocaleString()} au total`
-              : ""}
-          </span>
-          <div className="flex items-center gap-2">
-            {hasFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <X className="size-3.5" />
-                Effacer
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => downloadCsv(timestampedFilename("notifications"), CSV_COLUMNS, filtered)}
-              disabled={filtered.length === 0}
-            >
-              <Download className="size-4" />
-              CSV
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <Card className="overflow-hidden p-0">
-        <DataTable
-          rows={filtered}
-          columns={columns}
-          rowKey={(row) => row.id}
-          defaultSort={{ key: "createdAt", direction: "desc" }}
-        />
-        <PaginationFooter total={history.total} shown={filtered.length} />
-      </Card>
-    </div>
-  );
-}
-
-// ─── Composer tab (UI seulement — pas de route broadcast côté backend) ────────
+// ─── Composer tab ─────────────────────────────────────────────────────────────
 
 function ComposerTab({
   prefilledTemplate,
@@ -357,14 +76,10 @@ function ComposerTab({
   const [body,       setBody]       = useState("");
   const [deeplink,   setDeeplink]   = useState("");
 
-  // Pré-remplir depuis un template
-  const [, startTransition] = useTransition();
   if (prefilledTemplate) {
-    startTransition(() => {
-      setTitle(prefilledTemplate.name);
-      setBody(prefilledTemplate.preview);
-      onConsumeTemplate();
-    });
+    setTitle(prefilledTemplate.name);
+    setBody(prefilledTemplate.preview);
+    onConsumeTemplate();
   }
 
   function handleSend() {
@@ -373,7 +88,11 @@ function ComposerTab({
       return;
     }
     sendBroadcast({ title: title.trim(), body: body.trim(), audience, channel });
-    toast({ kind: "success", title: scheduling === "NOW" ? "Push envoyé" : "Push programmé", description: title.trim() });
+    toast({
+      kind: "success",
+      title: scheduling === "NOW" ? "Push envoyé" : "Push programmé",
+      description: title.trim(),
+    });
     setTitle(""); setBody(""); setDeeplink("");
   }
 
@@ -389,7 +108,12 @@ function ComposerTab({
           </p>
         </div>
 
-        <Combobox label="Audience" options={AUDIENCE_OPTIONS} value={audience} onChange={(v) => setAudience(v as Audience)} />
+        <Combobox
+          label="Audience"
+          options={AUDIENCE_OPTIONS}
+          value={audience}
+          onChange={(v) => setAudience(v as Audience)}
+        />
 
         <Input
           label="Titre"
@@ -432,8 +156,8 @@ function ComposerTab({
           <Combobox
             label="Programmation"
             options={[
-              { value: "NOW",       label: "Envoyer maintenant"      },
-              { value: "SCHEDULED", label: "Programmer pour plus tard"},
+              { value: "NOW",       label: "Envoyer maintenant"       },
+              { value: "SCHEDULED", label: "Programmer pour plus tard" },
             ]}
             value={scheduling}
             onChange={setScheduling}
@@ -529,7 +253,7 @@ function TemplateFormModal({
 }
 
 function TemplatesTab({ onUseTemplate }: { onUseTemplate: (tpl: NotifTemplate) => void }) {
-  const templates     = useNotificationsStore((s) => s.templates);
+  const templates      = useNotificationsStore((s) => s.templates);
   const removeTemplate = useNotificationsStore((s) => s.removeTemplate);
   const [formOpen,   setFormOpen]   = useState(false);
   const [formMode,   setFormMode]   = useState<"create" | "edit">("create");
@@ -571,8 +295,8 @@ function TemplatesTab({ onUseTemplate }: { onUseTemplate: (tpl: NotifTemplate) =
                 <DropdownMenu
                   groups={[{
                     items: [
-                      { label: "Modifier",   icon: Pencil, onSelect: () => { setFormMode("edit"); setFormTarget(tpl); setFormOpen(true); } },
-                      { label: "Supprimer",  icon: Trash2, onSelect: () => setConfirm({ open: true, target: tpl }), danger: true },
+                      { label: "Modifier",  icon: Pencil, onSelect: () => { setFormMode("edit"); setFormTarget(tpl); setFormOpen(true); } },
+                      { label: "Supprimer", icon: Trash2, onSelect: () => setConfirm({ open: true, target: tpl }), danger: true },
                     ],
                   }]}
                 />
@@ -603,18 +327,16 @@ function TemplatesTab({ onUseTemplate }: { onUseTemplate: (tpl: NotifTemplate) =
 
 // ─── Page principale ──────────────────────────────────────────────────────────
 
-export function NotificationsPage({ stats, history }: NotificationsPageProps) {
+export function NotificationsPage({ stats }: NotificationsPageProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [prefilled,  setPrefilled]  = useState<NotifTemplate | null>(null);
-  const [activeTab,  setActiveTab]  = useState<"journal" | "composer" | "templates">("journal");
+  const [prefilled, setPrefilled] = useState<NotifTemplate | null>(null);
+  const [activeTab, setActiveTab] = useState<"composer" | "templates">("composer");
 
-  // KPIs réels depuis le backend
-  const delivered  = stats.counts.DELIVERED ?? 0;
-  const sent       = stats.counts.SENT      ?? 0;
-  const failed     = stats.counts.FAILED    ?? 0;
-  const pending    = stats.counts.PENDING   ?? 0;
-  const unread     = history.notifications.filter((n) => !n.isRead).length;
+  const delivered = stats.counts.DELIVERED ?? 0;
+  const sent      = stats.counts.SENT      ?? 0;
+  const failed    = stats.counts.FAILED    ?? 0;
+  const pending   = stats.counts.PENDING   ?? 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -641,7 +363,7 @@ export function NotificationsPage({ stats, history }: NotificationsPageProps) {
         }
       />
 
-      {/* KPI Stats — données réelles */}
+      {/* KPI Stats — données réelles backend */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total notifications"
@@ -658,28 +380,28 @@ export function NotificationsPage({ stats, history }: NotificationsPageProps) {
           tone="success"
         />
         <StatCard
-          label="Non lues"
-          value={unread.toLocaleString("fr-FR")}
-          helper={`sur ${history.notifications.length} chargées`}
+          label="En attente"
+          value={pending.toLocaleString("fr-FR")}
           icon={Bell}
           tone="warning"
         />
         <StatCard
           label="Échecs"
           value={failed.toLocaleString("fr-FR")}
-          helper={`${pending} en attente`}
           trend={failed > 0 ? { value: `${stats.failureRate.toFixed(1)} %`, direction: "down" } : undefined}
           icon={XCircle}
           tone={failed > 0 ? "danger" : "neutral"}
         />
       </section>
 
-      {/* Breakdowns statuts */}
+      {/* Breakdown par statut */}
       {stats.total > 0 && (
         <Card className="overflow-hidden p-0">
           <CardHeader className="px-5 py-4">
             <CardTitle>Répartition par statut</CardTitle>
-            <CardDescription>Toutes notifications confondues · {stats.total.toLocaleString()} au total</CardDescription>
+            <CardDescription>
+              {stats.total.toLocaleString()} notifications au total · taux d&apos;échec {stats.failureRate.toFixed(1)} %
+            </CardDescription>
           </CardHeader>
           <div className="grid divide-y divide-[color:var(--border)] sm:grid-cols-4 sm:divide-x sm:divide-y-0">
             {(["DELIVERED", "SENT", "PENDING", "FAILED"] as const).map((s) => {
@@ -703,16 +425,18 @@ export function NotificationsPage({ stats, history }: NotificationsPageProps) {
         </Card>
       )}
 
+      {/* Note info */}
+      <div className="rounded-xl border border-[color:var(--border)] bg-[color:var(--muted)]/40 px-4 py-3 text-xs text-[color:var(--muted-foreground)]">
+        <span className="font-medium text-[color:var(--foreground)]">Historique par utilisateur</span>
+        {" "}— Les notifications individuelles (SMS OTP, Push course, email partenaire…) sont consultables
+        directement sur la fiche du chauffeur ou du passager concerné.
+      </div>
+
+      {/* Onglets Composer + Templates */}
       <Tabs
         key={activeTab}
         defaultValue={activeTab}
         tabs={[
-          {
-            value: "journal",
-            label: "Journal système",
-            badge: unread > 0 ? { count: unread, tone: "warning" as const } : undefined,
-            content: <JournalTab history={history} />,
-          },
           {
             value: "composer",
             label: "Composer",
@@ -726,7 +450,14 @@ export function NotificationsPage({ stats, history }: NotificationsPageProps) {
           {
             value: "templates",
             label: "Templates",
-            content: <TemplatesTab onUseTemplate={(tpl) => { setPrefilled(tpl); setActiveTab("composer"); }} />,
+            content: (
+              <TemplatesTab
+                onUseTemplate={(tpl) => {
+                  setPrefilled(tpl);
+                  setActiveTab("composer");
+                }}
+              />
+            ),
           },
         ]}
       />
