@@ -272,9 +272,9 @@ export const navSections: NavSection[] = [
       },
       {
         href: "/notifications",
-        label: "Notifications push",
+        label: "Notifications",
         icon: Megaphone,
-        dataSource: "mock",
+        dataSource: "live",
         requiredPermissions: ["notification.send"],
       },
     ],
