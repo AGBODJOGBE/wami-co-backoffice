@@ -16,6 +16,17 @@ import type {
 import { listDriverVehicles } from "@/features/vehicles/application/api";
 import { findWalletByProfile } from "@/features/wallet/application/api";
 import { listRidesByDriver } from "@/features/rides/application/api";
+import { getNotificationHistory } from "@/features/notifications/application/api";
+import {
+  listDriverBonusAwards,
+  listActivityLedger,
+  listQualityLedger,
+} from "@/features/driver-bonus/application/api";
+import type {
+  DriverBonusAward,
+  DriverBonusActivityDailyLedger,
+  DriverBonusQualityMonthlyLedger,
+} from "@/features/driver-bonus/domain/driver-bonus";
 import { DetailNotFound } from "@/shared/ui/detail-header";
 
 export const dynamic = "force-dynamic";
@@ -52,8 +63,8 @@ export default async function VtcDriverDetailPage({
     return (
       <DetailNotFound
         backHref="/vtc/drivers"
-        backLabel="Retour aux drivers"
-        message="Driver introuvable."
+        backLabel="Retour aux pilotes"
+        message="Pilote introuvable."
       />
     );
   }
@@ -84,7 +95,7 @@ export default async function VtcDriverDetailPage({
     findWalletByProfile(driverId, "EARNINGS"),
     listRidesByDriver(driverId, 6),
     listDriverSessions(driverId, { limit: 20 }),
-    getDriverCommissionDebtDetail(driverId),
+    getDriverCommissionDebtDetail(driverId, { page: 1, limit: 5 }),
   ]);
 
   const enriched: AdminDriver | undefined =
@@ -99,13 +110,17 @@ export default async function VtcDriverDetailPage({
 
   const userId = enriched?.userId ?? fallbackUserId;
 
-  // Documents need the userId — fetch them after we know it.
-  const documentsRes = await Promise.allSettled([
+  // Documents + notifications + bonus need the userId — fetch them after we know it.
+  const [documentsRes, notificationsRes, bonusAwardsRes, bonusActivityRes, bonusQualityRes] = await Promise.allSettled([
     userId ? listDocumentsByOwner(userId, "DRIVER") : Promise.resolve([]),
-  ]).then((r) => r[0]);
+    userId ? getNotificationHistory({ recipientId: userId, limit: 20 }) : Promise.resolve(null),
+    driverId ? listDriverBonusAwards({ driverId, limit: 10 }) : Promise.resolve(null),
+    driverId ? listActivityLedger({ driverId, paid: true, limit: 10 }) : Promise.resolve(null),
+    driverId ? listQualityLedger({ driverId, limit: 6 }) : Promise.resolve(null),
+  ]);
 
   const documents =
-    documentsRes.status === "fulfilled" ? documentsRes.value : [];
+    documentsRes.status === "fulfilled" ? (documentsRes.value ?? []) : [];
   const documentsError =
     documentsRes.status === "rejected"
       ? documentsRes.reason instanceof Error
@@ -114,6 +129,24 @@ export default async function VtcDriverDetailPage({
       : userId
         ? undefined
         : "userId manquant — impossible de charger les documents.";
+
+  const driverNotifications =
+    notificationsRes.status === "fulfilled" && notificationsRes.value
+      ? notificationsRes.value.notifications
+      : [];
+
+  const bonusAwards: DriverBonusAward[] =
+    bonusAwardsRes.status === "fulfilled" && bonusAwardsRes.value
+      ? bonusAwardsRes.value.awards
+      : [];
+  const bonusActivity: DriverBonusActivityDailyLedger[] =
+    bonusActivityRes.status === "fulfilled" && bonusActivityRes.value
+      ? bonusActivityRes.value.items
+      : [];
+  const bonusQuality: DriverBonusQualityMonthlyLedger[] =
+    bonusQualityRes.status === "fulfilled" && bonusQualityRes.value
+      ? bonusQualityRes.value.items
+      : [];
 
   const vehicles =
     vehiclesRes.status === "fulfilled" ? vehiclesRes.value : [];
@@ -170,6 +203,10 @@ export default async function VtcDriverDetailPage({
       sessionsTotalDuration={sessionsData?.totalDurationSeconds}
       sessionsTotal={sessionsData?.total}
       commissionDebt={commissionDebt}
+      driverNotifications={driverNotifications}
+      bonusAwards={bonusAwards}
+      bonusActivity={bonusActivity}
+      bonusQuality={bonusQuality}
     />
   );
 }

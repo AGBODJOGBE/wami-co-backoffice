@@ -336,7 +336,7 @@ function DriverAssignmentCard({
         <CardHeader>
           <div className="flex items-center gap-2">
             <UserCog className="size-4 text-[color:var(--muted-foreground)]" />
-            <CardTitle>Driver assigné</CardTitle>
+            <CardTitle>Pilote assigné</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
@@ -344,10 +344,10 @@ function DriverAssignmentCard({
             <div className="flex size-12 items-center justify-center rounded-full bg-[color:var(--muted)]">
               <UserMinus className="size-5 text-[color:var(--muted-foreground)]" />
             </div>
-            <p className="text-sm font-medium text-[color:var(--foreground)]">Aucun driver assigné</p>
+            <p className="text-sm font-medium text-[color:var(--foreground)]">Aucun pilote assigné</p>
             {vehicle.ownership === "PLATFORM" && vehicle.status === "AVAILABLE" && (
               <p className="text-xs text-[color:var(--muted-foreground)]">
-                Utilise « Assigner à un driver » dans le menu ⋯
+                Utilise « Assigner à un pilote » dans le menu ⋯
               </p>
             )}
           </div>
@@ -358,19 +358,19 @@ function DriverAssignmentCard({
 
   const displayName = driver
     ? driverFullName(driver)
-    : `Driver #${vehicle.assignedToDriverId.slice(0, 8)}`;
+    : `Pilote #${vehicle.assignedToDriverId.slice(0, 8)}`;
 
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center gap-2">
           <UserCog className="size-4 text-[color:var(--primary)]" />
-          <CardTitle>Driver assigné</CardTitle>
+          <CardTitle>Pilote assigné</CardTitle>
         </div>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-4">
-          {/* Driver identity */}
+          {/* Pilote identity */}
           <div className="flex items-center gap-3">
             <Avatar name={displayName} className="size-12 text-base" />
             <div className="flex flex-col leading-tight">
@@ -431,7 +431,7 @@ function DriverAssignmentCard({
             )}
             {driver && (
               <div className="flex items-center justify-between gap-4">
-                <dt className="text-[color:var(--muted-foreground)]">Driver inscrit le</dt>
+                <dt className="text-[color:var(--muted-foreground)]">Pilote inscrit le</dt>
                 <dd className="font-medium">{formatDate(driver.createdAt)}</dd>
               </div>
             )}
@@ -441,7 +441,7 @@ function DriverAssignmentCard({
             href={`/vtc/drivers/${vehicle.assignedToDriverId}`}
             className="flex items-center justify-center gap-1.5 rounded-lg border border-[color:var(--border)] py-2 text-xs font-medium text-[color:var(--foreground)] transition-colors hover:bg-[color:var(--muted)]/30"
           >
-            Voir le profil driver
+            Voir le profil pilote
             <ArrowRight className="size-3.5" />
           </a>
 
@@ -635,7 +635,7 @@ export function VehicleDetailClient({
     if (assignedDriver) {
       return (
         <span className="inline-flex items-center gap-1.5">
-          <Badge tone="neutral">Driver</Badge>
+          <Badge tone="neutral">Pilote</Badge>
           <a href={`/vtc/drivers/${assignedDriver.driverId}`} className="font-medium text-[color:var(--foreground)] hover:underline">
             {driverFullName(assignedDriver)}
           </a>
@@ -645,7 +645,7 @@ export function VehicleDetailClient({
     if (vehicle.assignedToDriverId) {
       return (
         <span className="inline-flex items-center gap-1.5">
-          <Badge tone="neutral">Driver</Badge>
+          <Badge tone="neutral">Pilote</Badge>
           <a href={`/vtc/drivers/${vehicle.assignedToDriverId}`} className="font-mono text-xs text-[color:var(--primary)] hover:underline">
             #{vehicle.assignedToDriverId.slice(0, 8)}
           </a>
@@ -696,7 +696,7 @@ export function VehicleDetailClient({
       <DetailHeader
         backHref="/vtc/vehicles"
         backLabel="Retour aux véhicules"
-        eyebrow={`${VEHICLE_TYPE_LABELS[vehicle.type]} · ${vehicle.ownership === "PLATFORM" ? "Plateforme" : "Driver"}`}
+        eyebrow={`${VEHICLE_TYPE_LABELS[vehicle.type]} · ${vehicle.ownership === "PLATFORM" ? "Plateforme" : "Pilote"}`}
         title={`${vehicle.make} ${vehicle.model} ${vehicle.year}`}
         subtitle={
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -977,7 +977,7 @@ export function VehicleDetailClient({
     }
     if (vehicle.ownership === "PLATFORM" && can("vehicle.manage")) {
       if (vehicle.status === "AVAILABLE") {
-        lifecycle.push({ label: "Assigner à un driver", icon: UserCog, onSelect: () => setAssignOpen(true) });
+        lifecycle.push({ label: "Assigner à un pilote", icon: UserCog, onSelect: () => setAssignOpen(true) });
       }
       if (vehicle.status === "ASSIGNED") {
         lifecycle.push({ label: "Désassigner", icon: UserMinus, onSelect: () => setConfirm("unassign") });

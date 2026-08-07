@@ -554,9 +554,9 @@ export function ContractDetailPage({ contract, installments, auditLogs = [], tol
     });
   }
 
-  function handleResume() {
+  function handleResume(reason?: string) {
     startResume(async () => {
-      const r = await resumeContractAction(contract.contractId);
+      const r = await resumeContractAction(contract.contractId, reason);
       if (r.ok) {
         setResumeOpen(false);
         toast({ kind: "success", title: "Contrat repris", description: r.message });
@@ -583,6 +583,8 @@ export function ContractDetailPage({ contract, installments, auditLogs = [], tol
 
   // Cash-basis — dette non encore encaissée côté PLATFORM
   const montantNonReconnu = contract.montantNonReconnu ?? 0;
+  // Total à recouvrer = non encore imputé (wallet) + imputé mais pas encore encaissé en cash
+  const resteARecouvrer = contract.resteARecouvrer ?? (remainingAmt + montantNonReconnu);
 
   // Impayés + EN_RECOUVREMENT en tête de liste (nécessitent une action / surveillance)
   const overdueOrUnpaid = installments.filter(
@@ -768,21 +770,21 @@ export function ContractDetailPage({ contract, installments, auditLogs = [], tol
             )}
           </div>
 
-          {/* Progression */}
+          {/* Reste à recouvrer (wallet non imputé + imputé non encaissé) */}
           <div className="flex flex-col justify-between gap-3 p-5">
             <span className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--muted-foreground)]">
-              Progression
+              Reste à recouvrer
             </span>
             <div className="flex flex-col gap-2">
-              <ProgressBar value={paidAmt} max={contract.montantTotal} />
-              <div className="flex justify-between text-[10px] text-[color:var(--muted-foreground)]">
-                <span>
-                  {paid} payée{paid > 1 ? "s" : ""}
-                  {partial > 0 ? ` · ${partial} partielle${partial > 1 ? "s" : ""}` : ""}
-                  {inRecovery > 0 ? ` · ${inRecovery} en recouv.` : ""}
-                </span>
-                <span>{remainingAmt > 0 ? formatXof(remainingAmt) + " restant" : "Soldé"}</span>
-              </div>
+              <span className={`font-mono text-xl font-bold ${resteARecouvrer > 0 ? "text-[color:var(--danger)]" : "text-emerald-600 dark:text-emerald-400"}`}>
+                {resteARecouvrer > 0 ? formatXof(resteARecouvrer) : "Soldé"}
+              </span>
+              {resteARecouvrer > 0 && (
+                <div className="flex flex-col gap-0.5 text-[10px] text-[color:var(--muted-foreground)]">
+                  {remainingAmt > 0 && <span>{formatXof(remainingAmt)} non imputé (wallet)</span>}
+                  {montantNonReconnu > 0 && <span>{formatXof(montantNonReconnu)} imputé, cash à collecter</span>}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1216,11 +1218,17 @@ export function ContractDetailPage({ contract, installments, auditLogs = [], tol
         description={
           <p>
             Le contrat repassera en statut <strong>Actif</strong>. Le chauffeur
-            pourra de nouveau passer en ligne.
+            pourra de nouveau passer en ligne. Les dates des échéances{" "}
+            <strong>EN_ATTENTE</strong> seront repositionnées automatiquement
+            pour compenser la durée de la suspension.
           </p>
         }
         confirmLabel="Reprendre"
         tone="primary"
+        withReason={{
+          label: "Motif de reprise (optionnel)",
+          placeholder: "Ex : Régularisation solde, arrangement avec le chauffeur…",
+        }}
         isLoading={resuming}
       />
     </div>
