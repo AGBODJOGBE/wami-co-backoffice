@@ -324,3 +324,41 @@ export function vehicleLabel(vehicle: ContractVehicle): string {
   const parts = [vehicle.make, vehicle.model, vehicle.licensePlate].filter(Boolean);
   return parts.length > 0 ? parts.join(" ") : vehicle.vehicleId;
 }
+
+// ─── Rapport quotidien de collecte ────────────────────────────────────────────
+
+export interface DailyCollectionLine {
+  contractId: string;
+  installmentId: string;
+  installmentNumero: number;
+  dateEcheance: string;
+  driverId: string;
+  driverName: string;
+  driverPhone: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  vehicleLicensePlate?: string;
+  /** Montant dû (montant nominal de l'échéance) */
+  montant: number;
+  /** Montant imputé sur wallet EARNINGS */
+  montantPaye: number;
+  /** Montant effectivement encaissé en cash */
+  montantRecouvre: number;
+  /** montantPaye − montantRecouvre : encaissé via découvert, recouvrement en cours */
+  cashShortfall: number;
+  statut: InstallmentStatus;
+  retardJours?: number;
+}
+
+export interface DailyCollectionReport {
+  dateFrom: string;
+  dateTo: string;
+  contractsScanned: number;
+  totalLines: number;
+  totalDue: number;
+  totalImputed: number;
+  totalCashCollected: number;
+  totalCashShortfall: number;
+  byStatus: Partial<Record<InstallmentStatus, number>>;
+  lines: DailyCollectionLine[];
+}

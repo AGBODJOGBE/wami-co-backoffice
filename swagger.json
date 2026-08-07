@@ -209,7 +209,7 @@
     },
     {
       "name": "Driver - Driver Bonus",
-      "description": "Endpoints chauffeur (app mobile) pour le bonus Activité — progression temps réel \"où j'en suis aujourd'hui\"."
+      "description": "Endpoints chauffeur (app mobile) — progression temps réel sur les 3 bonus : Activité (\"où j'en suis aujourd'hui\"), Bienvenue (paliers de courses à vie) et Qualité (mois en cours)."
     },
     {
       "name": "Pricing — Profiles",
@@ -5286,6 +5286,54 @@
           },
           "limit": {
             "type": "integer"
+          }
+        }
+      },
+      "GetDriverConnectionTimeByDayResponse": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "example": "2026-07-13",
+            "description": "Date de début demandée (YYYY-MM-DD, incluse)"
+          },
+          "to": {
+            "type": "string",
+            "example": "2026-07-19",
+            "description": "Date de fin demandée (YYYY-MM-DD, incluse)"
+          },
+          "drivers": {
+            "type": "array",
+            "description": "Un élément par driver. En mode drill-down (driverId fourni), toujours exactement un élément, même si ce driver n'a eu aucune session sur la période (zéro-rempli). En mode flotte (driverId omis), un élément par driver ayant eu au moins une session sur la période — les drivers sans aucune activité n'apparaissent pas.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "driverId": {
+                  "type": "string"
+                },
+                "days": {
+                  "type": "array",
+                  "description": "Un point par jour calendaire dans [from, to] (Africa/Porto-Novo, UTC+1), zéro-rempli. Chaque session est répartie sur les jours qu'elle traverse réellement — une session à cheval sur minuit compte sur les deux jours.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "date": {
+                        "type": "string",
+                        "example": "2026-07-14"
+                      },
+                      "totalSeconds": {
+                        "type": "integer",
+                        "example": 28800
+                      }
+                    }
+                  }
+                },
+                "grandTotalSeconds": {
+                  "type": "integer",
+                  "description": "Somme de days[].totalSeconds sur toute la période"
+                }
+              }
+            }
           }
         }
       },
@@ -18433,6 +18481,138 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Permission driver.view_all manquante"
+          }
+        }
+      }
+    },
+    "/api/admin/drivers/{driverId}/sessions/daily": {
+      "get": {
+        "tags": [
+          "Admin - Driver Management"
+        ],
+        "summary": "Cumul quotidien du temps de connexion d'un driver",
+        "description": "Retourne, pour un driver donné, le cumul du temps de connexion réparti par jour calendaire (Africa/Porto-Novo, UTC+1) sur la période `from`/`to`, avec un maximum de 92 jours par requête.\n\nChaque session est répartie sur les jours qu'elle traverse réellement — une session à cheval sur minuit compte ses minutes sur les deux jours concernés, pas uniquement sur son jour de démarrage. Les jours sans session apparaissent avec `totalSeconds: 0` (zéro-remplis). Une session encore ouverte (driver actuellement en ligne) est comptée jusqu'à `to` (ou maintenant si `to` est dans le futur).\n\n**Permission requise :** `driver.view_all`",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "driverId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID du profil driver"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "2026-07-13"
+            },
+            "description": "Date de début, format YYYY-MM-DD (incluse)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "2026-07-19"
+            },
+            "description": "Date de fin, format YYYY-MM-DD (incluse) — maximum 92 jours après `from`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cumul quotidien du driver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDriverConnectionTimeByDayResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "from/to manquant, format invalide, ou période supérieure à 92 jours"
+          },
+          "401": {
+            "description": "Authentification requise"
+          },
+          "403": {
+            "description": "Permission driver.view_all manquante"
+          }
+        }
+      }
+    },
+    "/api/admin/drivers/connection-time": {
+      "get": {
+        "tags": [
+          "Admin - Driver Management"
+        ],
+        "summary": "Cumul quotidien du temps de connexion — tous les drivers",
+        "description": "Rapport flotte : pour la période `from`/`to` (92 jours maximum), retourne le cumul du temps de connexion de chaque driver ayant eu au moins une session sur la période, réparti par jour calendaire (Africa/Porto-Novo, UTC+1).\n\nMêmes règles de répartition que la version par driver (sessions à cheval sur minuit correctement réparties, jours zéro-remplis, sessions ouvertes comptées jusqu'à maintenant). Les drivers sans aucune session sur la période n'apparaissent pas dans `drivers` — utiliser le drill-down par driverId pour obtenir un rapport zéro-rempli sur un driver précis.\n\n**Permission requise :** `driver.view_all`",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "driverId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optionnel — restreindre à un seul driver (sinon : tous les drivers actifs sur la période)"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "2026-07-13"
+            },
+            "description": "Date de début, format YYYY-MM-DD (incluse)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "2026-07-19"
+            },
+            "description": "Date de fin, format YYYY-MM-DD (incluse) — maximum 92 jours après `from`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cumul quotidien par driver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDriverConnectionTimeByDayResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "from/to manquant, format invalide, ou période supérieure à 92 jours"
+          },
+          "401": {
+            "description": "Authentification requise"
           },
           "403": {
             "description": "Permission driver.view_all manquante"
@@ -37272,6 +37452,12 @@
                                 "bonusAmount"
                               ],
                               "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "example": "Bronze",
+                                  "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/milestone/progress. Absent/vide → null (jamais rejeté)."
+                                },
                                 "ridesThreshold": {
                                   "type": "integer",
                                   "example": 100,
@@ -37398,6 +37584,12 @@
                         "bonusAmount"
                       ],
                       "properties": {
+                        "name": {
+                          "type": "string",
+                          "nullable": true,
+                          "example": "Bronze",
+                          "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/milestone/progress. Absent/vide → null (jamais rejeté)."
+                        },
                         "ridesThreshold": {
                           "type": "integer",
                           "example": 100,
@@ -37468,6 +37660,12 @@
                               "bonusAmount"
                             ],
                             "properties": {
+                              "name": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "Bronze",
+                                "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/milestone/progress. Absent/vide → null (jamais rejeté)."
+                              },
                               "ridesThreshold": {
                                 "type": "integer",
                                 "example": 100,
@@ -37629,6 +37827,12 @@
                               "bonusAmount"
                             ],
                             "properties": {
+                              "name": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "Bronze",
+                                "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/milestone/progress. Absent/vide → null (jamais rejeté)."
+                              },
                               "ridesThreshold": {
                                 "type": "integer",
                                 "example": 100,
@@ -37745,6 +37949,12 @@
                         "bonusAmount"
                       ],
                       "properties": {
+                        "name": {
+                          "type": "string",
+                          "nullable": true,
+                          "example": "Bronze",
+                          "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/milestone/progress. Absent/vide → null (jamais rejeté)."
+                        },
                         "ridesThreshold": {
                           "type": "integer",
                           "example": 100,
@@ -37814,6 +38024,12 @@
                               "bonusAmount"
                             ],
                             "properties": {
+                              "name": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "Bronze",
+                                "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/milestone/progress. Absent/vide → null (jamais rejeté)."
+                              },
                               "ridesThreshold": {
                                 "type": "integer",
                                 "example": 100,
@@ -38009,6 +38225,12 @@
                               "bonusAmount"
                             ],
                             "properties": {
+                              "name": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "Bronze",
+                                "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/milestone/progress. Absent/vide → null (jamais rejeté)."
+                              },
                               "ridesThreshold": {
                                 "type": "integer",
                                 "example": 100,
@@ -38155,6 +38377,12 @@
                               "bonusAmount"
                             ],
                             "properties": {
+                              "name": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "Bronze",
+                                "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/milestone/progress. Absent/vide → null (jamais rejeté)."
+                              },
                               "ridesThreshold": {
                                 "type": "integer",
                                 "example": 100,
@@ -39607,6 +39835,12 @@
                                 "bonusAmount"
                               ],
                               "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "example": "Excellence",
+                                  "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/quality/progress. Absent/vide → null (jamais rejeté)."
+                                },
                                 "minRating": {
                                   "type": "number",
                                   "example": 4.8,
@@ -39737,6 +39971,12 @@
                         "bonusAmount"
                       ],
                       "properties": {
+                        "name": {
+                          "type": "string",
+                          "nullable": true,
+                          "example": "Excellence",
+                          "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/quality/progress. Absent/vide → null (jamais rejeté)."
+                        },
                         "minRating": {
                           "type": "number",
                           "example": 4.8,
@@ -39811,6 +40051,12 @@
                               "bonusAmount"
                             ],
                             "properties": {
+                              "name": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "Excellence",
+                                "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/quality/progress. Absent/vide → null (jamais rejeté)."
+                              },
                               "minRating": {
                                 "type": "number",
                                 "example": 4.8,
@@ -39975,6 +40221,12 @@
                               "bonusAmount"
                             ],
                             "properties": {
+                              "name": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "Excellence",
+                                "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/quality/progress. Absent/vide → null (jamais rejeté)."
+                              },
                               "minRating": {
                                 "type": "number",
                                 "example": 4.8,
@@ -40094,6 +40346,12 @@
                         "bonusAmount"
                       ],
                       "properties": {
+                        "name": {
+                          "type": "string",
+                          "nullable": true,
+                          "example": "Excellence",
+                          "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/quality/progress. Absent/vide → null (jamais rejeté)."
+                        },
                         "minRating": {
                           "type": "number",
                           "example": 4.8,
@@ -40168,6 +40426,12 @@
                               "bonusAmount"
                             ],
                             "properties": {
+                              "name": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "Excellence",
+                                "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/quality/progress. Absent/vide → null (jamais rejeté)."
+                              },
                               "minRating": {
                                 "type": "number",
                                 "example": 4.8,
@@ -40366,6 +40630,12 @@
                               "bonusAmount"
                             ],
                             "properties": {
+                              "name": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "Excellence",
+                                "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/quality/progress. Absent/vide → null (jamais rejeté)."
+                              },
                               "minRating": {
                                 "type": "number",
                                 "example": 4.8,
@@ -40515,6 +40785,12 @@
                               "bonusAmount"
                             ],
                             "properties": {
+                              "name": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "Excellence",
+                                "description": "Libellé admin optionnel, restitué au chauffeur par GET /api/driver/bonus/quality/progress. Absent/vide → null (jamais rejeté)."
+                              },
                               "minRating": {
                                 "type": "number",
                                 "example": 4.8,
@@ -41498,6 +41774,268 @@
                           "type": "boolean",
                           "example": true,
                           "description": "Toujours true — estimation live, seul le figeage nocturne fait foi."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "vehicleCategory invalide (hors enum VehicleType)"
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Rôle insuffisant (chauffeur requis)"
+          }
+        }
+      }
+    },
+    "/api/driver/bonus/milestone/progress": {
+      "get": {
+        "tags": [
+          "Driver - Driver Bonus"
+        ],
+        "summary": "Get my Milestone (Bienvenue) bonus progress — lifetime ride tiers",
+        "description": "Cumulative LIFETIME progress on the Milestone/Bienvenue tier grid: total COMPLETED rides ever, tiers already awarded (idempotent, never re-paid), next tier and rides remaining. Barème resolved from the driver's currently ASSIGNED vehicle category, falling back to ALL — no client vehicleCategory parameter (unlike the Activity screen). driverId resolved from the JWT — never from a client parameter. No active barème or admin kill-switch → 200 with milestoneBonusEnabled: false, never an error.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Progression paliers à vie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "milestoneBonusEnabled": {
+                          "type": "boolean",
+                          "example": true,
+                          "description": "false si aucun barème Bienvenue actif (ni catégorie du véhicule assigné, ni ALL) — jamais une erreur."
+                        },
+                        "vehicleCategory": {
+                          "type": "string",
+                          "enum": [
+                            "MOTO",
+                            "TRICYCLE",
+                            "ECO",
+                            "STANDARD",
+                            "CONFORT",
+                            "VAN",
+                            "VIP",
+                            "ALL"
+                          ],
+                          "nullable": true,
+                          "example": "STANDARD"
+                        },
+                        "totalLifetimeRides": {
+                          "type": "integer",
+                          "example": 42,
+                          "description": "Courses COMPLETED cumulées à vie — toujours renseigné, même sans barème actif."
+                        },
+                        "unlockedTiers": {
+                          "type": "array",
+                          "description": "Paliers déjà versés (idempotents, jamais reversés), ordre croissant de seuil.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "nullable": true,
+                                "example": "Démarrage"
+                              },
+                              "ridesThreshold": {
+                                "type": "integer",
+                                "example": 10
+                              },
+                              "bonusAmount": {
+                                "type": "integer",
+                                "example": 5000
+                              },
+                              "awardedAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "nullable": true,
+                                "description": "null si le seuil est mathématiquement atteint mais pas encore versé (fenêtre entre la course et le handler)."
+                              }
+                            }
+                          }
+                        },
+                        "nextTier": {
+                          "type": "object",
+                          "nullable": true,
+                          "description": "null si tous les paliers du barème sont déjà versés.",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "nullable": true,
+                              "example": "Confirmé"
+                            },
+                            "ridesThreshold": {
+                              "type": "integer",
+                              "example": 50
+                            },
+                            "bonusAmount": {
+                              "type": "integer",
+                              "example": 10000
+                            }
+                          }
+                        },
+                        "ridesRemaining": {
+                          "type": "integer",
+                          "nullable": true,
+                          "example": 8,
+                          "description": "Courses restantes vers nextTier — null si nextTier est null."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié"
+          },
+          "403": {
+            "description": "Rôle insuffisant (chauffeur requis)"
+          }
+        }
+      }
+    },
+    "/api/driver/bonus/quality/progress": {
+      "get": {
+        "tags": [
+          "Driver - Driver Bonus"
+        ],
+        "summary": "Get my Quality bonus progress for the current month",
+        "description": "LIVE progress on the Quality bonus for the CURRENT calendar month (Africa/Porto-Novo) — NOT the last closed month evaluated by the cron. Two gauges: rides this month vs minRidesRequired, and current average passenger rating vs the tier grid. Always provisional — only the end-of-month cron run is authoritative. driverId resolved from the JWT — never from a client parameter. No active barème or admin kill-switch → 200 with qualityBonusEnabled: false, never an error.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "vehicleCategory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "MOTO",
+                "TRICYCLE",
+                "ECO",
+                "STANDARD",
+                "CONFORT",
+                "VAN",
+                "VIP"
+              ]
+            },
+            "description": "Utilisé uniquement avant la 1ère course du mois (ridesThisMonth=0) pour prévisualiser le barème. Ignoré dès qu'au moins une course est complétée ce mois-ci."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Progression qualité du mois en cours",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "qualityBonusEnabled": {
+                          "type": "boolean",
+                          "example": true,
+                          "description": "false si aucun barème Qualité actif — jamais une erreur."
+                        },
+                        "month": {
+                          "type": "string",
+                          "example": "2026-07",
+                          "description": "Mois évalué (en cours, Africa/Porto-Novo)."
+                        },
+                        "ridesThisMonth": {
+                          "type": "integer",
+                          "example": 38
+                        },
+                        "minRidesRequired": {
+                          "type": "integer",
+                          "example": 50
+                        },
+                        "ridesRemaining": {
+                          "type": "integer",
+                          "example": 12,
+                          "description": "Courses restantes pour l'éligibilité du mois — 0 si déjà atteint (jamais négatif)."
+                        },
+                        "currentAvgRating": {
+                          "type": "number",
+                          "example": 4.62,
+                          "description": "Note moyenne passagers du mois en cours (0 si aucune course notée)."
+                        },
+                        "currentTier": {
+                          "type": "object",
+                          "nullable": true,
+                          "description": "Palier atteint avec la note actuelle (provisoire — seul le calcul de fin de mois fait foi). null si note sous le 1er palier.",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "nullable": true,
+                              "example": "Très bien"
+                            },
+                            "minRating": {
+                              "type": "number",
+                              "example": 4.5
+                            },
+                            "bonusAmount": {
+                              "type": "integer",
+                              "example": 2000
+                            }
+                          }
+                        },
+                        "nextTier": {
+                          "type": "object",
+                          "nullable": true,
+                          "description": "null si le palier le plus haut est déjà atteint.",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "nullable": true,
+                              "example": "Excellence"
+                            },
+                            "minRating": {
+                              "type": "number",
+                              "example": 4.8
+                            },
+                            "bonusAmount": {
+                              "type": "integer",
+                              "example": 3000
+                            }
+                          }
+                        },
+                        "ratingGap": {
+                          "type": "number",
+                          "nullable": true,
+                          "example": 0.18,
+                          "description": "Écart de note vers nextTier — null si nextTier est null."
                         }
                       }
                     }

@@ -14,7 +14,7 @@ export default async function WalletPageRoute() {
   await requirePermission("wallet.view_all");
   const [walletsRes, transactionsRes, withdrawalsRes, platformRevenueRes] =
     await Promise.allSettled([
-      listAdminWallets(),
+      listAdminWallets({ limit: 500 }),
       listAdminTransactions({ limit: 100 }),
       listWithdrawals({ limit: 50 }),
       getPlatformRevenue(),

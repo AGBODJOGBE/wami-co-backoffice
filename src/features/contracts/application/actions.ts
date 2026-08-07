@@ -4,7 +4,16 @@ import { revalidatePath } from "next/cache";
 import { API_ROUTES } from "@/shared/config/api-routes";
 import { apiFetch } from "@/shared/lib/api/server";
 import { ApiError } from "@/shared/lib/api/types";
-import type { Contract, CreateContractInput, ManualPaymentMethod } from "../domain/contract";
+import type {
+  Contract,
+  CreateContractInput,
+  DailyCollectionLine,
+  DailyCollectionReport,
+  InstallmentStatus,
+  ManualPaymentMethod,
+} from "../domain/contract";
+import { listContracts, getContractInstallments } from "./api";
+import { listAdminDrivers } from "@/features/drivers/application/api";
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -149,6 +158,158 @@ export async function resumeContractAction(
     return { ok: true, message: "Contrat repris — statut Actif. Les dates d'échéances ont été repositionnées." };
   } catch (e) {
     return fail(e, "Impossible de reprendre le contrat.");
+  }
+}
+
+// ─── Rapport quotidien de collecte ───────────────────────────────────────────
+
+/** Trie IMPAYEE → EN_RECOUVREMENT → PARTIELLEMENT_RECOUVREE → PAYEE → reste */
+const STATUS_ORDER: Partial<Record<string, number>> = {
+  IMPAYEE:                0,
+  EN_RECOUVREMENT:        1,
+  PARTIELLEMENT_RECOUVREE:2,
+  PARTIELLE:              2,
+  PAYEE:                  3,
+  EN_ATTENTE:             4,
+  ANNULEE:                5,
+};
+
+/**
+ * Retourne toutes les échéances dont la date d'échéance correspond à `date`
+ * (YYYY-MM-DD, interprété en timezone Africa/Porto-Novo UTC+1).
+ *
+ * Limitation workaround : sans endpoint backend dédié, cette action fait
+ * N requêtes parallèles (une par contrat ACTIF/SUSPENDU). Ça fonctionne
+ * pour des flottes < 500 contrats.
+ */
+export async function generateDailyCollectionReportAction(
+  dateFrom: string,
+  dateTo: string,
+): Promise<ActionResult<DailyCollectionReport>> {
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  if (!DATE_RE.test(dateFrom) || !DATE_RE.test(dateTo)) {
+    return { ok: false, message: "Format de date invalide. Utilisez YYYY-MM-DD." };
+  }
+  if (dateFrom > dateTo) {
+    return { ok: false, message: "La date de début doit être antérieure ou égale à la date de fin." };
+  }
+
+  function toPortoNovoDate(isoStr: string): string {
+    if (!isoStr) return "";
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Africa/Porto-Novo",
+      }).format(new Date(isoStr));
+    } catch {
+      return (isoStr ?? "").slice(0, 10);
+    }
+  }
+
+  try {
+    const [contractsResult, driversResult] = await Promise.allSettled([
+      listContracts({ limit: 500 }),
+      listAdminDrivers(),
+    ]);
+
+    const allContracts =
+      contractsResult.status === "fulfilled" ? contractsResult.value.items : [];
+    const driversData =
+      driversResult.status === "fulfilled" ? driversResult.value : { drivers: [], total: 0 };
+
+    const driversMap = new Map<string, { name: string; phone: string }>();
+    for (const d of driversData.drivers) {
+      driversMap.set(d.driverId, {
+        name: `${d.firstName ?? ""} ${d.lastName ?? ""}`.trim() || d.driverId,
+        phone: d.phoneNumber ?? "",
+      });
+    }
+
+    const activeContracts = allContracts.filter(
+      (c) => c.status === "ACTIVE" || c.status === "SUSPENDED",
+    );
+
+    const installmentResults = await Promise.allSettled(
+      activeContracts.map((c) => getContractInstallments(c.contractId)),
+    );
+
+    const lines: DailyCollectionLine[] = [];
+    const byStatus: Partial<Record<InstallmentStatus, number>> = {};
+
+    for (let i = 0; i < activeContracts.length; i++) {
+      const contract = activeContracts[i];
+      const res = installmentResults[i];
+      if (res.status !== "fulfilled") continue;
+
+      const driverFallback = {
+        name: contract.driver.firstName
+          ? `${contract.driver.firstName} ${contract.driver.lastName ?? ""}`.trim()
+          : contract.driver.driverId,
+        phone: contract.driver.phoneNumber ?? "",
+      };
+      const driverInfo = driversMap.get(contract.driver.driverId) ?? driverFallback;
+
+      for (const inst of res.value) {
+        const echeanceDate = toPortoNovoDate(inst.dateEcheance);
+        if (echeanceDate < dateFrom || echeanceDate > dateTo) continue;
+
+        const montantPaye     = inst.montantPaye    ?? 0;
+        const montantRecouvre = inst.montantRecouvre ?? 0;
+        const cashShortfall   = Math.max(0, montantPaye - montantRecouvre);
+
+        byStatus[inst.status] = (byStatus[inst.status] ?? 0) + 1;
+
+        lines.push({
+          contractId:          contract.contractId,
+          installmentId:       inst.installmentId,
+          installmentNumero:   inst.numero,
+          dateEcheance:        inst.dateEcheance,
+          driverId:            contract.driver.driverId,
+          driverName:          driverInfo.name,
+          driverPhone:         driverInfo.phone,
+          vehicleMake:         contract.vehicle.make,
+          vehicleModel:        contract.vehicle.model,
+          vehicleLicensePlate: contract.vehicle.licensePlate,
+          montant:             inst.montant,
+          montantPaye,
+          montantRecouvre,
+          cashShortfall,
+          statut:              inst.status,
+          retardJours:         inst.retardJours,
+        });
+      }
+    }
+
+    // Tri : par date d'échéance d'abord, puis par priorité de statut
+    lines.sort((a, b) => {
+      const dateCmp = a.dateEcheance.localeCompare(b.dateEcheance);
+      if (dateCmp !== 0) return dateCmp;
+      return (STATUS_ORDER[a.statut] ?? 9) - (STATUS_ORDER[b.statut] ?? 9);
+    });
+
+    const totalDue           = lines.reduce((s, l) => s + l.montant,          0);
+    const totalImputed       = lines.reduce((s, l) => s + l.montantPaye,       0);
+    const totalCashCollected = lines.reduce((s, l) => s + l.montantRecouvre,   0);
+    const totalCashShortfall = lines.reduce((s, l) => s + l.cashShortfall,     0);
+
+    const rangeLabel = dateFrom === dateTo ? dateFrom : `${dateFrom} → ${dateTo}`;
+    return {
+      ok: true,
+      message: `${lines.length} échéance${lines.length !== 1 ? "s" : ""} sur ${rangeLabel} (${activeContracts.length} contrats scannés).`,
+      data: {
+        dateFrom,
+        dateTo,
+        contractsScanned: activeContracts.length,
+        totalLines: lines.length,
+        totalDue,
+        totalImputed,
+        totalCashCollected,
+        totalCashShortfall,
+        byStatus,
+        lines,
+      },
+    };
+  } catch (e) {
+    return fail(e, "Impossible de générer le rapport quotidien.");
   }
 }
 

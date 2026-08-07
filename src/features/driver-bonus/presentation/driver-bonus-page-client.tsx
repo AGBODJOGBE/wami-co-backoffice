@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import {
   Award,
   ChevronDown,
@@ -43,6 +43,7 @@ import {
   type DriverBonusQualityMonthlyLedger,
   type DriverBonusRunConfig,
   type DriverBonusVehicleCategory,
+  type PaginatedResult,
   type QualityTier,
 } from "../domain/driver-bonus";
 import {
@@ -62,6 +63,9 @@ import {
   updateDriverBonusConfigAction,
   updateQualityConfigAction,
   updateRunConfigAction,
+  listActivityLedgerAction,
+  listActivityPayoutsAction,
+  listQualityLedgerAction,
   type ActionResult,
 } from "../application/actions";
 import { CanView } from "@/shared/ui/can-view";
@@ -567,9 +571,20 @@ function ActivityConfigsTab({ configs }: { configs: DriverBonusActivityConfig[] 
   );
 }
 
-function ActivityLedgerTab() {
+function ActivityLedgerTab({ driverNames }: { driverNames: Map<string, string> }) {
+  const [result, setResult] = useState<PaginatedResult<DriverBonusActivityDailyLedger> | null>(null);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    listActivityLedgerAction({ page, limit: 50 })
+      .then(setResult)
+      .finally(() => setLoading(false));
+  }, [page]);
+
   const columns: ColumnDef<DriverBonusActivityDailyLedger>[] = [
-    { key: "driver", header: "Driver ID", render: (r) => <span className="font-mono text-xs">{r.driverId.slice(0, 8)}…</span> },
+    { key: "driver", header: "Chauffeur", render: (r) => <span className="text-sm font-medium">{driverNames.get(r.driverId) ?? <span className="font-mono text-xs text-[color:var(--muted-foreground)]">{r.driverId.slice(0, 8)}…</span>}</span> },
     { key: "date", header: "Date", sortAccessor: (r) => r.activityDate, render: (r) => <span className="text-sm">{r.activityDate}</span> },
     { key: "cat", header: "Catégorie", render: (r) => { const m = VEHICLE_CATEGORY_META[r.vehicleCategory]; return <Badge tone={m.tone}>{m.label}</Badge>; } },
     { key: "rides", header: "Courses", sortAccessor: (r) => r.ridesCount, render: (r) => <span className="text-sm font-medium">{r.ridesCount}</span> },
@@ -585,19 +600,34 @@ function ActivityLedgerTab() {
         <div className="flex items-center gap-2 border-b border-[color:var(--border)] px-4 py-3">
           <History className="size-4 text-[color:var(--muted-foreground)]" />
           <span className="text-sm font-medium text-[color:var(--foreground)]">Journal d'activité</span>
-          <Badge tone="neutral" className="ml-auto">Vue lecture seule</Badge>
+          {loading && <span className="ml-auto text-xs text-[color:var(--muted-foreground)]">Chargement…</span>}
+          {!loading && <Badge tone="neutral" className="ml-auto">Vue lecture seule</Badge>}
         </div>
-        <DataTable rows={[] as DriverBonusActivityDailyLedger[]} columns={columns} rowKey={(r) => r.id} defaultSort={{ key: "date", direction: "desc" }}
+        <DataTable rows={result?.items ?? []} columns={columns} rowKey={(r) => r.id} defaultSort={{ key: "date", direction: "desc" }}
           emptyState={<div className="flex flex-col items-center gap-2 py-12"><History className="size-8 text-[color:var(--muted-foreground)]" /><p className="text-sm text-[color:var(--muted-foreground)]">Les entrées apparaîtront ici dès le premier cron nightly.</p></div>}
         />
+        {result && result.totalPages > 1 && (
+          <PaginationFooter total={result.total} shown={result.items.length} page={result.page} totalPages={result.totalPages} onPrev={page > 1 ? () => setPage((p) => p - 1) : undefined} onNext={result.page < result.totalPages ? () => setPage((p) => p + 1) : undefined} />
+        )}
       </Card>
     </div>
   );
 }
 
-function ActivityPayoutsTab() {
+function ActivityPayoutsTab({ driverNames }: { driverNames: Map<string, string> }) {
+  const [result, setResult] = useState<PaginatedResult<DriverBonusActivityPayout> | null>(null);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    listActivityPayoutsAction({ page, limit: 50 })
+      .then(setResult)
+      .finally(() => setLoading(false));
+  }, [page]);
+
   const columns: ColumnDef<DriverBonusActivityPayout>[] = [
-    { key: "driver", header: "Driver ID", render: (r) => <span className="font-mono text-xs">{r.driverId.slice(0, 8)}…</span> },
+    { key: "driver", header: "Chauffeur", render: (r) => <span className="text-sm font-medium">{driverNames.get(r.driverId) ?? <span className="font-mono text-xs text-[color:var(--muted-foreground)]">{r.driverId.slice(0, 8)}…</span>}</span> },
     { key: "runDate", header: "Date payout", sortAccessor: (r) => r.payoutRunDate, render: (r) => <span className="text-sm">{r.payoutRunDate}</span> },
     { key: "ledgers", header: "Jours couverts", render: (r) => <span className="text-sm">{r.coveredLedgerIds.length} j</span> },
     { key: "total", header: "Total versé", align: "right", sortAccessor: (r) => r.totalAmount, render: (r) => <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">+{formatXof(r.totalAmount)}</span> },
@@ -609,11 +639,15 @@ function ActivityPayoutsTab() {
       <div className="flex items-center gap-2 border-b border-[color:var(--border)] px-4 py-3">
         <Award className="size-4 text-[color:var(--muted-foreground)]" />
         <span className="text-sm font-medium text-[color:var(--foreground)]">Historique des payouts</span>
-        <Badge tone="neutral" className="ml-auto">Vue lecture seule</Badge>
+        {loading && <span className="ml-auto text-xs text-[color:var(--muted-foreground)]">Chargement…</span>}
+        {!loading && <Badge tone="neutral" className="ml-auto">Vue lecture seule</Badge>}
       </div>
-      <DataTable rows={[] as DriverBonusActivityPayout[]} columns={columns} rowKey={(r) => r.id} defaultSort={{ key: "runDate", direction: "desc" }}
+      <DataTable rows={result?.items ?? []} columns={columns} rowKey={(r) => r.id} defaultSort={{ key: "runDate", direction: "desc" }}
         emptyState={<div className="flex flex-col items-center gap-2 py-12"><Award className="size-8 text-[color:var(--muted-foreground)]" /><p className="text-sm text-[color:var(--muted-foreground)]">Aucun payout versé.</p></div>}
       />
+      {result && result.totalPages > 1 && (
+        <PaginationFooter total={result.total} shown={result.items.length} page={result.page} totalPages={result.totalPages} onPrev={page > 1 ? () => setPage((p) => p - 1) : undefined} onNext={result.page < result.totalPages ? () => setPage((p) => p + 1) : undefined} />
+      )}
     </Card>
   );
 }
@@ -788,9 +822,20 @@ function QualityConfigsTab({ configs }: { configs: DriverBonusQualityConfig[] })
   );
 }
 
-function QualityLedgerTab() {
+function QualityLedgerTab({ driverNames }: { driverNames: Map<string, string> }) {
+  const [result, setResult] = useState<PaginatedResult<DriverBonusQualityMonthlyLedger> | null>(null);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    listQualityLedgerAction({ page, limit: 50 })
+      .then(setResult)
+      .finally(() => setLoading(false));
+  }, [page]);
+
   const columns: ColumnDef<DriverBonusQualityMonthlyLedger>[] = [
-    { key: "driver", header: "Driver ID", render: (r) => <span className="font-mono text-xs">{r.driverId.slice(0, 8)}…</span> },
+    { key: "driver", header: "Chauffeur", render: (r) => <span className="text-sm font-medium">{driverNames.get(r.driverId) ?? <span className="font-mono text-xs text-[color:var(--muted-foreground)]">{r.driverId.slice(0, 8)}…</span>}</span> },
     { key: "month", header: "Mois", sortAccessor: (r) => r.yearMonth, render: (r) => <span className="text-sm font-medium">{r.yearMonth}</span> },
     { key: "cat", header: "Catégorie", render: (r) => { const m = VEHICLE_CATEGORY_META[r.vehicleCategory]; return <Badge tone={m.tone}>{m.label}</Badge>; } },
     { key: "rides", header: "Courses", sortAccessor: (r) => r.ridesCount, render: (r) => <span className="text-sm">{r.ridesCount}</span> },
@@ -803,11 +848,15 @@ function QualityLedgerTab() {
       <div className="flex items-center gap-2 border-b border-[color:var(--border)] px-4 py-3">
         <Star className="size-4 text-amber-500" />
         <span className="text-sm font-medium text-[color:var(--foreground)]">Journal qualité mensuel</span>
-        <Badge tone="neutral" className="ml-auto">Vue lecture seule</Badge>
+        {loading && <span className="ml-auto text-xs text-[color:var(--muted-foreground)]">Chargement…</span>}
+        {!loading && <Badge tone="neutral" className="ml-auto">Vue lecture seule</Badge>}
       </div>
-      <DataTable rows={[] as DriverBonusQualityMonthlyLedger[]} columns={columns} rowKey={(r) => r.id} defaultSort={{ key: "month", direction: "desc" }}
+      <DataTable rows={result?.items ?? []} columns={columns} rowKey={(r) => r.id} defaultSort={{ key: "month", direction: "desc" }}
         emptyState={<div className="flex flex-col items-center gap-2 py-12"><Star className="size-8 text-amber-400" /><p className="text-sm text-[color:var(--muted-foreground)]">Les entrées apparaîtront après le premier cron mensuel.</p></div>}
       />
+      {result && result.totalPages > 1 && (
+        <PaginationFooter total={result.total} shown={result.items.length} page={result.page} totalPages={result.totalPages} onPrev={page > 1 ? () => setPage((p) => p - 1) : undefined} onNext={result.page < result.totalPages ? () => setPage((p) => p + 1) : undefined} />
+      )}
     </Card>
   );
 }
@@ -976,6 +1025,7 @@ export interface DriverBonusPageClientProps {
   activityConfigs: DriverBonusActivityConfig[];
   qualityConfigs: DriverBonusQualityConfig[];
   runConfig: DriverBonusRunConfig | null;
+  driverNames: Map<string, string>;
 }
 
 export function DriverBonusPageClient({
@@ -985,6 +1035,7 @@ export function DriverBonusPageClient({
   activityConfigs,
   qualityConfigs,
   runConfig,
+  driverNames,
 }: DriverBonusPageClientProps) {
   const { can } = usePermissions();
 
@@ -1001,14 +1052,14 @@ export function DriverBonusPageClient({
   // Onglet Activité — 3 sous-onglets
   const activitySubTabs = [
     { value: "configs", label: "Barèmes", badge: activeActivityCount > 0 ? { count: activeActivityCount, tone: "success" as const } : undefined, content: <ActivityConfigsTab configs={activityConfigs} /> },
-    { value: "ledger", label: "Journal", content: <ActivityLedgerTab /> },
-    { value: "payouts", label: "Payouts", content: <ActivityPayoutsTab /> },
+    { value: "ledger", label: "Journal", content: <ActivityLedgerTab driverNames={driverNames} /> },
+    { value: "payouts", label: "Payouts", content: <ActivityPayoutsTab driverNames={driverNames} /> },
   ];
 
   // Onglet Qualité — 2 sous-onglets
   const qualitySubTabs = [
     { value: "configs", label: "Barèmes", badge: activeQualityCount > 0 ? { count: activeQualityCount, tone: "success" as const } : undefined, content: <QualityConfigsTab configs={qualityConfigs} /> },
-    { value: "ledger", label: "Journal mensuel", content: <QualityLedgerTab /> },
+    { value: "ledger", label: "Journal mensuel", content: <QualityLedgerTab driverNames={driverNames} /> },
   ];
 
   const tabs = [

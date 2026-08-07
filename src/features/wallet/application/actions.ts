@@ -34,8 +34,8 @@ export interface ActionResult<T = undefined> {
 }
 
 export type WalletBalanceType = "MAIN" | "BONUS" | "REFERRAL";
-export type WalletCreditType = "CREDIT" | "ADMIN_CREDIT" | "BONUS" | "REFERRAL_BONUS" | "REFUND";
-export type WalletDebitType = "DEBIT" | "ADMIN_DEBIT" | "PENALTY" | "CORRECTION";
+export type WalletCreditType = "CREDIT" | "ADMIN_CREDIT" | "BONUS_CREDIT" | "REFERRAL_REWARD" | "REFUND";
+export type WalletDebitType = "DEBIT" | "ADMIN_DEBIT" | "ADJUSTMENT";
 
 export interface WalletCreditInput {
   balanceType: WalletBalanceType;
@@ -50,7 +50,6 @@ export interface WalletCreditResult {
 }
 
 export interface WalletDebitInput {
-  balanceType: WalletBalanceType;
   amount: number;
   type: WalletDebitType;
   description: string;

@@ -10,7 +10,16 @@ import type {
   ActivityTier,
   QualityTier,
   BonusRunFrequency,
+  DriverBonusActivityDailyLedger,
+  DriverBonusActivityPayout,
+  DriverBonusQualityMonthlyLedger,
+  PaginatedResult,
 } from "../domain/driver-bonus";
+import {
+  listActivityLedger,
+  listActivityPayouts,
+  listQualityLedger,
+} from "./api";
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -262,4 +271,39 @@ export async function updateRunConfigAction(input: UpdateRunConfigInput): Promis
   } catch (e) {
     return fail(e, "Impossible de mettre à jour la cadence.");
   }
+}
+
+// ─── Read actions — journaux (appelées depuis les onglets client) ─────────────
+
+export async function listActivityLedgerAction(filters?: {
+  driverId?: string;
+  vehicleCategory?: DriverBonusVehicleCategory;
+  from?: string;
+  to?: string;
+  paid?: boolean;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<DriverBonusActivityDailyLedger>> {
+  return listActivityLedger(filters);
+}
+
+export async function listActivityPayoutsAction(filters?: {
+  driverId?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<DriverBonusActivityPayout>> {
+  return listActivityPayouts(filters);
+}
+
+export async function listQualityLedgerAction(filters?: {
+  driverId?: string;
+  vehicleCategory?: DriverBonusVehicleCategory;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedResult<DriverBonusQualityMonthlyLedger>> {
+  return listQualityLedger(filters);
 }
