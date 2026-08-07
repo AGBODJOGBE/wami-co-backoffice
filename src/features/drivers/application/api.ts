@@ -8,6 +8,7 @@ import type {
   AdminDriversResult,
   DriverCommissionDebtDetail,
   DriverConnectionSession,
+  DriverConnectionTimeByDayResponse,
   DriverSessionsResult,
   OnlineDriver,
   OnlineDriversResult,
@@ -153,6 +154,27 @@ export async function getDriverCommissionDebtDetail(
     }
   } catch {
     // graceful — dette est une info non-critique
+  }
+  return null;
+}
+
+/**
+ * GET /api/admin/drivers/:driverId/sessions/daily
+ * Temps de connexion réparti par jour calendaire (Africa/Porto-Novo) pour un driver.
+ * Query: from, to (YYYY-MM-DD). Période max 92 jours.
+ */
+export async function getDriverDailyConnectionTime(
+  driverId: string,
+  query: { from: string; to: string },
+): Promise<DriverConnectionTimeByDayResponse | null> {
+  try {
+    const raw = await apiFetch<unknown>(
+      API_ROUTES.adminDrivers.sessionsDaily(driverId),
+      { query, silent: true },
+    );
+    if (raw && typeof raw === "object") return raw as DriverConnectionTimeByDayResponse;
+  } catch {
+    // graceful — rapport non-critique
   }
   return null;
 }

@@ -201,6 +201,27 @@ export interface DriverCommissionDebtDetail {
   limit: number;
 }
 
+// ─── Daily connection time (DailyConnectionTimeSplitter) ─────────────────────
+
+export interface DailyConnectionEntry {
+  date: string;         // YYYY-MM-DD (Africa/Porto-Novo)
+  totalSeconds: number;
+  totalHours: number;
+}
+
+export interface DriverDailyConnectionReport {
+  driverId: string;
+  days: DailyConnectionEntry[];
+  grandTotalSeconds: number;
+  grandTotalHours: number;
+}
+
+export interface DriverConnectionTimeByDayResponse {
+  from: string;
+  to: string;
+  drivers: DriverDailyConnectionReport[];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function fullName(d: { firstName?: string; lastName?: string }): string {

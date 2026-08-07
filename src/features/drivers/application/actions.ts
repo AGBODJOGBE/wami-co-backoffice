@@ -4,8 +4,14 @@ import { revalidatePath } from "next/cache";
 import { API_ROUTES } from "@/shared/config/api-routes";
 import { apiFetch } from "@/shared/lib/api/server";
 import { ApiError } from "@/shared/lib/api/types";
-import { listDriverSessions } from "./api";
-import type { DriverSessionsResult, DriverStatusChangeResult, UpdateDriverInfoInput } from "../domain/admin-driver";
+import { getDriverCommissionDebtDetail, getDriverDailyConnectionTime, listDriverSessions } from "./api";
+import type {
+  DriverCommissionDebtDetail,
+  DriverConnectionTimeByDayResponse,
+  DriverSessionsResult,
+  DriverStatusChangeResult,
+  UpdateDriverInfoInput,
+} from "../domain/admin-driver";
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -49,6 +55,20 @@ export async function fetchDriverSessionsAction(
   params: { page?: number; limit?: number; from?: string; to?: string } = {},
 ): Promise<DriverSessionsResult> {
   return listDriverSessions(driverId, params);
+}
+
+export async function fetchDriverDailyConnectionTimeAction(
+  driverId: string,
+  params: { from: string; to: string },
+): Promise<DriverConnectionTimeByDayResponse | null> {
+  return getDriverDailyConnectionTime(driverId, params);
+}
+
+export async function fetchDriverCommissionDebtPageAction(
+  driverId: string,
+  params: { page: number; limit: number },
+): Promise<DriverCommissionDebtDetail | null> {
+  return getDriverCommissionDebtDetail(driverId, params);
 }
 
 export async function approveDriverAction(
