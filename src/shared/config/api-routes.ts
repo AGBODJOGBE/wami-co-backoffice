@@ -59,6 +59,10 @@ export const API_ROUTES = {
       `/api/admin/drivers/${driverId}/reactivate`,
     /** GET — historique paginé des sessions de connexion d'un driver. Query: page, limit, from, to. */
     sessions: (driverId: string) => `/api/admin/drivers/${driverId}/sessions`,
+    /** GET — temps de connexion par jour calendaire (Bénin) pour un driver. Query: from, to (YYYY-MM-DD). */
+    sessionsDaily: (driverId: string) => `/api/admin/drivers/${driverId}/sessions/daily`,
+    /** GET — rapport flotte : temps de connexion par jour pour tous les drivers actifs. Query: from, to[, driverId]. */
+    connectionTime: () => `/api/admin/drivers/connection-time`,
     /** PATCH — modifier les infos personnelles du driver (firstName, lastName, phoneNumber, email, gender, address). */
     updateInfo: (driverId: string) => `/api/admin/drivers/${driverId}/info`,
     /** GET — liste tous les drivers en dette (walletEARNINGS < 0). Query: page, limit. */
