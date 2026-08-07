@@ -109,7 +109,7 @@ function RejectDocumentModal({
       }
     >
       <Textarea
-        label="Raison du rejet (visible par le driver)"
+        label="Raison du rejet (visible par le pilote)"
         rows={4}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
@@ -245,6 +245,7 @@ function CardThumbnail({
       type="button"
       onClick={onOpen}
       title="Aperçu"
+      suppressHydrationWarning
       className="group relative flex h-32 w-full shrink-0 items-center justify-center overflow-hidden rounded-t-xl border-b border-[color:var(--border)] bg-[color:var(--muted)]/40 cursor-pointer"
     >
       {isImage && url ? (
@@ -302,6 +303,7 @@ function DocumentCard({
         <button
           type="button"
           onClick={onOpen}
+          suppressHydrationWarning
           className="text-left text-sm font-semibold text-[color:var(--foreground)] hover:underline cursor-pointer"
         >
           {DOCUMENT_TYPE_LABELS[doc.type]}

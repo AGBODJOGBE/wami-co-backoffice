@@ -99,7 +99,7 @@ export function RequestDocsModal({ open, driver, onClose }: RequestDocsModalProp
 
       <div className="mt-4">
         <Textarea
-          label="Message au driver (optionnel)"
+          label="Message au pilote (optionnel)"
           placeholder="Précisions sur la qualité attendue, etc."
           value={message}
           onChange={(e) => setMessage(e.target.value)}

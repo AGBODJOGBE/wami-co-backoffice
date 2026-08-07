@@ -202,7 +202,7 @@ function RidesTable({ rides, onRideClick }: { rides: AdminRide[]; onRideClick: (
               Trajet
             </th>
             <th className="pb-2.5 pr-4 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
-              Driver
+              Pilote
             </th>
             <th className="pb-2.5 pr-4 text-right text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
               Montant
@@ -436,7 +436,7 @@ export function PassengerDetailPage({
               <span className="text-[color:var(--muted-foreground)]">—</span>
             )
           }
-          sub="note donnée aux drivers"
+          sub="note donnée aux pilotes"
           icon={Star}
         />
       </div>

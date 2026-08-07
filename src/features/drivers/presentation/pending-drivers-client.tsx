@@ -81,12 +81,12 @@ export function PendingDriversClient({
   const columns: ColumnDef<PendingDriver>[] = [
     {
       key: "driver",
-      header: "Driver",
+      header: "Pilote",
       sortAccessor: (row) =>
         `${row.lastName ?? ""} ${row.firstName ?? row.driverId}`,
       render: (row) => {
         const name = `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim();
-        const displayName = name || `Driver #${row.driverId.slice(0, 8)}`;
+        const displayName = name || `Pilote #${row.driverId.slice(0, 8)}`;
         return (
           <div className="flex items-center gap-3">
             <Avatar name={displayName} />
@@ -170,7 +170,7 @@ export function PendingDriversClient({
                 const name = `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim();
                 setSuspendTarget({
                   driverId: row.driverId,
-                  label: name || `Driver #${row.driverId.slice(0, 8)}`,
+                  label: name || `Pilote #${row.driverId.slice(0, 8)}`,
                 });
               }}
             >
@@ -245,7 +245,7 @@ export function PendingDriversClient({
             size="sm"
             onClick={() =>
               downloadCsv(
-                timestampedFilename("drivers-pending"),
+                timestampedFilename("pilotes-en-attente"),
                 [
                   { key: "firstName", header: "Prénom", value: (r) => r.firstName ?? "" },
                   { key: "lastName", header: "Nom", value: (r) => r.lastName ?? "" },
@@ -253,7 +253,7 @@ export function PendingDriversClient({
                   { key: "category", header: "Catégorie", value: (r) => r.category },
                   { key: "docs", header: "Docs vérifiés", value: (r) => (r.isDocumentsVerified ? "oui" : "non") },
                   { key: "createdAt", header: "Inscrit le", value: (r) => r.createdAt },
-                  { key: "driverId", header: "Driver ID", value: (r) => r.driverId },
+                  { key: "driverId", header: "Pilote ID", value: (r) => r.driverId },
                 ],
                 filtered,
               )
@@ -269,7 +269,7 @@ export function PendingDriversClient({
         <Card className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
           <CheckCircle2 className="size-10 text-[color:var(--success)]" />
           <p className="text-sm font-medium text-[color:var(--foreground)]">
-            Aucun driver en attente
+            Aucun pilote en attente
           </p>
           <p className="text-xs text-[color:var(--muted-foreground)]">
             Tous les dossiers ont été traités. Reviens plus tard ou rafraîchis

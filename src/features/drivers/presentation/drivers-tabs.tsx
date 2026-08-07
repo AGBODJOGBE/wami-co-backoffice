@@ -50,7 +50,7 @@ function OnlineDriversList({
     return (
       <Card className="p-8 text-center">
         <Radio className="mx-auto mb-2 size-8 text-[color:var(--muted-foreground)]" />
-        <p className="text-sm text-[color:var(--muted-foreground)]">Aucun driver en ligne actuellement.</p>
+        <p className="text-sm text-[color:var(--muted-foreground)]">Aucun pilote en ligne actuellement.</p>
       </Card>
     );
   }
@@ -58,7 +58,7 @@ function OnlineDriversList({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-[color:var(--muted-foreground)]">
-        {total} driver{total > 1 ? "s" : ""} connecté{total > 1 ? "s" : ""} — position mise à jour en temps réel par le GPS.
+        {total} pilote{total > 1 ? "s" : ""} connecté{total > 1 ? "s" : ""} — position mise à jour en temps réel par le GPS.
       </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {drivers.map((d) => {
@@ -200,7 +200,7 @@ export function DriversTabs({
           content: allError ? (
             <Card className="p-6">
               <p className="text-sm text-[color:var(--danger)]">
-                Impossible de charger la liste des drivers : {allError}
+                Impossible de charger la liste des pilotes : {allError}
               </p>
             </Card>
           ) : (
@@ -224,7 +224,7 @@ export function DriversTabs({
               <Card className="p-8 text-center">
                 <Building2 className="mx-auto mb-2 size-8 text-[color:var(--muted-foreground)]" />
                 <p className="text-sm text-[color:var(--muted-foreground)]">
-                  Aucun driver approuvé avec un véhicule de la plateforme.
+                  Aucun pilote approuvé avec un véhicule de la plateforme.
                 </p>
               </Card>
             ) : (
@@ -252,7 +252,7 @@ export function DriversTabs({
               <Card className="p-8 text-center">
                 <User className="mx-auto mb-2 size-8 text-[color:var(--muted-foreground)]" />
                 <p className="text-sm text-[color:var(--muted-foreground)]">
-                  Aucun driver approuvé avec un véhicule personnel.
+                  Aucun pilote approuvé avec un véhicule personnel.
                 </p>
               </Card>
             ) : (
@@ -282,7 +282,7 @@ export function DriversTabs({
           content: pendingError ? (
             <Card className="p-6">
               <p className="text-sm text-[color:var(--danger)]">
-                Impossible de charger les drivers en attente : {pendingError}
+                Impossible de charger les pilotes en attente : {pendingError}
               </p>
             </Card>
           ) : (

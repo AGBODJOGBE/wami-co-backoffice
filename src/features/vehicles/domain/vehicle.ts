@@ -56,7 +56,7 @@ export const VEHICLE_STATUS_META: Record<
 };
 
 export const VEHICLE_OWNERSHIP_LABELS: Record<VehicleOwnership, string> = {
-  DRIVER: "Driver",
+  DRIVER: "Pilote",
   PLATFORM: "Plateforme",
 };
 

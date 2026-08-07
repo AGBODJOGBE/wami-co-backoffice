@@ -90,7 +90,7 @@ const CATEGORY_OPTIONS = [
 const OWNERSHIP_OPTIONS = [
   { value: "ALL", label: "Toutes propriétés" },
   { value: "PLATFORM", label: "Plateforme" },
-  { value: "DRIVER", label: "Driver" },
+  { value: "DRIVER", label: "Pilote" },
 ];
 
 const VERIFIED_OPTIONS = [
@@ -201,14 +201,22 @@ export function VehiclesListClient({
       sortAccessor: (row) => `${row.make} ${row.model}`.toLowerCase(),
       render: (row) => (
         <div className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-lg bg-[color:var(--primary-soft)] text-[color:var(--primary)]">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[color:var(--primary-soft)] text-[color:var(--primary)]">
             <CarIcon className="size-5" />
           </span>
-          <div className="flex flex-col leading-tight">
-            <span className="text-sm font-medium text-[color:var(--foreground)]">
-              {row.make} {row.model} {row.year}
+          <div className="flex flex-col leading-tight gap-0.5">
+            <span className="text-sm font-semibold text-[color:var(--foreground)]">
+              {row.make} {row.model} <span className="font-normal text-[color:var(--muted-foreground)]">{row.year}</span>
             </span>
-            <span className="text-xs text-[color:var(--muted-foreground)]">
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[10px] uppercase tracking-wide text-[color:var(--muted-foreground)]">
+                {row.licensePlate}
+              </span>
+              {row.category && (
+                <Badge tone="primary" className="text-[9px]">{VEHICLE_CATEGORY_LABELS[row.category]}</Badge>
+              )}
+            </div>
+            <span className="text-[10px] text-[color:var(--muted-foreground)]">
               {row.color} · {row.seats} place{row.seats > 1 ? "s" : ""}
             </span>
           </div>
@@ -219,30 +227,7 @@ export function VehiclesListClient({
       key: "type",
       header: "Type",
       sortAccessor: (row) => row.type,
-      render: (row) => <Badge tone="primary">{VEHICLE_TYPE_LABELS[row.type]}</Badge>,
-    },
-    {
-      key: "category",
-      header: "Catégorie",
-      sortAccessor: (row) => row.category ?? "",
-      render: (row) =>
-        row.category ? (
-          <span className="text-sm">{VEHICLE_CATEGORY_LABELS[row.category]}</span>
-        ) : (
-          <span className="text-xs italic text-[color:var(--muted-foreground)]">
-            —
-          </span>
-        ),
-    },
-    {
-      key: "plate",
-      header: "Plaque",
-      sortAccessor: (row) => row.licensePlate,
-      render: (row) => (
-        <span className="font-mono text-sm uppercase text-[color:var(--foreground)]">
-          {row.licensePlate}
-        </span>
-      ),
+      render: (row) => <Badge tone="neutral">{VEHICLE_TYPE_LABELS[row.type]}</Badge>,
     },
     {
       key: "ownership",
@@ -256,7 +241,7 @@ export function VehiclesListClient({
     },
     {
       key: "driver",
-      header: "Driver",
+      header: "Pilote",
       sortAccessor: (row) =>
         row.assignedToDriverId
           ? driverNames[row.assignedToDriverId] ?? row.assignedToDriverId
@@ -273,7 +258,7 @@ export function VehiclesListClient({
         return (
           <div className="flex flex-col leading-tight">
             <span className="text-sm text-[color:var(--foreground)]">
-              {name ?? `Driver #${row.assignedToDriverId.slice(0, 8)}`}
+              {name ?? `Pilote #${row.assignedToDriverId.slice(0, 8)}`}
             </span>
             <span
               className="font-mono text-[10px] text-[color:var(--muted-foreground)]"
@@ -349,7 +334,7 @@ export function VehiclesListClient({
     }
     if (row.ownership === "PLATFORM" && can("vehicle.manage")) {
       if (row.status === "AVAILABLE") {
-        items.push({ label: "Assigner à un driver", icon: UserCog, onSelect: () => setAssignTarget(row) });
+        items.push({ label: "Assigner à un pilote", icon: UserCog, onSelect: () => setAssignTarget(row) });
       }
       if (row.status === "ASSIGNED") {
         items.push({ label: "Désassigner", icon: UserMinus, onSelect: () => setConfirm({ kind: "unassign", vehicle: row }) });
@@ -417,7 +402,7 @@ export function VehiclesListClient({
                     { key: "verified", header: "Vérifié", value: (r) => (r.isVerified ? "oui" : "non") },
                     {
                       key: "driver",
-                      header: "Driver assigné",
+                      header: "Pilote assigné",
                       value: (r) =>
                         r.assignedToDriverId
                           ? driverNames[r.assignedToDriverId] ??
@@ -426,7 +411,7 @@ export function VehiclesListClient({
                     },
                     {
                       key: "driverId",
-                      header: "Driver ID",
+                      header: "Pilote ID",
                       value: (r) => r.assignedToDriverId ?? "",
                     },
                     { key: "insurance", header: "Expir. assurance", value: (r) => r.insuranceExpiryDate ?? "" },
@@ -484,8 +469,7 @@ export function VehiclesListClient({
         />
       </section>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-[color:var(--border)] bg-white p-4 dark:bg-[color:var(--muted)]">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--background)] px-4 py-3">
           <SearchField
             placeholder="Rechercher (plaque, marque, modèle, couleur)…"
             value={search}
@@ -522,7 +506,6 @@ export function VehiclesListClient({
             onChange={setVerified}
             className="sm:w-44"
           />
-        </div>
       </div>
 
       <Card className="overflow-hidden p-0">

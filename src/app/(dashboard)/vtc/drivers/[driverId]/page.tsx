@@ -63,8 +63,8 @@ export default async function VtcDriverDetailPage({
     return (
       <DetailNotFound
         backHref="/vtc/drivers"
-        backLabel="Retour aux drivers"
-        message="Driver introuvable."
+        backLabel="Retour aux pilotes"
+        message="Pilote introuvable."
       />
     );
   }
@@ -95,7 +95,7 @@ export default async function VtcDriverDetailPage({
     findWalletByProfile(driverId, "EARNINGS"),
     listRidesByDriver(driverId, 6),
     listDriverSessions(driverId, { limit: 20 }),
-    getDriverCommissionDebtDetail(driverId),
+    getDriverCommissionDebtDetail(driverId, { page: 1, limit: 5 }),
   ]);
 
   const enriched: AdminDriver | undefined =

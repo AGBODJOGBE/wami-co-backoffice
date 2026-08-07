@@ -71,8 +71,8 @@ export function SuspendDriverModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Suspendre ce driver"
-      description={target.label ?? `Driver ${target.driverId.slice(0, 8)}…`}
+      title="Suspendre ce pilote"
+      description={target.label ?? `Pilote ${target.driverId.slice(0, 8)}…`}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={pending}>

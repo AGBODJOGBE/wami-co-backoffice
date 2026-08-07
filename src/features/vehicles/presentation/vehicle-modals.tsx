@@ -1041,8 +1041,8 @@ export function VehicleAssignModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Assigner à un driver"
-      description="Sélectionne le driver auquel assigner ce véhicule."
+      title="Assigner à un pilote"
+      description="Sélectionne le pilote auquel assigner ce véhicule."
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={pending}>
@@ -1055,10 +1055,10 @@ export function VehicleAssignModal({
       }
     >
       <Combobox
-        label="Driver"
+        label="Pilote"
         placeholder="Rechercher par nom ou téléphone…"
         searchPlaceholder="Nom, prénom, téléphone…"
-        emptyMessage="Aucun driver trouvé."
+        emptyMessage="Aucun pilote trouvé."
         options={driverOptions}
         value={driverId}
         onChange={setDriverId}
@@ -1103,7 +1103,7 @@ export function VehicleCategoryModal({
       open={open}
       onClose={onClose}
       title="Changer la catégorie"
-      description="L'admin peut dépasser le verifiedCategory du driver."
+      description="L'admin peut dépasser le verifiedCategory du pilote."
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={pending}>

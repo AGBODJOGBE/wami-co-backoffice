@@ -7,9 +7,9 @@ export default function DriversLoading() {
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Opérations VTC"
-        title="Drivers"
+        title="Pilotes"
         dataSource="partial"
-        description="Validation KYC en temps réel — approuver, suspendre, réactiver un driver."
+        description="Validation KYC en temps réel — approuver, suspendre, réactiver un pilote."
       />
 
       <div className="flex gap-2 border-b border-[color:var(--border)]">
@@ -28,7 +28,7 @@ export default function DriversLoading() {
       </section>
 
       <Card className="flex items-center justify-center p-12">
-        <Spinner label="Chargement des drivers en attente…" />
+        <Spinner label="Chargement des pilotes en attente…" />
       </Card>
     </div>
   );

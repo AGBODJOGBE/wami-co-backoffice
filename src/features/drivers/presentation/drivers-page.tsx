@@ -263,7 +263,7 @@ export function DriversPage() {
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Drivers actifs"
+          label="Pilotes actifs"
           value={String(approved.length)}
           trend={{ value: "live", direction: "flat" }}
           helper={`dont ${approved.filter((d) => d.isOnline).length} en ligne`}

@@ -176,9 +176,9 @@ export default async function VtcDriversPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Opérations VTC"
-        title="Drivers"
+        title="Pilotes"
         dataSource="live"
-        dataSourceHint="Drivers approuvés + onglet 'En attente' branchés sur /api/admin/drivers et /pending."
+        dataSourceHint="Pilotes approuvés + onglet 'En attente' branchés sur /api/admin/drivers et /pending."
         description="Validation KYC, gestion des comptes et performance — temps réel."
       />
       <DriversTabs
