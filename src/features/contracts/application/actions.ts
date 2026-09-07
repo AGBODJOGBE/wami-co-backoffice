@@ -11,8 +11,9 @@ import type {
   DailyCollectionReport,
   InstallmentStatus,
   ManualPaymentMethod,
+  PaymentSource,
 } from "../domain/contract";
-import { listContracts, getContractInstallments } from "./api";
+import { listContracts, getContractInstallments, listContractAuditLogs } from "./api";
 import { listAdminDrivers } from "@/features/drivers/application/api";
 
 export interface ActionResult<T = undefined> {
@@ -263,6 +264,7 @@ export async function generateDailyCollectionReportAction(
           installmentId:       inst.installmentId,
           installmentNumero:   inst.numero,
           dateEcheance:        inst.dateEcheance,
+          datePaiement:        inst.datePaiement,
           driverId:            contract.driver.driverId,
           driverName:          driverInfo.name,
           driverPhone:         driverInfo.phone,
@@ -275,7 +277,113 @@ export async function generateDailyCollectionReportAction(
           cashShortfall,
           statut:              inst.status,
           retardJours:         inst.retardJours,
+          paymentSource:       "INCONNU",
         });
+      }
+    }
+
+    // ─── Phase 2 : résolution du mode de collecte via journal d'audit ──────────
+
+    // EN_RECOUVREMENT = imputation auto à découvert, aucun cash confirmé → classifiable directement
+    // PAYEE / PARTIELLEMENT_RECOUVREE / PARTIELLE → nécessitent une vérification audit
+    const AUDIT_NEEDED = new Set<InstallmentStatus>(["PAYEE", "PARTIELLEMENT_RECOUVREE", "PARTIELLE"]);
+
+    const contractsToCheck = new Set(
+      lines.filter((l) => AUDIT_NEEDED.has(l.statut)).map((l) => l.contractId),
+    );
+
+    interface ManualRecord {
+      ids: Set<string>;     // installmentIds trouvés dans details (précis)
+      timestamps: number[]; // occurredAt en ms (pour fenêtre temporelle)
+      fetched: boolean;     // true = appel réussi (même si 0 événements)
+    }
+    const manualMap = new Map<string, ManualRecord>();
+
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
+    if (contractsToCheck.size > 0) {
+      await Promise.allSettled(
+        Array.from(contractsToCheck).map(async (contractId) => {
+          try {
+            const logs = await listContractAuditLogs({
+              contractId,
+              action: "MANUAL_PAYMENT_RECORDED",
+              limit: 200,
+            });
+            const ids        = new Set<string>();
+            const timestamps: number[] = [];
+
+            for (const log of logs.items) {
+              timestamps.push(new Date(log.occurredAt).getTime());
+              const d = log.details ?? {};
+              // Gérer toutes les shapes possibles retournées par le backend
+              for (const id of [
+                d.installmentId,
+                ...(Array.isArray(d.installmentIds)        ? d.installmentIds        : []),
+                ...(Array.isArray(d.settledInstallmentIds) ? d.settledInstallmentIds : []),
+                ...(Array.isArray(d.instalmentIds)         ? d.instalmentIds         : []),
+              ]) {
+                if (typeof id === "string" && id) ids.add(id);
+              }
+            }
+            manualMap.set(contractId, { ids, timestamps, fetched: true });
+          } catch {
+            // graceful — paymentSource restera INCONNU pour ce contrat
+          }
+        }),
+      );
+    }
+
+    // Résoudre paymentSource pour chaque ligne
+    for (const line of lines) {
+      const s = line.statut;
+
+      if (s === "EN_ATTENTE" || s === "ANNULEE" || s === "IMPAYEE") {
+        line.paymentSource = "INCONNU";
+        continue;
+      }
+
+      if (s === "EN_RECOUVREMENT") {
+        // Wallet débité (possiblement à découvert), aucun cash confirmé → automatique
+        line.paymentSource = "AUTOMATIQUE";
+        continue;
+      }
+
+      // PAYEE / PARTIELLEMENT_RECOUVREE / PARTIELLE
+      const rec = manualMap.get(line.contractId);
+
+      if (!rec) {
+        // Appel audit échoué → indéterminable
+        line.paymentSource = "INCONNU";
+        continue;
+      }
+
+      if (rec.timestamps.length === 0) {
+        // Appel réussi, zéro paiement manuel pour ce contrat → automatique confirmé
+        line.paymentSource = "AUTOMATIQUE";
+        continue;
+      }
+
+      // Le contrat a eu des paiements manuels — chercher lequel correspond à cette échéance
+
+      if (rec.ids.size > 0) {
+        // Correspondance précise par installmentId (si le backend l'inclut dans details)
+        line.paymentSource = rec.ids.has(line.installmentId) ? "MANUEL" : "AUTOMATIQUE";
+        continue;
+      }
+
+      // Heuristique temporelle : comparer occurredAt des paiements manuels
+      // avec datePaiement (prioritaire) ou dateEcheance (fallback) ± 3 jours
+      const refIso = line.datePaiement ?? line.dateEcheance;
+      const refTs  = new Date(refIso).getTime();
+      const nearbyManual = rec.timestamps.some((ts) => Math.abs(ts - refTs) <= THREE_DAYS_MS);
+
+      if (nearbyManual) {
+        line.paymentSource = "MANUEL";
+      } else {
+        // Des paiements manuels existent pour ce contrat mais aucun proche de cette échéance.
+        // On ne peut pas affirmer "Automatique" sans risquer un faux positif → INCONNU.
+        line.paymentSource = "INCONNU";
       }
     }
 

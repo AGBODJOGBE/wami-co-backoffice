@@ -327,11 +327,16 @@ export function vehicleLabel(vehicle: ContractVehicle): string {
 
 // ─── Rapport quotidien de collecte ────────────────────────────────────────────
 
+/** Source du paiement d'une échéance, déterminée via le journal d'audit. */
+export type PaymentSource = "MANUEL" | "AUTOMATIQUE" | "INCONNU";
+
 export interface DailyCollectionLine {
   contractId: string;
   installmentId: string;
   installmentNumero: number;
   dateEcheance: string;
+  /** Date effective d'imputation/paiement (null si non encore payé). */
+  datePaiement: string | null;
   driverId: string;
   driverName: string;
   driverPhone: string;
@@ -348,6 +353,8 @@ export interface DailyCollectionLine {
   cashShortfall: number;
   statut: InstallmentStatus;
   retardJours?: number;
+  /** Source du paiement — dérivée du journal d'audit (MANUAL_PAYMENT_RECORDED). */
+  paymentSource: PaymentSource;
 }
 
 export interface DailyCollectionReport {

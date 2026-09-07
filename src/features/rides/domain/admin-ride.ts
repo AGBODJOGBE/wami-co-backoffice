@@ -229,6 +229,42 @@ export function rideStatusMeta(status: string) {
   );
 }
 
+/**
+ * Détecte une course sans passager app réel — "Walk-in" ou compte fantôme.
+ *
+ * Critères (ordre de certitude décroissant) :
+ *   1. passenger absent ou null → aucun passager rattaché
+ *   2. passenger sans passengerId → référence orpheline sans compte réel
+ *   3. passenger sans nom → profil vide (compte test)
+ *   4. nom contenant "walk-in" (insensible à la casse) → client de rue
+ *   5. téléphone placeholder bénino-style ("+229" + chiffres identiques / zéros)
+ *      ex. +22900000000, +22911111111, +22999999999
+ */
+export function isGhostRide(r: AdminRide): boolean {
+  if (!r.passenger) return true;
+  if (!r.passenger.passengerId) return true;
+
+  const name = `${r.passenger.firstName ?? ""} ${r.passenger.lastName ?? ""}`.trim();
+  if (!name) return true;
+  if (/walk[\s-]?in/i.test(name)) return true;
+
+  const phone = (r.passenger.phoneNumber ?? "").replace(/\s/g, "");
+  // Numéro placeholder : +229 suivi de 8 chiffres identiques ou tous zéros
+  if (/^\+229(\d)\1{7}$/.test(phone)) return true;
+
+  return false;
+}
+
+/** Texte court affiché dans les cellules pour un ride ghost. */
+export function ghostRideLabel(r: AdminRide): string {
+  if (!r.passenger) return "Aucun passager";
+  if (!r.passenger.passengerId) return "Profil sans compte";
+  const name = `${r.passenger.firstName ?? ""} ${r.passenger.lastName ?? ""}`.trim();
+  if (!name) return "Profil vide";
+  if (/walk[\s-]?in/i.test(name)) return "Walk-in (rue)";
+  return "Placeholder";
+}
+
 export function fullParty(p: RidePartyRef | null | undefined): string {
   if (!p) return "—";
   const name = `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim();

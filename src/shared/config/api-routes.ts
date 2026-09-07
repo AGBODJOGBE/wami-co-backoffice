@@ -69,6 +69,8 @@ export const API_ROUTES = {
     commissionDebts: () => "/api/admin/drivers/commission-debts",
     /** GET — détail des transactions à l'origine de la dette d'un driver. Query: page, limit. */
     driverCommissionDebts: (driverId: string) => `/api/admin/drivers/${driverId}/commission-debts`,
+    /** PATCH — changer le type de service du driver. Body: { driverType: "VTC" | "DELIVERY" | "BOTH" }. */
+    updateDriverType: (driverId: string) => `/api/admin/drivers/${driverId}/driver-type`,
   },
 
   // ─── Admin: partners ───────────────────────────────────────────────────────
@@ -86,10 +88,12 @@ export const API_ROUTES = {
     createGrid: () => "/api/admin/pricing-grid",
     /** GET — currently active pricing grid. */
     activeGrid: () => "/api/admin/pricing-grid/active",
-    /** GET — fetch the active ride-pricing config for a vehicle type. */
+    // NOTE: GET /api/admin/ride-pricing/:vehicleType n'existe PAS côté backend —
+    // uniquement PATCH. Ne pas appeler getRidePricing en GET.
+    /** @deprecated GET n'existe pas côté backend — utiliser updateRidePricing (PATCH) uniquement. */
     getRidePricing: (vehicleType: string) =>
       `/api/admin/ride-pricing/${vehicleType}`,
-    /** PATCH — update ride pricing for a vehicle type. */
+    /** PATCH — update ride pricing for a vehicle type. Body: RidePricingInput. */
     updateRidePricing: (vehicleType: string) =>
       `/api/admin/ride-pricing/${vehicleType}`,
   },
@@ -408,6 +412,21 @@ export const API_ROUTES = {
     get: () => "/api/admin/driver-welcome-bonus",
     /** PATCH — modifier la campagne. Body: { bonusAmountFcfa?, maxEligibleDrivers?, isActive? }. */
     configure: () => "/api/admin/driver-welcome-bonus",
+  },
+
+  // ─── Admin: wallet config (frais P2P, consolidation, minimums de retrait) ──
+  adminWalletConfig: {
+    /** GET — lire la config wallet (singleton). */
+    get: () => "/api/admin/wallet-config",
+    /** PATCH — mettre à jour la config. Tous les champs sont optionnels. */
+    update: () => "/api/admin/wallet-config",
+  },
+
+  // ─── Admin: finance — vue créances croisées ────────────────────────────────
+  adminFinance: {
+    /** GET — vue agrégée des créances par driver (contrats + commissions).
+     *  Query: page (défaut 1), limit (défaut 20, max 100). */
+    receivablesOverview: () => "/api/admin/finance/receivables-overview",
   },
 
   // ─── System config (clés dynamiques en base) ──────────────────────────────

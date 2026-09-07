@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, Gift, Pencil, RefreshCw, Settings, Smartphone } from "lucide-react";
+import { Clock, Gift, Pencil, RefreshCw, Settings, Smartphone, Wallet } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
@@ -12,10 +12,10 @@ import { Spinner } from "@/shared/ui/spinner";
 import { Textarea } from "@/shared/ui/textarea";
 import { toast } from "@/shared/ui/toast";
 import { formatDate } from "@/shared/lib/format";
-import { upsertAppConfigAction, updateSystemConfigAction, configureWelcomeBonusCampaignAction } from "../application/actions";
+import { upsertAppConfigAction, updateSystemConfigAction, configureWelcomeBonusCampaignAction, updateWalletConfigAction } from "../application/actions";
 import { CanView } from "@/shared/ui/can-view";
 import type { AppVersionConfig } from "../domain/admin-user";
-import type { SystemConfigEntry, WelcomeBonusCampaign } from "../application/api";
+import type { SystemConfigEntry, WalletConfig, WelcomeBonusCampaign } from "../application/api";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -160,6 +160,220 @@ function EditConfigModal({
         />
       </div>
     </Modal>
+  );
+}
+
+// ─── Wallet config card ───────────────────────────────────────────────────────
+
+/** Centimes → FCFA pour affichage. */
+function centsToFcfa(c: number) { return Math.round(c / 100); }
+/** FCFA → centimes pour envoi. */
+function fcfaToCents(f: number) { return Math.round(f * 100); }
+/** Ratio (0–1) → pourcentage pour affichage. */
+function ratioToPct(r: number) { return parseFloat((r * 100).toFixed(4)); }
+/** Pourcentage → ratio (0–1) pour envoi. */
+function pctToRatio(p: number) { return parseFloat((p / 100).toFixed(6)); }
+
+interface WalletConfigForm {
+  consolidationEnabled:      boolean;
+  consolidationFeeRatePct:   number | "";
+  consolidationMinFcfa:      number | "";
+  p2pTransferEnabled:        boolean;
+  p2pTransferFeeRatePct:     number | "";
+  p2pMinFcfa:                number | "";
+  withdrawalMinMoMoFcfa:     number | "";
+  withdrawalMinBankFcfa:     number | "";
+}
+
+function walletConfigToForm(cfg: WalletConfig): WalletConfigForm {
+  return {
+    consolidationEnabled:    cfg.consolidationEnabled,
+    consolidationFeeRatePct: ratioToPct(cfg.consolidationFeeRate),
+    consolidationMinFcfa:    centsToFcfa(cfg.consolidationMinAmount),
+    p2pTransferEnabled:      cfg.p2pTransferEnabled,
+    p2pTransferFeeRatePct:   ratioToPct(cfg.p2pTransferFeeRate),
+    p2pMinFcfa:              centsToFcfa(cfg.p2pMinimumAmount),
+    withdrawalMinMoMoFcfa:   centsToFcfa(cfg.withdrawalMinMobileMoney),
+    withdrawalMinBankFcfa:   centsToFcfa(cfg.withdrawalMinBankTransfer),
+  };
+}
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2">
+      <div className="relative">
+        <input type="checkbox" className="sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+        <div className={`h-5 w-9 rounded-full transition-colors ${checked ? "bg-emerald-500" : "bg-[color:var(--muted)]"}`} />
+        <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-4" : "translate-x-0.5"}`} />
+      </div>
+      <span className="text-sm text-[color:var(--foreground)]">{checked ? "Activé" : "Désactivé"}</span>
+    </label>
+  );
+}
+
+function WalletConfigCard({ config }: { config: WalletConfig | null }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [pending, start] = useTransition();
+  const [form, setForm] = useState<WalletConfigForm>(
+    config ? walletConfigToForm(config) : {
+      consolidationEnabled: true, consolidationFeeRatePct: 5, consolidationMinFcfa: 500,
+      p2pTransferEnabled: true, p2pTransferFeeRatePct: 2, p2pMinFcfa: 100,
+      withdrawalMinMoMoFcfa: 1000, withdrawalMinBankFcfa: 5000,
+    }
+  );
+
+  function set<K extends keyof WalletConfigForm>(k: K, v: WalletConfigForm[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  function openEdit() {
+    if (config) setForm(walletConfigToForm(config));
+    setEditing(true);
+  }
+
+  function save() {
+    const consolidationFeeRatePct = Number(form.consolidationFeeRatePct);
+    const p2pTransferFeeRatePct   = Number(form.p2pTransferFeeRatePct);
+    if (isNaN(consolidationFeeRatePct) || consolidationFeeRatePct < 0 || consolidationFeeRatePct >= 100) {
+      toast({ kind: "error", title: "Frais de consolidation invalides", description: "Valeur entre 0 et 100 %." });
+      return;
+    }
+    if (isNaN(p2pTransferFeeRatePct) || p2pTransferFeeRatePct < 0 || p2pTransferFeeRatePct >= 100) {
+      toast({ kind: "error", title: "Frais P2P invalides", description: "Valeur entre 0 et 100 %." });
+      return;
+    }
+    start(async () => {
+      const r = await updateWalletConfigAction({
+        consolidationEnabled:      form.consolidationEnabled,
+        consolidationFeeRate:      pctToRatio(consolidationFeeRatePct),
+        consolidationMinAmount:    fcfaToCents(Number(form.consolidationMinFcfa) || 0),
+        p2pTransferEnabled:        form.p2pTransferEnabled,
+        p2pTransferFeeRate:        pctToRatio(p2pTransferFeeRatePct),
+        p2pMinimumAmount:          fcfaToCents(Number(form.p2pMinFcfa) || 0),
+        withdrawalMinMobileMoney:  fcfaToCents(Number(form.withdrawalMinMoMoFcfa) || 0),
+        withdrawalMinBankTransfer: fcfaToCents(Number(form.withdrawalMinBankFcfa) || 0),
+      });
+      if (r.ok) {
+        toast({ kind: "success", title: "Config wallet mise à jour", description: r.message });
+        setEditing(false);
+        router.refresh();
+      } else {
+        toast({ kind: "error", title: "Échec", description: r.message });
+      }
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Wallet className="size-5 text-violet-500" />
+            <CardTitle>Configuration wallet</CardTitle>
+          </div>
+          {config?.updatedAt && (
+            <span className="text-[10px] text-[color:var(--muted-foreground)]">
+              Modifié le {formatDate(config.updatedAt)}
+              {config.updatedBy ? ` · ${config.updatedBy}` : ""}
+            </span>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!config ? (
+          <p className="text-sm text-[color:var(--muted-foreground)]">Configuration non disponible.</p>
+        ) : !editing ? (
+          <div className="flex flex-col gap-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {/* Consolidation */}
+              <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/10 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[color:var(--foreground)]">Consolidation wallet</span>
+                  <span className={`text-[10px] font-semibold ${config.consolidationEnabled ? "text-emerald-600" : "text-[color:var(--muted-foreground)]"}`}>
+                    {config.consolidationEnabled ? "Activée" : "Désactivée"}
+                  </span>
+                </div>
+                <dl className="flex flex-col gap-1 text-xs text-[color:var(--muted-foreground)]">
+                  <div className="flex justify-between"><dt>Frais</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{ratioToPct(config.consolidationFeeRate)} %</dd></div>
+                  <div className="flex justify-between"><dt>Montant min.</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{centsToFcfa(config.consolidationMinAmount).toLocaleString("fr-FR")} FCFA</dd></div>
+                </dl>
+              </div>
+              {/* P2P */}
+              <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/10 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[color:var(--foreground)]">Transfert P2P</span>
+                  <span className={`text-[10px] font-semibold ${config.p2pTransferEnabled ? "text-emerald-600" : "text-[color:var(--muted-foreground)]"}`}>
+                    {config.p2pTransferEnabled ? "Activé" : "Désactivé"}
+                  </span>
+                </div>
+                <dl className="flex flex-col gap-1 text-xs text-[color:var(--muted-foreground)]">
+                  <div className="flex justify-between"><dt>Frais</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{ratioToPct(config.p2pTransferFeeRate)} %</dd></div>
+                  <div className="flex justify-between"><dt>Montant min.</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{centsToFcfa(config.p2pMinimumAmount).toLocaleString("fr-FR")} FCFA</dd></div>
+                </dl>
+              </div>
+              {/* Retraits */}
+              <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/10 p-3 sm:col-span-2">
+                <span className="mb-2 block text-xs font-semibold text-[color:var(--foreground)]">Minimums de retrait</span>
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-[color:var(--muted-foreground)]">
+                  <div className="flex justify-between"><dt>Mobile Money</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{centsToFcfa(config.withdrawalMinMobileMoney).toLocaleString("fr-FR")} FCFA</dd></div>
+                  <div className="flex justify-between"><dt>Virement bancaire</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{centsToFcfa(config.withdrawalMinBankTransfer).toLocaleString("fr-FR")} FCFA</dd></div>
+                </dl>
+              </div>
+            </div>
+            <div>
+              <CanView permission="wallet.config.manage">
+                <Button variant="outline" size="sm" onClick={openEdit}>
+                  <Pencil className="size-3.5" />
+                  Modifier
+                </Button>
+              </CanView>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/* Consolidation */}
+              <div className="flex flex-col gap-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/10 p-3">
+                <span className="text-xs font-semibold text-[color:var(--foreground)]">Consolidation wallet</span>
+                <Toggle checked={form.consolidationEnabled} onChange={(v) => set("consolidationEnabled", v)} />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Frais (%)" type="number" inputMode="decimal" min={0} max={99} step={0.01}
+                    value={form.consolidationFeeRatePct} onChange={(e) => set("consolidationFeeRatePct", e.target.value === "" ? "" : Number(e.target.value))} hint="0 – 99 %" />
+                  <Input label="Min. (FCFA)" type="number" inputMode="numeric" min={0}
+                    value={form.consolidationMinFcfa} onChange={(e) => set("consolidationMinFcfa", e.target.value === "" ? "" : Number(e.target.value))} />
+                </div>
+              </div>
+              {/* P2P */}
+              <div className="flex flex-col gap-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/10 p-3">
+                <span className="text-xs font-semibold text-[color:var(--foreground)]">Transfert P2P</span>
+                <Toggle checked={form.p2pTransferEnabled} onChange={(v) => set("p2pTransferEnabled", v)} />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Frais (%)" type="number" inputMode="decimal" min={0} max={99} step={0.01}
+                    value={form.p2pTransferFeeRatePct} onChange={(e) => set("p2pTransferFeeRatePct", e.target.value === "" ? "" : Number(e.target.value))} hint="0 – 99 %" />
+                  <Input label="Min. (FCFA)" type="number" inputMode="numeric" min={0}
+                    value={form.p2pMinFcfa} onChange={(e) => set("p2pMinFcfa", e.target.value === "" ? "" : Number(e.target.value))} />
+                </div>
+              </div>
+              {/* Retraits */}
+              <div className="flex flex-col gap-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/10 p-3 sm:col-span-2">
+                <span className="text-xs font-semibold text-[color:var(--foreground)]">Minimums de retrait (FCFA)</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Mobile Money" type="number" inputMode="numeric" min={0}
+                    value={form.withdrawalMinMoMoFcfa} onChange={(e) => set("withdrawalMinMoMoFcfa", e.target.value === "" ? "" : Number(e.target.value))} />
+                  <Input label="Virement bancaire" type="number" inputMode="numeric" min={0}
+                    value={form.withdrawalMinBankFcfa} onChange={(e) => set("withdrawalMinBankFcfa", e.target.value === "" ? "" : Number(e.target.value))} />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={save} isLoading={pending}>Enregistrer</Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={pending}>Annuler</Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -647,9 +861,10 @@ export interface PlatformTabProps {
   toleranceConfig?: SystemConfigEntry | null;
   welcomeBonus?: WelcomeBonusCampaign | null;
   systemConfigs?: SystemConfigEntry[];
+  walletConfig?: WalletConfig | null;
 }
 
-export function PlatformTab({ configs, error, toleranceConfig, welcomeBonus, systemConfigs = [] }: PlatformTabProps) {
+export function PlatformTab({ configs, error, toleranceConfig, welcomeBonus, systemConfigs = [], walletConfig }: PlatformTabProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [editTarget, setEditTarget] = useState<AppVersionConfig | null>(null);
@@ -660,6 +875,9 @@ export function PlatformTab({ configs, error, toleranceConfig, welcomeBonus, sys
 
   return (
     <div className="flex flex-col gap-6">
+      {/* ── Config wallet (P2P, consolidation, retraits) ── */}
+      <WalletConfigCard config={walletConfig ?? null} />
+
       {/* ── Bonus de bienvenue driver ── */}
       <WelcomeBonusCard campaign={welcomeBonus ?? null} />
 

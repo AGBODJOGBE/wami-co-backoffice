@@ -7,6 +7,7 @@ import {
   Car,
   Clock,
   Download,
+  Ghost,
   RefreshCw,
   Search,
   TrendingUp,
@@ -30,6 +31,8 @@ import { downloadCsv, timestampedFilename } from "@/shared/lib/csv";
 import { formatDateTime, formatXof } from "@/shared/lib/format";
 import {
   fullParty,
+  ghostRideLabel,
+  isGhostRide,
   rideStatusMeta,
   type AdminRide,
 } from "../domain/admin-ride";
@@ -66,6 +69,12 @@ const PAYMENT_OPTIONS = [
   { value: "CASH", label: "Cash" },
   { value: "WALLET", label: "Wallet" },
   { value: "MOBILE_MONEY", label: "Mobile Money" },
+];
+
+const CLIENT_OPTIONS = [
+  { value: "ALL",   label: "Client : tous" },
+  { value: "REAL",  label: "Client réel" },
+  { value: "GHOST", label: "Client fantôme" },
 ];
 
 const IN_PROGRESS_STATUSES = [
@@ -111,6 +120,7 @@ export function AdminRidesListClient({
   const [statusF, setStatusF] = useState("ALL");
   const [vehicleF, setVehicleF] = useState("ALL");
   const [paymentF, setPaymentF] = useState("ALL");
+  const [clientF, setClientF] = useState("ALL");
   const [page, setPage] = useState(1);
   const [interventionOpen, setInterventionOpen] = useState(false);
   /** When a row "Modifier statut" is clicked, we pre-fill the modal with
@@ -128,12 +138,14 @@ export function AdminRidesListClient({
       if (statusF !== "ALL" && r.status !== statusF) return false;
       if (vehicleF !== "ALL" && r.vehicleType !== vehicleF) return false;
       if (paymentF !== "ALL" && r.paymentMethod !== paymentF) return false;
+      if (clientF === "GHOST" && !isGhostRide(r)) return false;
+      if (clientF === "REAL"  &&  isGhostRide(r)) return false;
       return true;
     });
-  }, [rides, search, statusF, vehicleF, paymentF]);
+  }, [rides, search, statusF, vehicleF, paymentF, clientF]);
 
   // Reset to page 1 whenever filters change
-  useEffect(() => { setPage(1); }, [search, statusF, vehicleF, paymentF]);
+  useEffect(() => { setPage(1); }, [search, statusF, vehicleF, paymentF, clientF]);
 
   const stats = useMemo(() => {
     const inProgress = rides.filter((r) =>
@@ -162,6 +174,7 @@ export function AdminRidesListClient({
               0,
             ) / completed
         : 0;
+    const ghost = rides.filter((r) => isGhostRide(r)).length;
     return {
       inProgress,
       pending,
@@ -170,6 +183,7 @@ export function AdminRidesListClient({
       totalRevenue,
       cancelRate,
       avgFinal,
+      ghost,
     };
   }, [rides]);
 
@@ -193,20 +207,40 @@ export function AdminRidesListClient({
       key: "passenger",
       header: "Passager",
       sortAccessor: (r) => fullParty(r.passenger),
-      render: (r) => (
-        <div className="flex flex-col leading-tight">
-          <span className="text-sm font-medium">{fullParty(r.passenger)}</span>
-          {r.passenger?.phoneNumber ? (
-            <a
-              href={`tel:${r.passenger.phoneNumber}`}
-              className="font-mono text-[10px] text-[color:var(--primary)] hover:underline"
-              data-no-row-click
-            >
-              {r.passenger.phoneNumber}
-            </a>
-          ) : null}
-        </div>
-      ),
+      render: (r) => {
+        const ghost = isGhostRide(r);
+        return (
+          <div className="flex flex-col leading-tight">
+            <div className="flex items-center gap-1.5">
+              {ghost ? (
+                <span
+                  title="Course sans passager app réel (walk-in ou compte fantôme)"
+                  className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                >
+                  <Ghost className="size-3" />
+                  {ghostRideLabel(r)}
+                </span>
+              ) : (
+                <span className="text-sm font-medium">{fullParty(r.passenger)}</span>
+              )}
+            </div>
+            {!ghost && r.passenger?.phoneNumber ? (
+              <a
+                href={`tel:${r.passenger.phoneNumber}`}
+                className="font-mono text-[10px] text-[color:var(--primary)] hover:underline"
+                data-no-row-click
+              >
+                {r.passenger.phoneNumber}
+              </a>
+            ) : null}
+            {ghost && r.passenger?.phoneNumber && (
+              <span className="font-mono text-[10px] text-[color:var(--muted-foreground)]">
+                {r.passenger.phoneNumber}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "driver",
@@ -434,6 +468,16 @@ export function AdminRidesListClient({
           icon={Activity}
           tone="warning"
         />
+        {stats.ghost > 0 && (
+          <StatCard
+            label="Clients fantômes"
+            value={String(stats.ghost)}
+            trend={{ value: "sans passager réel", direction: "flat" }}
+            helper="à examiner"
+            icon={Ghost}
+            tone="danger"
+          />
+        )}
       </section>
 
       <div className="flex flex-col gap-3 rounded-xl border border-[color:var(--border)] bg-white p-4 dark:bg-[color:var(--muted)]">
@@ -461,6 +505,12 @@ export function AdminRidesListClient({
             options={PAYMENT_OPTIONS}
             value={paymentF}
             onChange={setPaymentF}
+            className="sm:w-44"
+          />
+          <Combobox
+            options={CLIENT_OPTIONS}
+            value={clientF}
+            onChange={setClientF}
             className="sm:w-44"
           />
         </div>
@@ -506,6 +556,15 @@ export function AdminRidesListClient({
             content: renderTable(
               filtered.filter((r) => CANCELLED_STATUSES.includes(r.status)),
             ),
+          },
+          {
+            value: "ghost",
+            label: "Fantômes",
+            badge: {
+              count: filtered.filter((r) => isGhostRide(r)).length,
+              tone: "danger" as const,
+            },
+            content: renderTable(filtered.filter((r) => isGhostRide(r))),
           },
         ]}
       />

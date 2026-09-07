@@ -19,6 +19,7 @@ import {
   type DailyCollectionReport,
   type InstallmentStatus,
   type ManualPaymentMethod,
+  type PaymentSource,
 } from "../domain/contract";
 import {
   generateDailyCollectionReportAction,
@@ -59,6 +60,14 @@ function getPresets(today: string): DatePreset[] {
   ];
 }
 
+// ─── Mode de collecte ────────────────────────────────────────────────────────
+
+const PAYMENT_SOURCE_LABELS: Record<PaymentSource, string> = {
+  AUTOMATIQUE: "Système",
+  MANUEL:      "Manuel",
+  INCONNU:     "—",
+};
+
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
 const CSV_COLUMNS: CsvColumn<DailyCollectionLine>[] = [
@@ -75,6 +84,7 @@ const CSV_COLUMNS: CsvColumn<DailyCollectionLine>[] = [
   { key: "montantRecouvre",     header: "Encaissé cash (FCFA)", value: (r) => r.montantRecouvre },
   { key: "cashShortfall",       header: "En recouvrement (FCFA)", value: (r) => r.cashShortfall },
   { key: "retardJours",         header: "Retard (jours)",       value: (r) => r.retardJours ?? 0 },
+  { key: "modeCollecte",        header: "Mode collecte",        value: (r) => PAYMENT_SOURCE_LABELS[r.paymentSource] },
   { key: "contractId",          header: "ID Contrat",           value: (r) => r.contractId },
   { key: "driverId",            header: "ID Chauffeur",         value: (r) => r.driverId },
 ];
@@ -443,6 +453,7 @@ export function DailyCollectionReportPage() {
                         { label: "Chauffeur",       align: "" },
                         { label: "Véhicule",        align: "" },
                         { label: "Statut",          align: "" },
+                        { label: "Mode",            align: "" },
                         { label: "Montant dû",      align: "text-right" },
                         { label: "Imputé wallet",   align: "text-right" },
                         { label: "Encaissé cash",   align: "text-right" },
@@ -515,6 +526,17 @@ export function DailyCollectionReportPage() {
                             </Badge>
                           </td>
 
+                          {/* Mode de collecte */}
+                          <td className="whitespace-nowrap px-4 py-3">
+                            {line.paymentSource === "AUTOMATIQUE" ? (
+                              <Badge tone="info">Système</Badge>
+                            ) : line.paymentSource === "MANUEL" ? (
+                              <Badge tone="success">Manuel</Badge>
+                            ) : (
+                              <span className="text-[color:var(--muted-foreground)]">—</span>
+                            )}
+                          </td>
+
                           {/* Montant dû */}
                           <td className="whitespace-nowrap px-4 py-3 text-right font-mono font-semibold text-[color:var(--foreground)]">
                             {formatXof(line.montant)}
@@ -580,7 +602,7 @@ export function DailyCollectionReportPage() {
                   {/* Totaux */}
                   <tfoot>
                     <tr className="border-t-2 border-[color:var(--border)] bg-[color:var(--muted)]/30">
-                      <td colSpan={6} className="px-4 py-3 text-xs font-bold text-[color:var(--foreground)]">
+                      <td colSpan={7} className="px-4 py-3 text-xs font-bold text-[color:var(--foreground)]">
                         Total ({report.totalLines} lignes)
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-mono font-bold text-[color:var(--foreground)]">

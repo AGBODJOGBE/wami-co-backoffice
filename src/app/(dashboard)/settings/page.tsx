@@ -5,7 +5,7 @@ import {
   listRoles,
 } from "@/features/rbac/application/api";
 import { RbacSection } from "@/features/rbac/presentation/rbac-section";
-import { listAdmins, listAppConfigs, listSystemConfigs, getWelcomeBonusCampaign } from "@/features/settings/application/api";
+import { listAdmins, listAppConfigs, listSystemConfigs, getWelcomeBonusCampaign, getWalletConfig } from "@/features/settings/application/api";
 import { AdminsTab } from "@/features/settings/presentation/admins-tab";
 import { PlatformTab } from "@/features/settings/presentation/platform-tab";
 import { SettingsPage as MockSettingsPage } from "@/features/settings/settings-page";
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPageRoute() {
   await requireAnyPermission(["admin.view_all", "app_config.manage"]);
 
-  const [meRes, rolesRes, catalogRes, adminsRes, appConfigRes, systemConfigsRes, welcomeBonusRes] =
+  const [meRes, rolesRes, catalogRes, adminsRes, appConfigRes, systemConfigsRes, welcomeBonusRes, walletConfigRes] =
     await Promise.allSettled([
       getMyPermissions(),
       listRoles(),
@@ -26,6 +26,7 @@ export default async function SettingsPageRoute() {
       listAppConfigs(),
       listSystemConfigs(),
       getWelcomeBonusCampaign(),
+      getWalletConfig(),
     ]);
 
   const errMsg = (e: unknown) =>
@@ -42,6 +43,7 @@ export default async function SettingsPageRoute() {
   // PAYMENT_TOLERANCE_DAYS has its own dedicated card — exclude it from the generic list
   const otherSystemConfigs = allSystemConfigs.filter((c) => c.key !== "PAYMENT_TOLERANCE_DAYS");
   const welcomeBonus = welcomeBonusRes.status === "fulfilled" ? welcomeBonusRes.value : null;
+  const walletConfig = walletConfigRes.status === "fulfilled" ? walletConfigRes.value : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -113,6 +115,7 @@ export default async function SettingsPageRoute() {
                 toleranceConfig={toleranceConfig}
                 welcomeBonus={welcomeBonus}
                 systemConfigs={otherSystemConfigs}
+                walletConfig={walletConfig}
               />
             ),
           },

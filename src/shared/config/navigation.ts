@@ -316,6 +316,20 @@ export const navSections: NavSection[] = [
             dataSource: "live",
             requiredPermissions: ["contract.view_all"],
           },
+          {
+            href: "/contracts/pilotes-actifs",
+            label: "Pilotes en contrat",
+            icon: Users,
+            dataSource: "live",
+            requiredPermissions: ["contract.view_all"],
+          },
+          {
+            href: "/finance/receivables",
+            label: "Vue créances",
+            icon: TrendingDown,
+            dataSource: "live",
+            requiredPermissions: ["contract.view_all"],
+          },
         ],
       },
       {

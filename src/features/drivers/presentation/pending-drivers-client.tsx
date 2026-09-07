@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle2,
   Clock,
   Download,
+  Eye,
+  EyeOff,
   RefreshCw,
   ShieldCheck,
   ShieldX,
@@ -27,6 +29,7 @@ import { formatDate } from "@/shared/lib/format";
 import { StatCard } from "@/features/dashboard/presentation/components/stat-card";
 import {
   relativeTime,
+  ADMIN_DRIVER_STATUS_META,
   type PendingDriver,
 } from "../domain/admin-driver";
 import { CanView } from "@/shared/ui/can-view";
@@ -35,6 +38,27 @@ import {
   SuspendDriverModal,
   type DriverTarget,
 } from "./driver-action-modals";
+
+const LS_KEY = "foryou:pending:hidden";
+
+function loadHidden(): Set<string> {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveHidden(ids: Set<string>) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify([...ids]));
+    window.dispatchEvent(new CustomEvent("foryou:pending-hidden-changed"));
+  } catch {
+    // storage might be blocked in some contexts
+  }
+}
 
 export interface PendingDriversClientProps {
   drivers: PendingDriver[];
@@ -49,16 +73,46 @@ export function PendingDriversClient({
   const [refreshing, startRefresh] = useTransition();
   const [search, setSearch] = useState("");
   const [suspendTarget, setSuspendTarget] = useState<DriverTarget | null>(null);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [showHidden, setShowHidden] = useState(false);
+
+  // Init from localStorage after mount (avoid hydration mismatch)
+  useEffect(() => {
+    setHiddenIds(loadHidden());
+  }, []);
+
+  function toggleHide(driverId: string) {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(driverId)) {
+        next.delete(driverId);
+      } else {
+        next.add(driverId);
+      }
+      saveHidden(next);
+      return next;
+    });
+  }
+
+  const visible = useMemo(
+    () => drivers.filter((d) => !hiddenIds.has(d.driverId)),
+    [drivers, hiddenIds],
+  );
+
+  const hiddenDrivers = useMemo(
+    () => drivers.filter((d) => hiddenIds.has(d.driverId)),
+    [drivers, hiddenIds],
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return drivers;
-    return drivers.filter((d) =>
+    if (!q) return visible;
+    return visible.filter((d) =>
       `${d.firstName ?? ""} ${d.lastName ?? ""} ${d.phoneNumber ?? ""} ${d.driverId} ${d.userId} ${d.category}`
         .toLowerCase()
         .includes(q),
     );
-  }, [drivers, search]);
+  }, [visible, search]);
 
   function buildHref(d: PendingDriver) {
     const sp = new URLSearchParams({
@@ -66,14 +120,14 @@ export function PendingDriversClient({
       category: d.category,
       isDocumentsVerified: String(d.isDocumentsVerified),
       createdAt: d.createdAt,
-      status: "PENDING",
+      status: d.status ?? "PENDING",
     });
     return `/vtc/drivers/${d.driverId}?${sp.toString()}`;
   }
 
-  const docsVerified = drivers.filter((d) => d.isDocumentsVerified).length;
-  const docsMissing = drivers.length - docsVerified;
-  const oldest = drivers.reduce<PendingDriver | null>((acc, d) => {
+  const docsVerified = visible.filter((d) => d.isDocumentsVerified).length;
+  const docsMissing = visible.length - docsVerified;
+  const oldest = visible.reduce<PendingDriver | null>((acc, d) => {
     if (!acc) return d;
     return new Date(d.createdAt) < new Date(acc.createdAt) ? d : acc;
   }, null);
@@ -123,14 +177,23 @@ export function PendingDriversClient({
     },
     {
       key: "documents",
-      header: "Documents",
+      header: "Documents / Statut",
       sortAccessor: (row) => (row.isDocumentsVerified ? 1 : 0),
-      render: (row) =>
-        row.isDocumentsVerified ? (
-          <Badge tone="success">Vérifiés</Badge>
-        ) : (
-          <Badge tone="warning">Non vérifiés</Badge>
-        ),
+      render: (row) => {
+        const statusMeta = row.status ? ADMIN_DRIVER_STATUS_META[row.status] : null;
+        return (
+          <div className="flex flex-col gap-1">
+            {row.isDocumentsVerified ? (
+              <Badge tone="success">Vérifiés</Badge>
+            ) : (
+              <Badge tone="warning">Non vérifiés</Badge>
+            )}
+            {statusMeta && row.status !== "PENDING" && (
+              <Badge tone={statusMeta.tone}>{statusMeta.label}</Badge>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "createdAt",
@@ -162,22 +225,101 @@ export function PendingDriversClient({
               size="sm"
             />
           </CanView>
-          <CanView permission="driver.suspend">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const name = `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim();
-                setSuspendTarget({
-                  driverId: row.driverId,
-                  label: name || `Pilote #${row.driverId.slice(0, 8)}`,
-                });
-              }}
-            >
-              Suspendre
-            </Button>
-          </CanView>
+          {row.status === "SUSPENDED" ? (
+            <CanView permission="driver.suspend">
+              <DriverInlineActionButton
+                driverId={row.driverId}
+                action="reactivate"
+                label="Réactiver"
+                variant="outline"
+                size="sm"
+              />
+            </CanView>
+          ) : (
+            <CanView permission="driver.suspend">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const name = `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim();
+                  setSuspendTarget({
+                    driverId: row.driverId,
+                    label: name || `Pilote #${row.driverId.slice(0, 8)}`,
+                  });
+                }}
+              >
+                Suspendre
+              </Button>
+            </CanView>
+          )}
+          <button
+            data-no-row-click
+            title="Masquer ce pilote"
+            onClick={() => toggleHide(row.driverId)}
+            className="flex size-8 items-center justify-center rounded-lg text-[color:var(--muted-foreground)] transition-colors hover:bg-[color:var(--muted)] hover:text-[color:var(--foreground)]"
+          >
+            <EyeOff className="size-4" />
+          </button>
         </div>
+      ),
+    },
+  ];
+
+  const hiddenColumns: ColumnDef<PendingDriver>[] = [
+    {
+      key: "driver",
+      header: "Pilote",
+      sortAccessor: (row) => `${row.lastName ?? ""} ${row.firstName ?? ""}`,
+      render: (row) => {
+        const name = `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim();
+        const displayName = name || `Pilote #${row.driverId.slice(0, 8)}`;
+        return (
+          <div className="flex items-center gap-3">
+            <Avatar name={displayName} />
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-medium text-[color:var(--muted-foreground)]">
+                {displayName}
+              </span>
+              {row.phoneNumber && (
+                <span className="font-mono text-[10px] text-[color:var(--muted-foreground)]">
+                  {row.phoneNumber}
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: "category",
+      header: "Catégorie",
+      sortAccessor: (row) => row.category,
+      render: (row) => <Badge tone="neutral">{row.category}</Badge>,
+    },
+    {
+      key: "createdAt",
+      header: "Inscrit",
+      sortAccessor: (row) => new Date(row.createdAt).getTime(),
+      render: (row) => (
+        <span className="text-xs text-[color:var(--muted-foreground)]">
+          {formatDate(row.createdAt)}
+        </span>
+      ),
+    },
+    {
+      key: "reveal",
+      header: "",
+      align: "right",
+      render: (row) => (
+        <button
+          data-no-row-click
+          title="Afficher ce pilote"
+          onClick={() => toggleHide(row.driverId)}
+          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-[color:var(--muted-foreground)] transition-colors hover:bg-[color:var(--muted)] hover:text-[color:var(--foreground)]"
+        >
+          <Eye className="size-3.5" />
+          Révéler
+        </button>
       ),
     },
   ];
@@ -187,7 +329,7 @@ export function PendingDriversClient({
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="En attente"
-          value={String(drivers.length)}
+          value={String(visible.length)}
           trend={{ value: "à valider", direction: "flat" }}
           helper={`${docsVerified} docs OK · ${docsMissing} en attente`}
           icon={Clock}
@@ -265,7 +407,7 @@ export function PendingDriversClient({
         </div>
       </div>
 
-      {drivers.length === 0 ? (
+      {visible.length === 0 && hiddenDrivers.length === 0 ? (
         <Card className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
           <CheckCircle2 className="size-10 text-[color:var(--success)]" />
           <p className="text-sm font-medium text-[color:var(--foreground)]">
@@ -274,6 +416,16 @@ export function PendingDriversClient({
           <p className="text-xs text-[color:var(--muted-foreground)]">
             Tous les dossiers ont été traités. Reviens plus tard ou rafraîchis
             la page.
+          </p>
+        </Card>
+      ) : visible.length === 0 ? (
+        <Card className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+          <EyeOff className="size-10 text-[color:var(--muted-foreground)]" />
+          <p className="text-sm font-medium text-[color:var(--foreground)]">
+            Tous les pilotes sont masqués
+          </p>
+          <p className="text-xs text-[color:var(--muted-foreground)]">
+            {hiddenDrivers.length} pilote{hiddenDrivers.length > 1 ? "s" : ""} masqué{hiddenDrivers.length > 1 ? "s" : ""} — révèle-les ci-dessous.
           </p>
         </Card>
       ) : (
@@ -289,12 +441,40 @@ export function PendingDriversClient({
         </Card>
       )}
 
+      {/* ── Pilotes masqués ─────────────────────────────────────────────────── */}
+      {hiddenDrivers.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={() => setShowHidden((v) => !v)}
+            className="flex items-center gap-2 self-start rounded-lg border border-[color:var(--border)] bg-[color:var(--background)] px-3 py-2 text-sm text-[color:var(--muted-foreground)] transition-colors hover:border-[color:var(--primary)]/40 hover:text-[color:var(--foreground)]"
+          >
+            <EyeOff className="size-4" />
+            <span>
+              {hiddenDrivers.length} pilote{hiddenDrivers.length > 1 ? "s" : ""} masqué{hiddenDrivers.length > 1 ? "s" : ""}
+            </span>
+            <span className="ml-1 text-xs opacity-60">
+              {showHidden ? "▲ Réduire" : "▼ Afficher"}
+            </span>
+          </button>
+
+          {showHidden && (
+            <Card className="overflow-hidden border-dashed p-0 opacity-70">
+              <DataTable
+                rows={hiddenDrivers}
+                columns={hiddenColumns}
+                rowKey={(row) => row.driverId}
+                defaultSort={{ key: "createdAt", direction: "asc" }}
+              />
+            </Card>
+          )}
+        </div>
+      )}
+
       <SuspendDriverModal
         open={!!suspendTarget}
         target={suspendTarget}
         onClose={() => setSuspendTarget(null)}
       />
-
     </div>
   );
 }

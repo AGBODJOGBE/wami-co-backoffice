@@ -1,6 +1,7 @@
 "use client";
 
-import { Building2, Clock, Gauge, MapPin, Navigation, Radio, User } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Building2, Gauge, MapPin, Navigation, Radio, User } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import { Card } from "@/shared/ui/card";
 import { Tabs } from "@/shared/ui/tabs";
@@ -8,6 +9,18 @@ import { PendingDriversClient } from "./pending-drivers-client";
 import { AdminDriversListClient } from "./admin-drivers-list-client";
 import type { AdminDriver, OnlineDriver, PendingDriver } from "../domain/admin-driver";
 import { fullName } from "../domain/admin-driver";
+
+const LS_KEY = "foryou:pending:hidden";
+
+function loadHiddenIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
 
 // ─── Online drivers list ───────────────────────────────────────────────────────
 
@@ -186,6 +199,28 @@ export function DriversTabs({
   platformVehicleDrivers,
   otherApprovedDrivers,
 }: DriversTabsProps) {
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setHiddenIds(loadHiddenIds());
+
+    // Cross-tab sync via StorageEvent
+    function onStorage(e: StorageEvent) {
+      if (e.key === LS_KEY) setHiddenIds(loadHiddenIds());
+    }
+    // Same-tab sync via custom event dispatched by PendingDriversClient
+    function onHiddenChanged() { setHiddenIds(loadHiddenIds()); }
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("foryou:pending-hidden-changed", onHiddenChanged);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("foryou:pending-hidden-changed", onHiddenChanged);
+    };
+  }, []);
+
+  const visiblePendingCount = pending.filter((d) => !hiddenIds.has(d.driverId)).length;
+
   return (
     <Tabs
       defaultValue={all.length > 0 ? "all" : "pending"}
@@ -276,8 +311,8 @@ export function DriversTabs({
           value: "pending",
           label: "En attente (live)",
           badge:
-            pending.length > 0
-              ? { count: pending.length, tone: "warning" as const }
+            visiblePendingCount > 0
+              ? { count: visiblePendingCount, tone: "warning" as const }
               : undefined,
           content: pendingError ? (
             <Card className="p-6">
