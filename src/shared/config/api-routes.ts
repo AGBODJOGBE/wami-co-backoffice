@@ -267,6 +267,11 @@ export const API_ROUTES = {
      *  expiresAt (optional). Response shape : {documentId, url, fileKey,
      *  isPublic, …}. */
     upload: () => "/api/documents/upload",
+    /** PUT multipart — admin replaces a VERIFIED document with a new file.
+     *  Status resets to PENDING after replacement. */
+    adminReplace: (id: string) => `/api/documents/admin/${id}/replace`,
+    /** DELETE — admin deletes a PENDING or REJECTED document (never VERIFIED). */
+    adminDelete: (id: string) => `/api/documents/admin/${id}`,
   },
 
   // ─── Admin: contrats location-vente ────────────────────────────────────────
