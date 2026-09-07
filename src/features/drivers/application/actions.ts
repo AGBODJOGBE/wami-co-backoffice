@@ -10,7 +10,9 @@ import type {
   DriverConnectionTimeByDayResponse,
   DriverSessionsResult,
   DriverStatusChangeResult,
+  DriverType,
   UpdateDriverInfoInput,
+  UpdateDriverTypeResponse,
 } from "../domain/admin-driver";
 
 export interface ActionResult<T = undefined> {
@@ -69,6 +71,22 @@ export async function fetchDriverCommissionDebtPageAction(
   params: { page: number; limit: number },
 ): Promise<DriverCommissionDebtDetail | null> {
   return getDriverCommissionDebtDetail(driverId, params);
+}
+
+export async function updateDriverTypeAction(
+  driverId: string,
+  driverType: DriverType,
+): Promise<ActionResult<UpdateDriverTypeResponse>> {
+  try {
+    const data = await apiFetch<UpdateDriverTypeResponse>(
+      API_ROUTES.adminDrivers.updateDriverType(driverId),
+      { method: "PATCH", body: { driverType } },
+    );
+    refresh(driverId);
+    return { ok: true, message: data.message ?? "Type de service mis à jour.", data };
+  } catch (e) {
+    return fail(e, "Mise à jour impossible.");
+  }
 }
 
 export async function approveDriverAction(

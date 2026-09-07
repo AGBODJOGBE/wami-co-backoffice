@@ -414,13 +414,21 @@ function InstallmentRow({
             );
           })()}
 
-          {/* PARTIELLEMENT_RECOUVREE ou PARTIELLE */}
+          {/* PARTIELLEMENT_RECOUVREE ou PARTIELLE
+               Deux cas distincts sous ce même statut :
+               A) wallet partiellement débité (restant > 0) — imputation pas terminée
+               B) wallet 100% débité (restant = 0) mais encaissement cash partiel
+                  → cashShortfall = montantPaye − montantRecouvre est le montant "en recouvrement"
+          */}
           {isPartial && row.montantPaye != null && (() => {
-            const restant = row.montantRestant ?? (row.montant - row.montantPaye);
-            const recouvre = row.montantRecouvre ?? 0;
+            const restantWallet  = row.montantRestant ?? (row.montant - row.montantPaye);
+            const recouvre       = row.montantRecouvre ?? 0;
+            const cashShortfall  = Math.max(0, row.montantPaye - recouvre);
+            const fullyImputed   = restantWallet === 0;
             const pct = row.montant > 0 ? Math.min(100, Math.round((row.montantPaye / row.montant) * 100)) : 0;
             return (
               <div className="mt-1 flex flex-col gap-0.5">
+                {/* Barre de progression imputation */}
                 <div className="flex items-center gap-2">
                   <div className="relative h-1.5 w-20 overflow-hidden rounded-full bg-amber-100 dark:bg-amber-900/40">
                     <div
@@ -428,15 +436,37 @@ function InstallmentRow({
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">{pct}%</span>
+                  <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                    {pct}% imputé
+                  </span>
                 </div>
-                <span className="text-[11px] text-amber-700 dark:text-amber-300">
-                  {formatXof(row.montantPaye)} imputé ·{" "}
-                  <strong className="text-amber-800 dark:text-amber-200">{formatXof(restant)}</strong> restant
-                </span>
-                {recouvre > 0 && (
-                  <span className="text-[11px] text-sky-600 dark:text-sky-400">
-                    {formatXof(recouvre)} encaissé cash
+
+                {/* Cas A — wallet pas encore entièrement débité */}
+                {!fullyImputed && (
+                  <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                    {formatXof(row.montantPaye)} imputé ·{" "}
+                    <strong className="text-amber-800 dark:text-amber-200">
+                      {formatXof(restantWallet)}
+                    </strong>{" "}
+                    à imputer (wallet)
+                  </span>
+                )}
+
+                {/* Cas B — wallet totalement débité, recouvrement cash partiel */}
+                {fullyImputed && (
+                  <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                    {formatXof(row.montantPaye)} totalement imputé ·{" "}
+                    {recouvre > 0
+                      ? <><strong className="text-sky-700 dark:text-sky-300">{formatXof(recouvre)}</strong> encaissé cash</>
+                      : <span className="italic">aucun encaissement cash</span>
+                    }
+                  </span>
+                )}
+
+                {/* Delta cash manquant — toujours visible si le shortfall > 0 */}
+                {cashShortfall > 0 && (
+                  <span className="text-[11px] font-semibold text-sky-600 dark:text-sky-400">
+                    {formatXof(cashShortfall)} en recouvrement cash (non encore encaissé)
                   </span>
                 )}
               </div>

@@ -34,6 +34,7 @@ import { DetailHeader } from "@/shared/ui/detail-header";
 import { CopyableId } from "@/shared/ui/copy-button";
 import { DevNote } from "@/shared/ui/dev-note";
 import { Spinner } from "@/shared/ui/spinner";
+import { toast } from "@/shared/ui/toast";
 import { DocumentsList } from "@/features/documents/presentation/documents-list";
 import { formatDate, formatDateTime, formatXof } from "@/shared/lib/format";
 import { CanView } from "@/shared/ui/can-view";
@@ -47,13 +48,16 @@ import {
   fetchDriverDailyConnectionTimeAction,
   fetchDriverSessionsAction,
   updateDriverInfoAction,
+  updateDriverTypeAction,
 } from "../application/actions";
 import {
   ADMIN_DRIVER_STATUS_META,
+  DRIVER_TYPE_LABELS,
   fullName,
   type AdminDriver,
   type AdminDriverStatus,
   type DriverCommissionDebtDetail,
+  type DriverType,
   type OnlineDriver,
   type UpdateDriverInfoInput,
 } from "../domain/admin-driver";
@@ -138,6 +142,80 @@ function formatDuration(seconds: number | null): string {
   const h = Math.floor(m / 60);
   const rem = m % 60;
   return rem > 0 ? `${h}h ${rem}min` : `${h}h`;
+}
+
+// ─── Driver type inline editor ────────────────────────────────────────────────
+
+const DRIVER_TYPES: DriverType[] = ["VTC", "DELIVERY", "BOTH"];
+
+function DriverTypeEditor({ driverId, current }: { driverId: string; current: DriverType }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState<DriverType>(current);
+  const [pending, start] = useTransition();
+
+  function save() {
+    if (selected === current) { setEditing(false); return; }
+    start(async () => {
+      const r = await updateDriverTypeAction(driverId, selected);
+      if (r.ok) {
+        toast({ kind: "success", title: "Type de service mis à jour", description: r.message });
+        setEditing(false);
+        router.refresh();
+      } else {
+        toast({ kind: "error", title: "Échec", description: r.message });
+      }
+    });
+  }
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Badge tone="info">{DRIVER_TYPE_LABELS[current] ?? current}</Badge>
+        <CanView permission="driver.manage">
+          <button
+            type="button"
+            onClick={() => { setSelected(current); setEditing(true); }}
+            className="rounded p-0.5 text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]"
+            title="Modifier le type de service"
+          >
+            <Pencil className="size-3" />
+          </button>
+        </CanView>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <select
+        value={selected}
+        onChange={(e) => setSelected(e.target.value as DriverType)}
+        disabled={pending}
+        className="h-7 rounded border border-[color:var(--border)] bg-[color:var(--background)] px-1.5 text-xs text-[color:var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[color:var(--primary)]"
+      >
+        {DRIVER_TYPES.map((t) => (
+          <option key={t} value={t}>{DRIVER_TYPE_LABELS[t]}</option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={save}
+        disabled={pending}
+        className="rounded bg-[color:var(--primary)] px-2 py-0.5 text-[10px] font-semibold text-white disabled:opacity-50"
+      >
+        {pending ? "…" : "OK"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setEditing(false)}
+        disabled={pending}
+        className="rounded px-1.5 py-0.5 text-[10px] text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)] disabled:opacity-50"
+      >
+        ✕
+      </button>
+    </div>
+  );
 }
 
 // ─── Micro-components ─────────────────────────────────────────────────────────
@@ -1314,7 +1392,7 @@ export function DriverDetailClient({
                     </a>
                   </InfoCell>
                   <InfoCell label="Type">
-                    <Badge tone="info">{enriched.driverType}</Badge>
+                    <DriverTypeEditor driverId={driverId} current={enriched.driverType as DriverType} />
                   </InfoCell>
                   <InfoCell label="Catégorie">
                     <span className="text-sm font-medium">{enriched.category || category || "—"}</span>

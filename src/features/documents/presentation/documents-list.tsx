@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useState, useTransition } from "react";
 import {
   AlertTriangle,
   CalendarClock,
@@ -8,8 +8,10 @@ import {
   Eye,
   FileText,
   ImageIcon,
+  RefreshCw,
   ShieldCheck,
   ShieldX,
+  Trash2,
 } from "lucide-react";
 import { CanView } from "@/shared/ui/can-view";
 import { Badge } from "@/shared/ui/badge";
@@ -19,8 +21,10 @@ import { Textarea } from "@/shared/ui/textarea";
 import { toast } from "@/shared/ui/toast";
 import { formatDate, formatRelative } from "@/shared/lib/format";
 import {
+  deleteDocumentAdminAction,
   getDocumentOpenUrlAction,
   rejectDocumentAction,
+  replaceDocumentAction,
   verifyDocumentAction,
   type ActionResult,
 } from "../application/actions";
@@ -277,6 +281,101 @@ function CardThumbnail({
   );
 }
 
+/** Admin deletes a PENDING or REJECTED document (with inline confirmation). */
+function DeleteDocumentButton({
+  doc,
+  pathHint,
+}: {
+  doc: DocumentMetadata;
+  pathHint?: string;
+}) {
+  const [confirm, setConfirm] = useState(false);
+  const [pending, start] = useTransition();
+
+  if (!confirm) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        fullWidth
+        onClick={() => setConfirm(true)}
+        className="text-[color:var(--danger)] hover:bg-[color:var(--danger)]/10"
+      >
+        <Trash2 className="size-4" />
+        Supprimer
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex gap-1.5">
+      <Button
+        variant="danger"
+        size="sm"
+        fullWidth
+        isLoading={pending}
+        onClick={() =>
+          start(async () => {
+            const r = await deleteDocumentAdminAction(doc.documentId, pathHint);
+            notify(r, "Document supprimé");
+            setConfirm(false);
+          })
+        }
+      >
+        Confirmer
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => setConfirm(false)} disabled={pending}>
+        ✕
+      </Button>
+    </div>
+  );
+}
+
+/** Admin replaces a VERIFIED document — opens a file picker then uploads. */
+function ReplaceDocumentButton({
+  doc,
+  pathHint,
+}: {
+  doc: DocumentMetadata;
+  pathHint?: string;
+}) {
+  const [pending, start] = useTransition();
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so the same file can be re-selected if needed
+    e.target.value = "";
+    start(async () => {
+      const r = await replaceDocumentAction(doc.documentId, file, pathHint);
+      notify(r, "Document remplacé");
+    });
+  }
+
+  return (
+    <label className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[color:var(--border)] px-2 py-1.5 text-xs font-medium text-[color:var(--foreground)] transition-colors hover:bg-[color:var(--muted)] disabled:opacity-50">
+      {pending ? (
+        <>
+          <RefreshCw className="size-3.5 animate-spin" />
+          Envoi…
+        </>
+      ) : (
+        <>
+          <RefreshCw className="size-3.5" />
+          Remplacer
+        </>
+      )}
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp,application/pdf"
+        className="sr-only"
+        disabled={pending}
+        onChange={handleFile}
+      />
+    </label>
+  );
+}
+
 /** A single document card (used inside the grid). */
 function DocumentCard({
   doc,
@@ -357,6 +456,14 @@ function DocumentCard({
           <Eye className="size-4" />
           Voir le document
         </Button>
+        {/* Admin-only secondary actions */}
+        <CanView permission="document.verify">
+          {doc.status === "VERIFIED" ? (
+            <ReplaceDocumentButton doc={doc} pathHint={pathHint} />
+          ) : doc.status === "PENDING" || doc.status === "REJECTED" ? (
+            <DeleteDocumentButton doc={doc} pathHint={pathHint} />
+          ) : null}
+        </CanView>
       </footer>
     </article>
   );

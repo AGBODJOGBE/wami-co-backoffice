@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   ArrowDownLeft,
@@ -190,38 +190,36 @@ export function AdminTransactionsClient({
     startTransition(() => router.push(`${pathname}?${params.toString()}`));
   }
 
-  const [search,          setSearch]          = useState("");
-  const [typeFilter,      setTypeFilter]      = useState("ALL");
-  const [walletFilter,    setWalletFilter]    = useState("ALL");
-  const [directionFilter, setDirectionFilter] = useState("ALL");
-  const [statusFilter,    setStatusFilter]    = useState("ALL");
-  const [fromDate,        setFromDate]        = useState("");
-  const [toDate,          setToDate]          = useState("");
+  function pushFilters(patch: Record<string, string>) {
+    const params = new URLSearchParams(searchParamsHook.toString());
+    params.set("page",  "1");
+    params.set("limit", String(limit));
+    Object.entries(patch).forEach(([k, v]) => {
+      if (v && v !== "ALL") params.set(k, v);
+      else params.delete(k);
+    });
+    startTransition(() => router.push(`${pathname}?${params.toString()}`));
+  }
 
-  // ─── Filtres client-side ──────────────────────────────────────────────────
-  const applyFilters = useCallback(
-    (txns: AdminTransaction[]) => {
-      const fromTs = fromDate ? new Date(fromDate).getTime() : null;
-      const toTs   = toDate   ? new Date(`${toDate}T23:59:59`).getTime() : null;
-      return txns.filter((t) => {
-        if (typeFilter      !== "ALL" && t.type        !== typeFilter)      return false;
-        if (walletFilter    !== "ALL" && t.walletType  !== walletFilter)    return false;
-        if (directionFilter !== "ALL" && t.direction   !== directionFilter) return false;
-        if (statusFilter    !== "ALL" && t.status      !== statusFilter)    return false;
-        if (fromTs !== null && new Date(t.createdAt).getTime() < fromTs)   return false;
-        if (toTs   !== null && new Date(t.createdAt).getTime() > toTs)     return false;
-        if (search) {
-          const q   = search.toLowerCase();
-          const hay = `${t.ownerName} ${t.ownerPhone} ${t.description} ${t.transactionId}`.toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
-        return true;
-      });
-    },
-    [search, typeFilter, walletFilter, directionFilter, statusFilter, fromDate, toDate],
-  );
+  const [search, setSearch] = useState("");
 
-  const filtered = useMemo(() => applyFilters(transactions), [applyFilters, transactions]);
+  // Filtres serveur : lus depuis l'URL — appliqués par le SSR avant le rendu
+  const typeFilter      = searchParamsHook.get("type")      ?? "ALL";
+  const walletFilter    = searchParamsHook.get("walletType") ?? "ALL";
+  const directionFilter = searchParamsHook.get("direction") ?? "ALL";
+  const statusFilter    = searchParamsHook.get("status")    ?? "ALL";
+  const fromDate        = searchParamsHook.get("fromDate")  ?? "";
+  const toDate          = searchParamsHook.get("toDate")    ?? "";
+
+  // Seule la recherche texte reste côté client (les autres filtres viennent du serveur)
+  const filtered = useMemo(() => {
+    if (!search) return transactions;
+    const q = search.toLowerCase();
+    return transactions.filter((t) => {
+      const hay = `${t.ownerName} ${t.ownerPhone} ${t.description} ${t.transactionId}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [transactions, search]);
 
   // ─── Export complet (toutes les pages) ───────────────────────────────────
   async function handleExportAll(
@@ -230,13 +228,25 @@ export function AdminTransactionsClient({
   ) {
     setIsExporting(true);
     try {
-      // Si toutes les données sont déjà chargées, on évite un appel réseau
-      const source =
-        total <= transactions.length
-          ? transactions
-          : await exportAllTransactionsAction();
-      const withFilters = applyFilters(source);
-      const forExport   = tabFilter ? withFilters.filter(tabFilter) : withFilters;
+      const serverFilters = {
+        ...(typeFilter      !== "ALL" ? { type:       typeFilter }      : {}),
+        ...(walletFilter    !== "ALL" ? { walletType: walletFilter }    : {}),
+        ...(directionFilter !== "ALL" ? { direction:  directionFilter } : {}),
+        ...(statusFilter    !== "ALL" ? { status:     statusFilter }    : {}),
+        ...(fromDate ? { fromDate } : {}),
+        ...(toDate   ? { toDate }   : {}),
+      };
+      const source = total <= transactions.length
+        ? transactions
+        : await exportAllTransactionsAction(serverFilters);
+      const withSearch = search
+        ? source.filter((t) => {
+            const q   = search.toLowerCase();
+            const hay = `${t.ownerName} ${t.ownerPhone} ${t.description} ${t.transactionId}`.toLowerCase();
+            return hay.includes(q);
+          })
+        : source;
+      const forExport = tabFilter ? withSearch.filter(tabFilter) : withSearch;
       downloadCsv(timestampedFilename(filename), CSV_COLUMNS, forExport);
     } finally {
       setIsExporting(false);
@@ -282,8 +292,8 @@ export function AdminTransactionsClient({
     directionFilter !== "ALL" || statusFilter !== "ALL" || fromDate || toDate;
 
   function clearFilters() {
-    setSearch(""); setTypeFilter("ALL"); setWalletFilter("ALL");
-    setDirectionFilter("ALL"); setStatusFilter("ALL"); setFromDate(""); setToDate("");
+    setSearch("");
+    startTransition(() => router.push(`${pathname}?page=1&limit=${limit}`));
   }
 
   // ─── Colonnes ─────────────────────────────────────────────────────────────
@@ -503,10 +513,10 @@ export function AdminTransactionsClient({
             onChange={(e) => setSearch(e.target.value)}
             className="w-full sm:flex-1 sm:min-w-72"
           />
-          <Combobox options={TYPE_OPTIONS}      value={typeFilter}      onChange={setTypeFilter}      className="sm:w-56" />
-          <Combobox options={WALLET_OPTIONS}    value={walletFilter}    onChange={setWalletFilter}    className="sm:w-44" />
-          <Combobox options={DIRECTION_OPTIONS} value={directionFilter} onChange={setDirectionFilter} className="sm:w-36" />
-          <Combobox options={STATUS_OPTIONS}    value={statusFilter}    onChange={setStatusFilter}    className="sm:w-40" />
+          <Combobox options={TYPE_OPTIONS}      value={typeFilter}      onChange={(v) => pushFilters({ type:       v })} className="sm:w-56" />
+          <Combobox options={WALLET_OPTIONS}    value={walletFilter}    onChange={(v) => pushFilters({ walletType: v })} className="sm:w-44" />
+          <Combobox options={DIRECTION_OPTIONS} value={directionFilter} onChange={(v) => pushFilters({ direction:  v })} className="sm:w-36" />
+          <Combobox options={STATUS_OPTIONS}    value={statusFilter}    onChange={(v) => pushFilters({ status:     v })} className="sm:w-40" />
         </div>
         {/* Date range */}
         <div className="flex flex-wrap items-center gap-3">
@@ -515,7 +525,7 @@ export function AdminTransactionsClient({
             <Input
               type="date"
               value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
+              onChange={(e) => pushFilters({ fromDate: e.target.value })}
               className="w-36"
             />
           </div>
@@ -524,7 +534,7 @@ export function AdminTransactionsClient({
             <Input
               type="date"
               value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
+              onChange={(e) => pushFilters({ toDate: e.target.value })}
               className="w-36"
             />
           </div>

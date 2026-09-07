@@ -324,3 +324,48 @@ export function vehicleLabel(vehicle: ContractVehicle): string {
   const parts = [vehicle.make, vehicle.model, vehicle.licensePlate].filter(Boolean);
   return parts.length > 0 ? parts.join(" ") : vehicle.vehicleId;
 }
+
+// ─── Rapport quotidien de collecte ────────────────────────────────────────────
+
+/** Source du paiement d'une échéance, déterminée via le journal d'audit. */
+export type PaymentSource = "MANUEL" | "AUTOMATIQUE" | "INCONNU";
+
+export interface DailyCollectionLine {
+  contractId: string;
+  installmentId: string;
+  installmentNumero: number;
+  dateEcheance: string;
+  /** Date effective d'imputation/paiement (null si non encore payé). */
+  datePaiement: string | null;
+  driverId: string;
+  driverName: string;
+  driverPhone: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  vehicleLicensePlate?: string;
+  /** Montant dû (montant nominal de l'échéance) */
+  montant: number;
+  /** Montant imputé sur wallet EARNINGS */
+  montantPaye: number;
+  /** Montant effectivement encaissé en cash */
+  montantRecouvre: number;
+  /** montantPaye − montantRecouvre : encaissé via découvert, recouvrement en cours */
+  cashShortfall: number;
+  statut: InstallmentStatus;
+  retardJours?: number;
+  /** Source du paiement — dérivée du journal d'audit (MANUAL_PAYMENT_RECORDED). */
+  paymentSource: PaymentSource;
+}
+
+export interface DailyCollectionReport {
+  dateFrom: string;
+  dateTo: string;
+  contractsScanned: number;
+  totalLines: number;
+  totalDue: number;
+  totalImputed: number;
+  totalCashCollected: number;
+  totalCashShortfall: number;
+  byStatus: Partial<Record<InstallmentStatus, number>>;
+  lines: DailyCollectionLine[];
+}

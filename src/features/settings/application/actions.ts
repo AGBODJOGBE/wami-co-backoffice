@@ -120,6 +120,32 @@ export async function reactivateAdminAction(adminId: string): Promise<ActionResu
   }
 }
 
+export interface UpdateWalletConfigInput {
+  consolidationEnabled?:      boolean;
+  consolidationFeeRate?:      number;
+  consolidationMinAmount?:    number;
+  p2pTransferEnabled?:        boolean;
+  p2pTransferFeeRate?:        number;
+  p2pMinimumAmount?:          number;
+  withdrawalMinMobileMoney?:  number;
+  withdrawalMinBankTransfer?: number;
+}
+
+export async function updateWalletConfigAction(
+  input: UpdateWalletConfigInput,
+): Promise<ActionResult> {
+  try {
+    await apiFetch<unknown>(API_ROUTES.adminWalletConfig.update(), {
+      method: "PATCH",
+      body: input,
+    });
+    revalidatePath("/settings");
+    return { ok: true, message: "Configuration wallet mise à jour." };
+  } catch (e) {
+    return fail(e, "Impossible de mettre à jour la configuration wallet.");
+  }
+}
+
 export async function updateSystemConfigAction(
   key: string,
   value: string,

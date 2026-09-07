@@ -164,6 +164,7 @@ export default async function VtcDriversPage() {
       category: d.category,
       isDocumentsVerified: false,
       createdAt: d.createdAt,
+      status: d.status,
       firstName: d.firstName,
       lastName: d.lastName,
       phoneNumber: d.phoneNumber,

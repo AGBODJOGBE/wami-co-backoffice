@@ -26,6 +26,8 @@ export interface PendingDriver {
   category: string;
   isDocumentsVerified: boolean;
   createdAt: string;
+  /** Real status from GET /api/admin/drivers — used to show "Réactiver" vs "Suspendre". */
+  status?: AdminDriverStatus;
   /** Enriched server-side by cross-referencing GET /api/admin/drivers when
    * available — keeps the pending UI showing real names. */
   firstName?: string;
@@ -134,6 +136,22 @@ export interface DriverSessionsResult {
   totalDurationSeconds: number;
   page: number;
   limit: number;
+}
+
+// ─── Driver type ─────────────────────────────────────────────────────────────
+
+export type DriverType = "VTC" | "DELIVERY" | "BOTH";
+
+export const DRIVER_TYPE_LABELS: Record<DriverType, string> = {
+  VTC:      "VTC",
+  DELIVERY: "Livraison",
+  BOTH:     "VTC + Livraison",
+};
+
+export interface UpdateDriverTypeResponse {
+  driverId:   string;
+  driverType: DriverType;
+  message:    string;
 }
 
 // ─── UpdateDriverInfo ─────────────────────────────────────────────────────────

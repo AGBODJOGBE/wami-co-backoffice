@@ -55,6 +55,38 @@ export async function getWelcomeBonusCampaign(): Promise<WelcomeBonusCampaign | 
   }
 }
 
+// ─── Wallet config ────────────────────────────────────────────────────────────
+
+export interface WalletConfig {
+  consolidationEnabled:      boolean;
+  /** Ratio (0–1). Afficher ×100 en %. */
+  consolidationFeeRate:      number;
+  /** XOF centimes. */
+  consolidationMinAmount:    number;
+  p2pTransferEnabled:        boolean;
+  /** Ratio (0–1). Afficher ×100 en %. */
+  p2pTransferFeeRate:        number;
+  /** XOF centimes. */
+  p2pMinimumAmount:          number;
+  /** XOF centimes. */
+  withdrawalMinMobileMoney:  number;
+  /** XOF centimes. */
+  withdrawalMinBankTransfer: number;
+  updatedBy:                 string;
+  updatedAt:                 string;
+}
+
+/** GET /api/admin/wallet-config — lit la configuration wallet (singleton). */
+export async function getWalletConfig(): Promise<WalletConfig | null> {
+  try {
+    const raw = await apiFetch<WalletConfig>(API_ROUTES.adminWalletConfig.get(), { silent: true });
+    if (!raw || typeof raw !== "object") return null;
+    return raw as WalletConfig;
+  } catch {
+    return null;
+  }
+}
+
 /** Retourne toutes les clés de configuration système. */
 export async function listSystemConfigs(): Promise<SystemConfigEntry[]> {
   try {

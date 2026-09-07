@@ -96,8 +96,12 @@ function OverviewTab({
   const txSummary = useMemo(() => {
     const totalCredit = transactions.filter((t) => t.direction === "CREDIT").reduce((s, t) => s + t.amount, 0);
     const totalDebit  = transactions.filter((t) => t.direction === "DEBIT" ).reduce((s, t) => s + t.amount, 0);
+    // Classement sur les DEBIT uniquement pour éviter le double-comptage :
+    // chaque opération génère souvent 2 transactions (DEBIT user + CREDIT plateforme),
+    // additionner les deux gonfle artificiellement les montants par catégorie.
     const byGroup: Record<string, number> = {};
     for (const t of transactions) {
+      if (t.direction !== "DEBIT") continue;
       const g = txMeta(t.type).group;
       byGroup[g] = (byGroup[g] ?? 0) + t.amount;
     }
@@ -159,7 +163,9 @@ function OverviewTab({
           <Card className="overflow-hidden p-0">
             <CardHeader className="px-5 py-4">
               <CardTitle>Volume (transactions récentes)</CardTitle>
-              <CardDescription>{transactions.length} transactions chargées</CardDescription>
+              <CardDescription>
+                {transactions.length} transactions les plus récentes — échantillon, pas l'historique complet
+              </CardDescription>
             </CardHeader>
             <div className="divide-y divide-[color:var(--border)]">
               <div className="flex items-center justify-between px-5 py-3">
@@ -179,8 +185,8 @@ function OverviewTab({
 
           <Card className="overflow-hidden p-0">
             <CardHeader className="px-5 py-4">
-              <CardTitle>Top catégories de transactions</CardTitle>
-              <CardDescription>Par volume FCFA cumulé</CardDescription>
+              <CardTitle>Top catégories (sorties)</CardTitle>
+              <CardDescription>Par volume DEBIT — hors doublons CREDIT/DEBIT</CardDescription>
             </CardHeader>
             <ul className="divide-y divide-[color:var(--border)]">
               {txSummary.topGroups.map(([group, vol]) => (
@@ -889,11 +895,11 @@ function CreditWalletModal({
         <Combobox
           label="Type d'opération"
           options={[
-            { value: "ADMIN_CREDIT",   label: "Crédit admin",    description: "Correction manuelle" },
-            { value: "CREDIT",         label: "Crédit générique", description: "Crédit standard" },
-            { value: "BONUS_CREDIT",   label: "Bonus",            description: "Bonus promotionnel" },
-            { value: "REFERRAL_BONUS", label: "Bonus parrainage", description: "Récompense parrainage" },
-            { value: "REFUND",         label: "Remboursement",    description: "Remboursement client" },
+            { value: "ADMIN_CREDIT",   label: "Crédit admin",      description: "Correction manuelle" },
+            { value: "CREDIT",         label: "Crédit générique",   description: "Crédit standard" },
+            { value: "BONUS_CREDIT",   label: "Bonus promotionnel", description: "Crédite le sous-solde BONUS" },
+            { value: "REFERRAL_REWARD",label: "Récompense parrainage", description: "Crédite le sous-solde REFERRAL" },
+            { value: "REFUND",         label: "Remboursement",      description: "Remboursement client" },
           ]}
           value={creditType}
           onChange={(v) => setCreditType(v as WalletCreditType)}
@@ -934,14 +940,13 @@ function DebitWalletModal({
   onClose: () => void;
 }) {
   const [walletId,    setWalletId]    = useState("");
-  const [balanceType, setBalanceType] = useState<WalletBalanceType>("MAIN");
-  const [debitType,   setDebitType]   = useState<WalletDebitType>("DEBIT");
+  const [debitType,   setDebitType]   = useState<WalletDebitType>("ADMIN_DEBIT");
   const [amount,      setAmount]      = useState(0);
   const [description, setDescription] = useState("");
   const [pending, startTransition]    = useTransition();
 
   useEffect(() => {
-    if (open) { setWalletId(""); setBalanceType("MAIN"); setDebitType("DEBIT"); setAmount(0); setDescription(""); }
+    if (open) { setWalletId(""); setDebitType("ADMIN_DEBIT"); setAmount(0); setDescription(""); }
   }, [open]);
 
   function handleSubmit() {
@@ -950,7 +955,7 @@ function DebitWalletModal({
       return;
     }
     startTransition(async () => {
-      const res = await debitWalletAction(walletId, { balanceType, amount, type: debitType, description: description.trim() });
+      const res = await debitWalletAction(walletId, { amount, type: debitType, description: description.trim() });
       if (res.success) {
         toast({ kind: "success", title: "Débit appliqué", description: `${formatXof(amount)} débité. Solde restant : ${formatXof(res.data?.remainingBalance ?? 0)}` });
         onClose();
@@ -971,7 +976,7 @@ function DebitWalletModal({
       onClose={onClose}
       size="lg"
       title="Débit manuel wallet"
-      description="Débite un wallet. Réservé aux admins (corrections, pénalités, litiges)."
+      description="Débite un wallet (ordre automatique : BONUS → REFERRAL → MAIN). Réservé aux admins."
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={pending}>Annuler</Button>
@@ -987,21 +992,11 @@ function DebitWalletModal({
           <Combobox label="Wallet cible" options={walletOptions} value={walletId} onChange={setWalletId} placeholder="Sélectionner un wallet…" />
         </div>
         <Combobox
-          label="Sous-solde"
-          options={[
-            { value: "MAIN",     label: "Principal",  description: "Solde principal" },
-            { value: "BONUS",    label: "Bonus",      description: "Bonus et promotions" },
-            { value: "REFERRAL", label: "Parrainage", description: "Gains de parrainage" },
-          ]}
-          value={balanceType}
-          onChange={(v) => setBalanceType(v as WalletBalanceType)}
-        />
-        <Combobox
           label="Type d'opération"
           options={[
+            { value: "ADMIN_DEBIT", label: "Débit admin",    description: "Correction manuelle ou ajustement" },
             { value: "DEBIT",       label: "Débit générique", description: "Débit standard" },
-            { value: "ADMIN_DEBIT", label: "Débit admin",     description: "Correction manuelle" },
-            { value: "PENALTY",     label: "Pénalité",        description: "Sanction / amende" },
+            { value: "ADJUSTMENT",  label: "Ajustement",      description: "Correction comptable" },
           ]}
           value={debitType}
           onChange={(v) => setDebitType(v as WalletDebitType)}
@@ -1021,7 +1016,7 @@ function DebitWalletModal({
             required
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Pénalité, correction erreur, résolution litige…"
+            placeholder="Correction erreur, résolution litige, ajustement comptable…"
             rows={3}
           />
         </div>
@@ -1044,13 +1039,16 @@ export function WalletLivePage({
   const [creditOpen, setCreditOpen] = useState(false);
   const [debitOpen,  setDebitOpen]  = useState(false);
 
-  const tvl            = wallets.reduce((s, w) => s + (w.totalBalance ?? 0), 0);
-  const activeWallets  = wallets.filter((w) => w.status === "ACTIVE").length;
+  const paymentBalance  = wallets.filter((w) => w.walletType === "PAYMENT" ).reduce((s, w) => s + (w.totalBalance ?? 0), 0);
+  const earningsBalance = wallets.filter((w) => w.walletType === "EARNINGS").reduce((s, w) => s + (w.totalBalance ?? 0), 0);
+  const platformBalance = platformRevenue?.balance
+    ?? wallets.find((w) => w.walletType === "PLATFORM")?.totalBalance
+    ?? 0;
   const paymentCount   = wallets.filter((w) => w.walletType === "PAYMENT").length;
   const earningsCount  = wallets.filter((w) => w.walletType === "EARNINGS").length;
-  const partnerCount   = wallets.filter((w) => w.walletType === "PARTNER").length;
 
   const pendingWithdrawals = withdrawals.filter((w) => w.status === "PENDING").length;
+  const pendingAmount      = withdrawals.filter((w) => w.status === "PENDING").reduce((s, w) => s + w.amount, 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -1076,30 +1074,62 @@ export function WalletLivePage({
 
       {/* KPIs */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: "TVL plateforme",     value: formatXof(tvl),          sub: `${activeWallets} wallets actifs`,                    icon: Wallet, tone: "primary"  as const },
-          { label: "Wallets passagers",  value: String(paymentCount),    sub: "type PAYMENT",                                       icon: Users,  tone: "primary"  as const },
-          { label: "Wallets chauffeurs", value: String(earningsCount),   sub: "type EARNINGS",                                      icon: Car,    tone: "success"  as const },
-          { label: "Wallets partenaires",value: String(partnerCount),    sub: `${pendingWithdrawals > 0 ? `${pendingWithdrawals} retrait(s) en attente` : "aucun retrait en attente"}`, icon: Banknote, tone: "warning" as const },
-        ].map(({ label, value, sub, icon: Icon, tone }) => (
+        {([
+          {
+            label: "Fonds passagers",
+            value: formatXof(paymentBalance),
+            sub:   `${paymentCount} wallets PAYMENT`,
+            icon:  Users,
+            tone:  "primary" as const,
+          },
+          {
+            label: "Solde net chauffeurs",
+            value: formatXof(earningsBalance),
+            sub:   earningsBalance < 0
+              ? `${earningsCount} wallets — dont dettes`
+              : `${earningsCount} wallets EARNINGS`,
+            icon:  Car,
+            tone:  (earningsBalance < 0 ? "danger" : "success") as "danger" | "success",
+          },
+          {
+            label: "Trésorerie plateforme",
+            value: formatXof(platformBalance),
+            sub:   "Wallet PLATFORM",
+            icon:  Wallet,
+            tone:  "primary" as const,
+          },
+          {
+            label: "Retraits en attente",
+            value: String(pendingWithdrawals),
+            sub:   pendingWithdrawals > 0 ? formatXof(pendingAmount) : "aucun retrait en attente",
+            icon:  Banknote,
+            tone:  (pendingWithdrawals > 0 ? "warning" : "neutral") as "warning" | "neutral",
+          },
+        ] as const).map(({ label, value, sub, icon: Icon, tone }) => (
           <Card key={label} className="flex items-center gap-4 p-4">
             <div className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
-              tone === "primary" ? "bg-[color:var(--primary-soft)]"
-              : tone === "success" ? "bg-emerald-50 dark:bg-emerald-950/30"
-              : "bg-amber-50 dark:bg-amber-950/30"
+              tone === "primary"  ? "bg-[color:var(--primary-soft)]"
+              : tone === "success"  ? "bg-emerald-50 dark:bg-emerald-950/30"
+              : tone === "danger"   ? "bg-red-50 dark:bg-red-950/30"
+              : tone === "warning"  ? "bg-amber-50 dark:bg-amber-950/30"
+              : "bg-[color:var(--muted)]"
             }`}>
               <Icon className={`size-5 ${
-                tone === "primary" ? "text-[color:var(--primary)]"
-                : tone === "success" ? "text-emerald-500"
-                : "text-amber-500"
+                tone === "primary"  ? "text-[color:var(--primary)]"
+                : tone === "success"  ? "text-emerald-500"
+                : tone === "danger"   ? "text-red-500"
+                : tone === "warning"  ? "text-amber-500"
+                : "text-[color:var(--muted-foreground)]"
               }`} />
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--muted-foreground)]">{label}</p>
               <p className={`font-mono text-xl font-bold leading-none ${
-                tone === "primary" ? "text-[color:var(--primary)]"
-                : tone === "success" ? "text-emerald-600 dark:text-emerald-400"
-                : "text-amber-600 dark:text-amber-400"
+                tone === "primary"  ? "text-[color:var(--primary)]"
+                : tone === "success"  ? "text-emerald-600 dark:text-emerald-400"
+                : tone === "danger"   ? "text-red-600 dark:text-red-400"
+                : tone === "warning"  ? "text-amber-600 dark:text-amber-400"
+                : "text-[color:var(--foreground)]"
               }`}>{value}</p>
               {sub && <p className="mt-0.5 text-xs text-[color:var(--muted-foreground)]">{sub}</p>}
             </div>

@@ -224,15 +224,50 @@ function ChangeRoleModal({
 // ─── Sync missing permissions modal ──────────────────────────────────────────
 
 const MODULE_ORDER = [
-  "payment", "driver", "driver_bonus", "referral", "vehicle",
-  "promo_code", "notification", "app_config", "passenger", "document", "delivery_b2c",
+  // Métier principal
+  "ride", "contract", "driver", "driver_bonus", "vehicle",
+  // Utilisateurs
+  "passenger", "user", "fleet",
+  // Finance
+  "wallet", "payment", "billing",
+  // Livraison
+  "delivery", "delivery_b2c", "subscription",
+  // Partenaires & commercial
+  "partner", "referral", "promo_code",
+  // Ops & config
+  "pricing", "analytics", "dispute",
+  "notification", "document", "app_config",
+  // RBAC
+  "admin", "role", "permission",
 ];
 
 const MODULE_LABELS: Record<string, string> = {
-  payment: "Payment", driver: "Driver", driver_bonus: "Driver Bonus",
-  referral: "Parrainage", vehicle: "Véhicules", promo_code: "Codes Promo",
-  notification: "Notifications", app_config: "Configuration système",
-  passenger: "Passagers", document: "Documents", delivery_b2c: "Livraison B2C",
+  ride:         "Courses VTC",
+  contract:     "Contrats location-vente",
+  driver:       "Chauffeurs",
+  driver_bonus: "Bonus chauffeurs",
+  vehicle:      "Véhicules",
+  passenger:    "Passagers",
+  user:         "Utilisateurs",
+  fleet:        "Suivi pilotes (Fleet)",
+  wallet:       "Wallets & transactions",
+  payment:      "Paiements Mobile Money",
+  billing:      "Facturation",
+  delivery:     "Livraison B2B",
+  delivery_b2c: "Livraison B2C",
+  subscription: "Abonnements B2B",
+  partner:      "Partenaires",
+  referral:     "Parrainage",
+  promo_code:   "Codes promo",
+  pricing:      "Tarification",
+  analytics:    "Analytics",
+  dispute:      "Litiges",
+  notification: "Notifications",
+  document:     "Documents",
+  app_config:   "Configuration système",
+  admin:        "Administrateurs",
+  role:         "Rôles",
+  permission:   "Permissions",
 };
 
 const grouped = MODULE_ORDER.map((mod) => ({

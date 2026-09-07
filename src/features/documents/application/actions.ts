@@ -152,6 +152,74 @@ export async function uploadDocumentAction(
 }
 
 /**
+ * PUT /api/documents/admin/:id/replace — multipart/form-data.
+ *
+ * Admin replaces a VERIFIED document with a new file.
+ * Status is reset to PENDING by the backend after replacement.
+ */
+export async function replaceDocumentAction(
+  documentId: string,
+  file: File,
+  pathHint?: string,
+): Promise<ActionResult> {
+  try {
+    const store = await cookies();
+    const token = store.get(SESSION_COOKIE)?.value;
+    if (!token) return { ok: false, message: "Session expirée." };
+
+    const fd = new FormData();
+    fd.set("file", file);
+
+    const url = `${env.apiBaseUrl}${API_ROUTES.documents.adminReplace(documentId)}`;
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      body: fd,
+    });
+
+    const rawText = await res.text();
+    let payload: ApiResponse<unknown> | null = null;
+    try { payload = JSON.parse(rawText) as ApiResponse<unknown>; } catch { /* not JSON */ }
+
+    if (!res.ok || !payload || payload.success === false) {
+      const message =
+        (payload && payload.success === false ? extractFailureMessage(payload) : null) ||
+        rawText.slice(0, 300).trim() ||
+        `Remplacement échoué (HTTP ${res.status}).`;
+      return { ok: false, message };
+    }
+
+    if (pathHint) revalidatePath(pathHint);
+    revalidatePath("/vtc/drivers");
+    return { ok: true, message: "Document remplacé. Statut repassé à En attente." };
+  } catch (e) {
+    return fail(e, "Remplacement impossible.");
+  }
+}
+
+/**
+ * DELETE /api/documents/admin/:id
+ *
+ * Admin deletes a PENDING or REJECTED document.
+ * VERIFIED documents cannot be deleted (legal proof).
+ */
+export async function deleteDocumentAdminAction(
+  documentId: string,
+  pathHint?: string,
+): Promise<ActionResult> {
+  try {
+    await apiFetch<unknown>(API_ROUTES.documents.adminDelete(documentId), {
+      method: "DELETE",
+    });
+    if (pathHint) revalidatePath(pathHint);
+    revalidatePath("/vtc/drivers");
+    return { ok: true, message: "Document supprimé." };
+  } catch (e) {
+    return fail(e, "Suppression impossible.");
+  }
+}
+
+/**
  * Resolve the URL to open for a document:
  *   - If `directUrl` is already provided (public doc), pass it through.
  *   - Otherwise mint a short-lived signed URL from the private fileKey.
