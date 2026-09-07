@@ -137,6 +137,11 @@ export const MISSING_PERMISSIONS: MissingPermissionEntry[] = [
 
   // ─── DOCUMENTS ───────────────────────────────────────────────────────────────
   { code: "document.verify",                      name: "Vérifier et valider les documents soumis",                       module: "document",     category: "MANAGE"       },
+  { code: "document.replace",                     name: "Remplacer un document vérifié (admin)",                          module: "document",     category: "MANAGE"       },
+  { code: "document.delete",                      name: "Supprimer un document en attente ou rejeté (admin)",             module: "document",     category: "MANAGE"       },
+
+  // ─── WALLET CONFIG ───────────────────────────────────────────────────────────
+  { code: "wallet.config.manage",                 name: "Modifier la configuration wallet (bonus, taux, seuils)",         module: "wallet",       category: "CONFIG"       },
 
   // ─── CONFIGURATION SYSTÈME ───────────────────────────────────────────────────
   { code: "app_config.view",                      name: "Voir la configuration système",                                  module: "app_config",   category: "VIEW"         },

@@ -172,7 +172,7 @@ function DriverTypeEditor({ driverId, current }: { driverId: string; current: Dr
     return (
       <div className="flex items-center gap-1.5">
         <Badge tone="info">{DRIVER_TYPE_LABELS[current] ?? current}</Badge>
-        <CanView permission="driver.manage">
+        <CanView permission="driver.update_type">
           <button
             type="button"
             onClick={() => { setSelected(current); setEditing(true); }}
@@ -1285,7 +1285,7 @@ export function DriverDetailClient({
               {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
               Rafraîchir
             </Button>
-            <CanView permission="driver.update">
+            <CanView permission="driver.update_info">
               <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
                 <Pencil className="size-4" />
                 Modifier

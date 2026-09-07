@@ -457,13 +457,15 @@ function DocumentCard({
           Voir le document
         </Button>
         {/* Admin-only secondary actions */}
-        <CanView permission="document.verify">
-          {doc.status === "VERIFIED" ? (
+        {doc.status === "VERIFIED" ? (
+          <CanView permission="document.replace">
             <ReplaceDocumentButton doc={doc} pathHint={pathHint} />
-          ) : doc.status === "PENDING" || doc.status === "REJECTED" ? (
+          </CanView>
+        ) : doc.status === "PENDING" || doc.status === "REJECTED" ? (
+          <CanView permission="document.delete">
             <DeleteDocumentButton doc={doc} pathHint={pathHint} />
-          ) : null}
-        </CanView>
+          </CanView>
+        ) : null}
       </footer>
     </article>
   );
