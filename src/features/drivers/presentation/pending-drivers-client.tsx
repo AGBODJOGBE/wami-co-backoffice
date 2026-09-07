@@ -39,24 +39,30 @@ import {
   type DriverTarget,
 } from "./driver-action-modals";
 
-const LS_KEY = "foryou:pending:hidden";
+const API_URL = "/api/pending-hidden";
 
-function loadHidden(): Set<string> {
+async function fetchHiddenFromServer(): Promise<Set<string>> {
   try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return new Set();
-    return new Set(JSON.parse(raw) as string[]);
+    const res = await fetch(API_URL, { cache: "no-store" });
+    if (!res.ok) return new Set();
+    const data = (await res.json()) as { hiddenIds: string[] };
+    return new Set(data.hiddenIds);
   } catch {
     return new Set();
   }
 }
 
-function saveHidden(ids: Set<string>) {
+async function saveHiddenToServer(ids: Set<string>): Promise<void> {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify([...ids]));
+    await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hiddenIds: [...ids] }),
+    });
+    // Notifie les autres composants dans le même onglet
     window.dispatchEvent(new CustomEvent("foryou:pending-hidden-changed"));
   } catch {
-    // storage might be blocked in some contexts
+    // best-effort
   }
 }
 
@@ -76,9 +82,9 @@ export function PendingDriversClient({
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [showHidden, setShowHidden] = useState(false);
 
-  // Init from localStorage after mount (avoid hydration mismatch)
+  // Charge l'état partagé depuis le serveur au montage
   useEffect(() => {
-    setHiddenIds(loadHidden());
+    void fetchHiddenFromServer().then(setHiddenIds);
   }, []);
 
   function toggleHide(driverId: string) {
@@ -89,7 +95,7 @@ export function PendingDriversClient({
       } else {
         next.add(driverId);
       }
-      saveHidden(next);
+      void saveHiddenToServer(next);
       return next;
     });
   }
