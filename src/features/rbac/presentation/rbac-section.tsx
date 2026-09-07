@@ -6,6 +6,8 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronRight,
+  Eye,
+  EyeOff,
   RefreshCw,
   Search,
   Shield,
@@ -847,6 +849,7 @@ export function RbacSection({
   const [search, setSearch] = useState("");
   const [grantTarget, setGrantTarget] = useState<AdminListItem | null>(null);
   const [roleTarget, setRoleTarget] = useState<AdminListItem | null>(null);
+  const [hideInactive, setHideInactive] = useState(true);
   const [createPermOpen, setCreatePermOpen] = useState(false);
   const [createRoleOpen, setCreateRoleOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
@@ -993,66 +996,103 @@ export function RbacSection({
       {admins.length > 0 && (
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <UserCog className="size-5 text-[color:var(--secondary)]" />
-              <CardTitle>Gestion des accès admins</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <UserCog className="size-5 text-[color:var(--secondary)]" />
+                <CardTitle>Gestion des accès admins</CardTitle>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHideInactive((v) => !v)}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  hideInactive
+                    ? "border-[color:var(--border)] bg-[color:var(--muted)]/40 text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]"
+                    : "border-[color:var(--primary)]/40 bg-[color:var(--primary)]/8 text-[color:var(--primary)]"
+                }`}
+              >
+                {hideInactive ? (
+                  <><EyeOff className="size-3.5" /> Inactifs masqués</>
+                ) : (
+                  <><Eye className="size-3.5" /> Afficher les inactifs</>
+                )}
+                {hideInactive && admins.filter((a) => a.status !== "ACTIVE").length > 0 && (
+                  <span className="ml-0.5 rounded-full bg-[color:var(--muted-foreground)]/20 px-1.5 py-0.5 text-[10px]">
+                    {admins.filter((a) => a.status !== "ACTIVE").length}
+                  </span>
+                )}
+              </button>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-hidden rounded-lg border border-[color:var(--border)]">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[color:var(--border)] bg-[color:var(--muted)]/40">
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">Admin</th>
-                    <th className="hidden px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)] sm:table-cell">Statut</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[color:var(--border)]">
-                  {admins.map((admin) => (
-                    <tr key={admin.userId} className="transition-colors hover:bg-[color:var(--muted)]/20">
-                      <td className="px-4 py-2.5">
-                        <div className="flex flex-col leading-tight">
-                          <span className="font-medium text-[color:var(--foreground)]">
-                            {admin.firstName} {admin.lastName}
-                          </span>
-                          <span className="font-mono text-[10px] text-[color:var(--muted-foreground)]">
-                            {admin.phoneNumber}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="hidden px-4 py-2.5 sm:table-cell">
-                        <Badge tone={admin.status === "ACTIVE" ? "success" : "danger"}>
-                          {admin.status === "ACTIVE" ? "Actif" : "Inactif"}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center justify-end gap-2">
-                          <CanView permission="admin.update_role">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setRoleTarget(admin)}
-                            >
-                              Changer rôle
-                            </Button>
-                          </CanView>
-                          <CanView permission="admin.grant_permission">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setGrantTarget(admin)}
-                            >
-                              + Permission
-                            </Button>
-                          </CanView>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {(() => {
+              const visibleAdmins = hideInactive
+                ? admins.filter((a) => a.status === "ACTIVE")
+                : admins;
+              return (
+                <div className="overflow-hidden rounded-lg border border-[color:var(--border)]">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-[color:var(--border)] bg-[color:var(--muted)]/40">
+                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">Admin</th>
+                        <th className="hidden px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)] sm:table-cell">Statut</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-foreground)]">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[color:var(--border)]">
+                      {visibleAdmins.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="px-4 py-8 text-center text-sm text-[color:var(--muted-foreground)]">
+                            Aucun admin actif.
+                          </td>
+                        </tr>
+                      ) : (
+                        visibleAdmins.map((admin) => (
+                          <tr key={admin.userId} className="transition-colors hover:bg-[color:var(--muted)]/20">
+                            <td className="px-4 py-2.5">
+                              <div className="flex flex-col leading-tight">
+                                <span className="font-medium text-[color:var(--foreground)]">
+                                  {admin.firstName} {admin.lastName}
+                                </span>
+                                <span className="font-mono text-[10px] text-[color:var(--muted-foreground)]">
+                                  {admin.phoneNumber}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="hidden px-4 py-2.5 sm:table-cell">
+                              <Badge tone={admin.status === "ACTIVE" ? "success" : "danger"}>
+                                {admin.status === "ACTIVE" ? "Actif" : "Inactif"}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <div className="flex items-center justify-end gap-2">
+                                <CanView permission="admin.update_role">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setRoleTarget(admin)}
+                                  >
+                                    Changer rôle
+                                  </Button>
+                                </CanView>
+                                <CanView permission="admin.grant_permission">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setGrantTarget(admin)}
+                                  >
+                                    + Permission
+                                  </Button>
+                                </CanView>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
