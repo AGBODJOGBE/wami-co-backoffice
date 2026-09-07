@@ -10,13 +10,14 @@ import { AdminDriversListClient } from "./admin-drivers-list-client";
 import type { AdminDriver, OnlineDriver, PendingDriver } from "../domain/admin-driver";
 import { fullName } from "../domain/admin-driver";
 
-const LS_KEY = "foryou:pending:hidden";
+const HIDDEN_API_URL = "/api/pending-hidden";
 
-function loadHiddenIds(): Set<string> {
+async function fetchHiddenIds(): Promise<Set<string>> {
   try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return new Set();
-    return new Set(JSON.parse(raw) as string[]);
+    const res = await fetch(HIDDEN_API_URL, { cache: "no-store" });
+    if (!res.ok) return new Set();
+    const data = (await res.json()) as { hiddenIds: string[] };
+    return new Set(data.hiddenIds);
   } catch {
     return new Set();
   }
@@ -202,19 +203,15 @@ export function DriversTabs({
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    setHiddenIds(loadHiddenIds());
+    // Chargement initial depuis le serveur (état partagé entre tous les admins)
+    void fetchHiddenIds().then(setHiddenIds);
 
-    // Cross-tab sync via StorageEvent
-    function onStorage(e: StorageEvent) {
-      if (e.key === LS_KEY) setHiddenIds(loadHiddenIds());
+    // Sync dans le même onglet quand PendingDriversClient modifie l'état
+    function onHiddenChanged() {
+      void fetchHiddenIds().then(setHiddenIds);
     }
-    // Same-tab sync via custom event dispatched by PendingDriversClient
-    function onHiddenChanged() { setHiddenIds(loadHiddenIds()); }
-
-    window.addEventListener("storage", onStorage);
     window.addEventListener("foryou:pending-hidden-changed", onHiddenChanged);
     return () => {
-      window.removeEventListener("storage", onStorage);
       window.removeEventListener("foryou:pending-hidden-changed", onHiddenChanged);
     };
   }, []);
