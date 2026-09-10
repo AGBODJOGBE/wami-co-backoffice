@@ -17,12 +17,15 @@ export function getAdminWallet(walletId: string): Promise<AdminWallet> {
   return apiFetch<AdminWallet>(API_ROUTES.adminWallets.detail(walletId));
 }
 
-export async function listAdminWallets(filters?: {
-  walletType?: string;
-  status?: string;
-  page?: number;
-  limit?: number;
-}): Promise<AdminWalletsResult> {
+export async function listAdminWallets(
+  filters?: {
+    walletType?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  },
+  opts?: { signal?: AbortSignal; silent?: boolean },
+): Promise<AdminWalletsResult> {
   let url = API_ROUTES.adminWallets.list();
   if (filters) {
     const params = new URLSearchParams();
@@ -34,7 +37,10 @@ export async function listAdminWallets(filters?: {
     if (qs) url = `${url}?${qs}`;
   }
 
-  const raw = await apiFetch<unknown>(url);
+  const raw = await apiFetch<unknown>(url, {
+    signal: opts?.signal,
+    silent: opts?.silent,
+  });
   if (Array.isArray(raw)) {
     return { wallets: raw as AdminWallet[], total: raw.length };
   }
@@ -56,13 +62,31 @@ export async function listAdminWallets(filters?: {
   return { wallets: [], total: 0 };
 }
 
+/**
+ * Finds a single wallet by its profileId + optional walletType.
+ * Uses a 8-second timeout — the backend resolves owner info for every wallet
+ * (O(N) queries) and can be slow. Returns undefined on timeout or error.
+ */
 export async function findWalletByProfile(
   profileId: string,
   walletType?: string,
 ): Promise<AdminWallet | undefined> {
   if (!profileId) return undefined;
-  const { wallets } = await listAdminWallets(walletType ? { walletType } : undefined);
-  return wallets.find((w) => w.profileId === profileId && (!walletType || w.walletType === walletType));
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const { wallets } = await listAdminWallets(
+      walletType ? { walletType } : undefined,
+      { signal: controller.signal, silent: true },
+    );
+    return wallets.find(
+      (w) => w.profileId === profileId && (!walletType || w.walletType === walletType),
+    );
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ─── Transactions ─────────────────────────────────────────────────────────────

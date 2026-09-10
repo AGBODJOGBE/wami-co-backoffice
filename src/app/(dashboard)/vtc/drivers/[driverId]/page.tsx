@@ -1,5 +1,6 @@
 import { requirePermission } from "@/features/auth/application/dal";
 import { listDocumentsByOwner } from "@/features/documents/application/api";
+import type { DocumentMetadata } from "@/features/documents/domain/document";
 import { DriverDetailClient } from "@/features/drivers/presentation/driver-detail-client";
 import {
   getDriverCommissionDebtDetail,
@@ -110,17 +111,30 @@ export default async function VtcDriverDetailPage({
 
   const userId = enriched?.userId ?? fallbackUserId;
 
+  // Extract vehicles early so we can fetch their documents in parallel.
+  const vehicles = vehiclesRes.status === "fulfilled" ? vehiclesRes.value : [];
+
   // Documents + notifications + bonus need the userId — fetch them after we know it.
-  const [documentsRes, notificationsRes, bonusAwardsRes, bonusActivityRes, bonusQualityRes] = await Promise.allSettled([
-    userId ? listDocumentsByOwner(userId, "DRIVER") : Promise.resolve([]),
-    userId ? getNotificationHistory({ recipientId: userId, limit: 20 }) : Promise.resolve(null),
-    driverId ? listDriverBonusAwards({ driverId, limit: 10 }) : Promise.resolve(null),
-    driverId ? listActivityLedger({ driverId, paid: true, limit: 10 }) : Promise.resolve(null),
-    driverId ? listQualityLedger({ driverId, limit: 6 }) : Promise.resolve(null),
+  // Vehicle docs (INSURANCE, REGISTRATION_CARD) stored under ownerType=VEHICLE
+  // are fetched per vehicle in parallel with the core batch.
+  const [coreResults, vehicleDocResults] = await Promise.all([
+    Promise.allSettled([
+      userId ? listDocumentsByOwner(userId, "DRIVER") : Promise.resolve([] as DocumentMetadata[]),
+      userId ? getNotificationHistory({ recipientId: userId, limit: 20 }) : Promise.resolve(null),
+      driverId ? listDriverBonusAwards({ driverId, limit: 10 }) : Promise.resolve(null),
+      driverId ? listActivityLedger({ driverId, paid: true, limit: 10 }) : Promise.resolve(null),
+      driverId ? listQualityLedger({ driverId, limit: 6 }) : Promise.resolve(null),
+    ] as const),
+    Promise.allSettled(vehicles.map((v) => listDocumentsByOwner(v.id, "VEHICLE"))),
   ]);
 
-  const documents =
-    documentsRes.status === "fulfilled" ? (documentsRes.value ?? []) : [];
+  const [documentsRes, notificationsRes, bonusAwardsRes, bonusActivityRes, bonusQualityRes] = coreResults;
+
+  const driverDocs = documentsRes.status === "fulfilled" ? (documentsRes.value ?? []) : [];
+  const vehicleDocs = vehicleDocResults.flatMap((r) =>
+    r.status === "fulfilled" ? r.value : [],
+  );
+  const documents = [...driverDocs, ...vehicleDocs];
   const documentsError =
     documentsRes.status === "rejected"
       ? documentsRes.reason instanceof Error
@@ -148,8 +162,6 @@ export default async function VtcDriverDetailPage({
       ? bonusQualityRes.value.items
       : [];
 
-  const vehicles =
-    vehiclesRes.status === "fulfilled" ? vehiclesRes.value : [];
   const vehiclesError =
     vehiclesRes.status === "rejected"
       ? vehiclesRes.reason instanceof Error

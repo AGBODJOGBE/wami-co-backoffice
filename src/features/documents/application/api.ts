@@ -18,8 +18,12 @@ export async function listDocumentsByOwner(
   ownerId: string,
   ownerType: OwnerType = "DRIVER",
 ): Promise<DocumentMetadata[]> {
+  // The backend guard requires vehicleId in query when ownerType=VEHICLE.
+  // When ownerId IS the vehicleId, pass it in both path and query.
+  const query: Record<string, string> = { ownerType };
+  if (ownerType === "VEHICLE") query.vehicleId = ownerId;
   const raw = await apiFetch<unknown>(API_ROUTES.documents.byOwner(ownerId), {
-    query: { ownerType },
+    query,
   });
   const docs = asDocuments(raw);
   if (docs.length === 0 && raw) {
