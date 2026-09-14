@@ -253,10 +253,43 @@ export interface PlatformRevenueBreakdownItem {
   total: number;
 }
 
+export type PlatformOutflowCategory =
+  | "DEFINITIVE_EXPENSE"
+  | "REVENUE_CORRECTION"
+  | "RECOVERABLE_ADVANCE";
+
+export interface PlatformOutflowBreakdownItem {
+  source: string;
+  label: string;
+  category: PlatformOutflowCategory;
+  total: number;
+}
+
+export interface PlatformOutflowCategoryTotal {
+  category: PlatformOutflowCategory;
+  total: number;
+}
+
+export interface PlatformOutflowSummary {
+  breakdown: PlatformOutflowBreakdownItem[];
+  totalsByCategory: PlatformOutflowCategoryTotal[];
+  total: number;
+}
+
+export const OUTFLOW_CATEGORY_LABELS: Record<PlatformOutflowCategory, string> = {
+  DEFINITIVE_EXPENSE:  "Dépenses définitives",
+  REVENUE_CORRECTION:  "Corrections de revenus",
+  RECOVERABLE_ADVANCE: "Avances récupérables",
+};
+
 export interface PlatformRevenue {
   walletId: string;
   balance: number;
   period: { from: string | null; to: string | null };
   breakdown: PlatformRevenueBreakdownItem[];
   totalRevenue: number;
+  /** Toutes les sorties du wallet PLATFORM (Lot F dashboard). Absent sur les anciens payloads. */
+  outflows?: PlatformOutflowSummary;
+  /** totalRevenue − DEFINITIVE_EXPENSE. Absent sur les anciens payloads. */
+  netResult?: number;
 }

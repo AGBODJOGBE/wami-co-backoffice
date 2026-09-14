@@ -205,8 +205,62 @@ export const API_ROUTES = {
     debit: (walletId: string) => `/api/wallets/${walletId}/debit`,
     /** GET — list withdrawal requests. Query: page, limit. */
     withdrawals: () => "/api/admin/withdrawals",
+    /** PATCH — approve a PENDING withdrawal. No body. */
+    approveWithdrawal: (id: string) => `/api/admin/withdrawals/${id}/approve`,
+    /** PATCH — reject a PENDING withdrawal. Body: { reason: string }. */
+    rejectWithdrawal: (id: string) => `/api/admin/withdrawals/${id}/reject`,
     /** GET — list all transactions (admin). Query: type, walletType, direction, page, limit. */
     transactions: () => "/api/admin/transactions",
+  },
+
+  // ─── Admin: wallet grant campaigns (bulk credit, maker-checker) ────────────
+  adminWalletGrants: {
+    /** POST — preview before creating. Body: CreateWalletGrantCampaignInput. Permission: wallet.grant.request. */
+    preview: () => "/api/admin/wallet/grants/preview",
+    /** POST — create a campaign in PENDING state. Permission: wallet.grant.request. */
+    create: () => "/api/admin/wallet/grants",
+    /** GET — list all campaigns. Query: status, page, limit. Permission: wallet.grant.view. */
+    list: () => "/api/admin/wallet/grants",
+    /** GET — full campaign detail with grant lines. Permission: wallet.grant.view. */
+    detail: (id: string) => `/api/admin/wallet/grants/${id}`,
+    /** POST — approve and execute a PENDING campaign. Permission: wallet.grant.approve. */
+    approve: (id: string) => `/api/admin/wallet/grants/${id}/approve`,
+    /** POST — reject a PENDING campaign. Permission: wallet.grant.approve. */
+    reject: (id: string) => `/api/admin/wallet/grants/${id}/reject`,
+    /** POST — cancel (requester can cancel their own PENDING campaign). Permission: wallet.grant.request. */
+    cancel: (id: string) => `/api/admin/wallet/grants/${id}/cancel`,
+    /** POST — retry failed grant lines. Permission: wallet.grant.approve. */
+    retryFailed: (id: string) => `/api/admin/wallet/grants/${id}/retry-failed`,
+  },
+
+  // ─── Admin: affiliates (programme d'affiliation) ──────────────────────────
+  affiliates: {
+    /** GET — list all affiliate profiles. Permission: affiliate.view. */
+    list: () => "/api/admin/affiliates",
+    /** POST — create an affiliate profile. Body: CreateAffiliateProfileInput. Permission: affiliate.manage. */
+    create: () => "/api/admin/affiliates",
+    /** GET — full admin detail of one affiliate. Permission: affiliate.view. */
+    detail: (id: string) => `/api/admin/affiliates/${id}`,
+    /** GET — global affiliate config. Permission: affiliate.config.manage. */
+    config: () => "/api/admin/affiliates/config",
+    /** PATCH — update global affiliate config. Permission: affiliate.config.manage. */
+    updateConfig: () => "/api/admin/affiliates/config",
+    /** PATCH — update a profile's commission rate. Body: { commissionRate }. Permission: affiliate.manage. */
+    updateCommissionRate: (id: string) => `/api/admin/affiliates/${id}/commission-rate`,
+    /** POST — suspend a profile. Body: { mode, reason }. Permission: affiliate.manage. */
+    suspend: (id: string) => `/api/admin/affiliates/${id}/suspend`,
+    /** POST — reactivate a suspended profile. Permission: affiliate.manage. */
+    reactivate: (id: string) => `/api/admin/affiliates/${id}/reactivate`,
+    /** POST — reissue provisional password via SMS. Permission: affiliate.manage. */
+    reissuePassword: (id: string) => `/api/admin/affiliates/${id}/password/reissue`,
+    /** GET — full commission detail. Permission: affiliate.view. */
+    commissionDetail: (commissionId: string) => `/api/admin/affiliates/commissions/${commissionId}`,
+    /** POST — hold (freeze) a commission. Body: { reason }. Permission: affiliate.manage. */
+    holdCommission: (commissionId: string) => `/api/admin/affiliates/commissions/${commissionId}/hold`,
+    /** POST — release a held commission. Permission: affiliate.manage. */
+    releaseCommission: (commissionId: string) => `/api/admin/affiliates/commissions/${commissionId}/release`,
+    /** POST — cancel a held commission. Body: { reason }. Permission: affiliate.manage. */
+    cancelCommission: (commissionId: string) => `/api/admin/affiliates/commissions/${commissionId}/cancel`,
   },
 
   // ─── Admin: payments ───────────────────────────────────────────────────────

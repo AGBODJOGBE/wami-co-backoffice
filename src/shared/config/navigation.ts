@@ -28,6 +28,7 @@ import {
   UserPlus,
   Users,
   Wallet,
+  Handshake,
 } from "lucide-react";
 import type { DataSource } from "@/shared/ui/data-source-badge";
 
@@ -261,6 +262,27 @@ export const navSections: NavSection[] = [
             icon: Settings,
             dataSource: "live",
             requiredPermissions: ["referral.config.view"],
+          },
+        ],
+      },
+      {
+        label: "Affiliés",
+        icon: Handshake,
+        requiredPermissions: ["affiliate.view", "affiliate.manage", "affiliate.config.manage"],
+        children: [
+          {
+            href: "/affiliate",
+            label: "Tous les affiliés",
+            icon: Users,
+            dataSource: "live",
+            requiredPermissions: ["affiliate.view"],
+          },
+          {
+            href: "/affiliate/config",
+            label: "Configuration",
+            icon: Settings,
+            dataSource: "live",
+            requiredPermissions: ["affiliate.config.manage"],
           },
         ],
       },

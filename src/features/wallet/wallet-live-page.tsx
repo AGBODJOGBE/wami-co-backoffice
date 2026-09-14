@@ -33,14 +33,17 @@ import { toast } from "@/shared/ui/toast";
 import { type CsvColumn, downloadCsv, timestampedFilename } from "@/shared/lib/csv";
 import { formatDate, formatDateTime, formatXof } from "@/shared/lib/format";
 import {
+  approveWithdrawalAction,
   creditWalletAction,
   debitWalletAction,
+  rejectWithdrawalAction,
   type WalletBalanceType,
   type WalletCreditType,
   type WalletDebitType,
 } from "./application/actions";
 import { CanView } from "@/shared/ui/can-view";
 import {
+  OUTFLOW_CATEGORY_LABELS,
   TRANSACTION_TYPE_META,
   WALLET_TYPE_META,
   WITHDRAWAL_METHOD_LABELS,
@@ -557,9 +560,12 @@ const WITHDRAWAL_CSV_COLUMNS: readonly CsvColumn<Withdrawal>[] = [
   { key: "reason",    header: "Motif de refus",      value: (w) => w.failureReason || "" },
 ];
 
-function WithdrawalsTab({ withdrawals, total }: { withdrawals: Withdrawal[]; total: number }) {
+function WithdrawalsTab({ withdrawals, total, onRefresh }: { withdrawals: Withdrawal[]; total: number; onRefresh: () => void }) {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [methodFilter, setMethodFilter] = useState("ALL");
+  const [rejectModal, setRejectModal] = useState<{ open: boolean; withdrawalId: string; amount: number }>({ open: false, withdrawalId: "", amount: 0 });
+  const [rejectReason, setRejectReason] = useState("");
+  const [pending, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
     return withdrawals.filter((w) => {
@@ -575,6 +581,36 @@ function WithdrawalsTab({ withdrawals, total }: { withdrawals: Withdrawal[]; tot
     return <Clock className="size-3.5 text-amber-500" />;
   };
 
+  function handleApprove(w: Withdrawal) {
+    startTransition(async () => {
+      const res = await approveWithdrawalAction(w.withdrawalId);
+      if (res.success) {
+        toast({ kind: "success", title: "Retrait approuvé", description: `${formatXof(w.amount)} décaissé.` });
+        onRefresh();
+      } else {
+        toast({ kind: "error", title: "Impossible d'approuver", description: res.error });
+      }
+    });
+  }
+
+  function handleRejectSubmit() {
+    if (!rejectReason.trim()) {
+      toast({ kind: "error", title: "Motif requis", description: "Indiquez un motif de refus." });
+      return;
+    }
+    startTransition(async () => {
+      const res = await rejectWithdrawalAction(rejectModal.withdrawalId, rejectReason.trim());
+      if (res.success) {
+        toast({ kind: "success", title: "Retrait rejeté", description: `${formatXof(res.data?.refundedAmount ?? 0)} recrédité.` });
+        setRejectModal({ open: false, withdrawalId: "", amount: 0 });
+        setRejectReason("");
+        onRefresh();
+      } else {
+        toast({ kind: "error", title: "Impossible de rejeter", description: res.error });
+      }
+    });
+  }
+
   if (withdrawals.length === 0) {
     return (
       <Card className="flex flex-col items-center justify-center gap-3 p-12 text-center">
@@ -589,6 +625,33 @@ function WithdrawalsTab({ withdrawals, total }: { withdrawals: Withdrawal[]; tot
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Modal de rejet */}
+      <Modal
+        open={rejectModal.open}
+        onClose={() => { setRejectModal({ open: false, withdrawalId: "", amount: 0 }); setRejectReason(""); }}
+        size="md"
+        title="Rejeter le retrait"
+        description={`Montant : ${formatXof(rejectModal.amount)} — le wallet sera recrédité du même montant.`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => { setRejectModal({ open: false, withdrawalId: "", amount: 0 }); setRejectReason(""); }} disabled={pending}>Annuler</Button>
+            <Button variant="danger" onClick={handleRejectSubmit} disabled={pending || !rejectReason.trim()}>
+              {pending && <Spinner size="sm" />}
+              Confirmer le rejet
+            </Button>
+          </>
+        }
+      >
+        <Textarea
+          label="Motif du refus (obligatoire)"
+          required
+          value={rejectReason}
+          onChange={(e) => setRejectReason(e.target.value)}
+          placeholder="Coordonnées incorrectes, montant suspect, demande frauduleuse…"
+          rows={3}
+        />
+      </Modal>
+
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[color:var(--border)] bg-white p-3 dark:bg-[color:var(--muted)]">
         <Combobox
           options={[
@@ -632,8 +695,8 @@ function WithdrawalsTab({ withdrawals, total }: { withdrawals: Withdrawal[]; tot
               <th className="px-5 py-2.5 font-medium">Méthode</th>
               <th className="px-5 py-2.5 font-medium">Destinataire</th>
               <th className="px-5 py-2.5 font-medium">Statut</th>
-              <th className="px-5 py-2.5 font-medium">Référence</th>
               <th className="px-5 py-2.5 font-medium">Date</th>
+              <th className="px-5 py-2.5 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[color:var(--border)]">
@@ -685,19 +748,44 @@ function WithdrawalsTab({ withdrawals, total }: { withdrawals: Withdrawal[]; tot
                     <p className="mt-0.5 text-[10px] text-red-600 dark:text-red-400">{w.failureReason}</p>
                   )}
                 </td>
-                <td className="px-5 py-3">
-                  {w.reference ? (
-                    <span className="font-mono text-xs">{w.reference}</span>
-                  ) : (
-                    <span className="text-xs text-[color:var(--muted-foreground)]">—</span>
-                  )}
-                </td>
                 <td className="px-5 py-3 text-xs text-[color:var(--muted-foreground)]">
                   {formatDate(w.createdAt ?? w.requestedAt ?? "")}
                   {w.processedAt && (
                     <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
                       traité {formatDate(w.processedAt)}
                     </p>
+                  )}
+                </td>
+                <td className="px-5 py-3">
+                  {w.status === "PENDING" ? (
+                    <div className="flex items-center gap-2">
+                      <CanView permission="wallet.withdrawal.approve">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400"
+                          onClick={() => handleApprove(w)}
+                          disabled={pending}
+                        >
+                          <CheckCircle2 className="size-3.5" />
+                          Approuver
+                        </Button>
+                      </CanView>
+                      <CanView permission="wallet.withdrawal.reject">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400"
+                          onClick={() => { setRejectModal({ open: true, withdrawalId: w.withdrawalId, amount: w.amount }); setRejectReason(""); }}
+                          disabled={pending}
+                        >
+                          <XCircle className="size-3.5" />
+                          Rejeter
+                        </Button>
+                      </CanView>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-[color:var(--muted-foreground)]">—</span>
                   )}
                 </td>
               </tr>
@@ -729,10 +817,15 @@ function PlatformRevenueTab({ data }: { data: PlatformRevenue | undefined }) {
   const pct = (item: { total: number }) =>
     data.totalRevenue > 0 ? Math.round((item.total / data.totalRevenue) * 100) : 0;
 
+  const hasOutflows = data.outflows && data.outflows.total > 0;
+  const outflowPct = (item: { total: number }) =>
+    data.outflows && data.outflows.total > 0 ? Math.round((item.total / data.outflows.total) * 100) : 0;
+  const netPositive = data.netResult === undefined || data.netResult >= 0;
+
   return (
     <div className="flex flex-col gap-6">
       {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Card className="p-5">
           <p className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--muted-foreground)]">
             Solde wallet PLATFORM
@@ -761,9 +854,23 @@ function PlatformRevenueTab({ data }: { data: PlatformRevenue | undefined }) {
             <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">Aucun revenu enregistré.</p>
           )}
         </Card>
+        {data.netResult !== undefined && (
+          <Card className="p-5">
+            <p className="text-[11px] font-medium uppercase tracking-widest text-[color:var(--muted-foreground)]">
+              Résultat net
+            </p>
+            <p className={`mt-2 font-mono text-3xl font-bold ${netPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+              {netPositive ? "+" : ""}{formatXof(data.netResult)}
+            </p>
+            <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">
+              Revenus − dépenses définitives
+              {data.outflows ? ` (−${formatXof(data.outflows.total)} sorties)` : ""}
+            </p>
+          </Card>
+        )}
       </div>
 
-      {/* Breakdown */}
+      {/* Breakdown revenus */}
       <Card className="overflow-hidden p-0">
         <CardHeader className="px-5 py-4">
           <CardTitle>Décomposition des revenus par source</CardTitle>
@@ -814,6 +921,95 @@ function PlatformRevenueTab({ data }: { data: PlatformRevenue | undefined }) {
           </tfoot>
         </table>
       </Card>
+
+      {/* Sorties du wallet PLATFORM */}
+      {data.outflows && (
+        <Card className="overflow-hidden p-0">
+          <CardHeader className="px-5 py-4">
+            <CardTitle>Sorties du wallet PLATFORM</CardTitle>
+            <CardDescription>
+              Débits classés par catégorie économique — total {formatXof(data.outflows.total)}
+            </CardDescription>
+          </CardHeader>
+          {data.outflows.totalsByCategory.length > 0 && (
+            <div className="flex flex-wrap gap-3 border-b border-[color:var(--border)] px-5 py-3">
+              {data.outflows.totalsByCategory.map((cat) => (
+                <div key={cat.category} className="flex items-center gap-2 rounded-lg border border-[color:var(--border)] px-3 py-1.5">
+                  <span className={`size-2 rounded-full ${
+                    cat.category === "DEFINITIVE_EXPENSE" ? "bg-red-500"
+                    : cat.category === "REVENUE_CORRECTION" ? "bg-amber-500"
+                    : "bg-blue-500"
+                  }`} />
+                  <span className="text-xs font-medium">{OUTFLOW_CATEGORY_LABELS[cat.category]}</span>
+                  <span className="font-mono text-xs text-[color:var(--muted-foreground)]">{formatXof(cat.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {hasOutflows ? (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-y border-[color:var(--border)] text-left text-[11px] uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                  <th className="px-5 py-2.5 font-medium">Source</th>
+                  <th className="px-5 py-2.5 font-medium">Catégorie</th>
+                  <th className="px-5 py-2.5 font-medium">Répartition</th>
+                  <th className="px-5 py-2.5 text-right font-medium">Montant débité</th>
+                  <th className="px-5 py-2.5 text-right font-medium">%</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[color:var(--border)]">
+                {data.outflows.breakdown.map((item) => {
+                  const p = outflowPct(item);
+                  return (
+                    <tr key={item.source} className="hover:bg-[color:var(--muted)]/30">
+                      <td className="px-5 py-3 font-medium">{item.label}</td>
+                      <td className="px-5 py-3">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          item.category === "DEFINITIVE_EXPENSE"
+                            ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                            : item.category === "REVENUE_CORRECTION"
+                            ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                            : "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                        }`}>
+                          {OUTFLOW_CATEGORY_LABELS[item.category]}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="h-1.5 w-full max-w-[160px] rounded-full bg-[color:var(--muted)]">
+                          <div className={`h-1.5 rounded-full ${
+                            item.category === "DEFINITIVE_EXPENSE" ? "bg-red-500"
+                            : item.category === "REVENUE_CORRECTION" ? "bg-amber-500"
+                            : "bg-blue-500"
+                          }`} style={{ width: `${p}%` }} />
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-right font-mono text-red-600 dark:text-red-400">
+                        {item.total > 0 ? `−${formatXof(item.total)}` : "—"}
+                      </td>
+                      <td className="px-5 py-3 text-right text-[color:var(--muted-foreground)]">
+                        {p > 0 ? `${p}%` : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-[color:var(--border)]">
+                  <td className="px-5 py-3 font-semibold" colSpan={3}>Total sorties</td>
+                  <td className="px-5 py-3 text-right font-mono font-semibold text-red-600 dark:text-red-400">
+                    −{formatXof(data.outflows.total)}
+                  </td>
+                  <td className="px-5 py-3 text-right font-semibold">100%</td>
+                </tr>
+              </tfoot>
+            </table>
+          ) : (
+            <div className="flex flex-col items-center gap-2 p-8 text-center">
+              <p className="text-sm text-[color:var(--muted-foreground)]">Aucune sortie enregistrée sur cette période.</p>
+            </div>
+          )}
+        </Card>
+      )}
     </div>
   );
 }
@@ -1165,7 +1361,7 @@ export function WalletLivePage({
             value: "withdrawals",
             label: "Retraits",
             badge: withdrawalsTotal > 0 ? { count: withdrawalsTotal, tone: "warning" as const } : undefined,
-            content: <WithdrawalsTab withdrawals={withdrawals} total={withdrawalsTotal} />,
+            content: <WithdrawalsTab withdrawals={withdrawals} total={withdrawalsTotal} onRefresh={() => startRefresh(() => router.refresh())} />,
           },
           {
             value: "platform-revenue",
