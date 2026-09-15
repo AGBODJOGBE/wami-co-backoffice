@@ -357,7 +357,7 @@ export const navSections: NavSection[] = [
       {
         label: "Wallet & transactions",
         icon: CreditCard,
-        requiredPermissions: ["wallet.view_all", "transaction.view_all"],
+        requiredPermissions: ["wallet.view_all", "transaction.view_all", "wallet.grant.view", "wallet.grant.request"],
         children: [
           {
             href: "/wallet",
@@ -372,6 +372,13 @@ export const navSections: NavSection[] = [
             icon: TrendingUp,
             dataSource: "live",
             requiredPermissions: ["wallet.view_all", "transaction.view_all"],
+          },
+          {
+            href: "/wallet/grants",
+            label: "Campagnes de crédit",
+            icon: Gift,
+            dataSource: "live",
+            requiredPermissions: ["wallet.grant.view", "wallet.grant.request"],
           },
         ],
       },
