@@ -5,6 +5,11 @@ import { API_ROUTES } from "@/shared/config/api-routes";
 import { apiFetch } from "@/shared/lib/api/server";
 import type {
   AffiliateConfig,
+  AffiliateCommissionDetail,
+  AffiliateCommissionSkipsFilters,
+  AffiliateCommissionSkipsResult,
+  AffiliateEligibilityResult,
+  AffiliateListItem,
   AffiliateSuspensionMode,
 } from "../domain/affiliate";
 
@@ -12,6 +17,77 @@ export interface ActionResult<T = undefined> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+// ─── Détail complet d'une commission (écrêtage, gel, annulation) ─────────────
+
+export async function getAffiliateCommissionDetailAction(
+  commissionId: string,
+): Promise<ActionResult<AffiliateCommissionDetail>> {
+  try {
+    const data = await apiFetch<AffiliateCommissionDetail>(
+      API_ROUTES.affiliates.commissionDetail(commissionId),
+    );
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Détail indisponible." };
+  }
+}
+
+// ─── Usages écartés — refetch client (ex. bascule "voir les régularisées") ───
+
+export async function fetchCommissionSkipsAction(
+  filters?: AffiliateCommissionSkipsFilters,
+): Promise<ActionResult<AffiliateCommissionSkipsResult>> {
+  try {
+    const data = await apiFetch<AffiliateCommissionSkipsResult>(
+      API_ROUTES.affiliates.commissionSkips(filters),
+    );
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Chargement impossible." };
+  }
+}
+
+// ─── Liste légère pour sélecteur (ex. rattachement d'un code promo) ──────────
+
+export interface AffiliatePickerItem {
+  affiliateId: string;
+  name:        string;
+  phoneNumber: string;
+  status:      string;
+}
+
+export async function listAffiliatesForPickerAction(): Promise<ActionResult<AffiliatePickerItem[]>> {
+  try {
+    const affiliates = await apiFetch<AffiliateListItem[]>(API_ROUTES.affiliates.list());
+    return {
+      success: true,
+      data: affiliates.map((a) => ({
+        affiliateId: a.affiliateId,
+        name:        a.name,
+        phoneNumber: a.phoneNumber,
+        status:      a.status,
+      })),
+    };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Liste indisponible." };
+  }
+}
+
+// ─── Vérifier l'éligibilité (pré-check avant création) ───────────────────────
+
+export async function checkAffiliateEligibilityAction(
+  phoneNumber: string,
+): Promise<ActionResult<AffiliateEligibilityResult>> {
+  try {
+    const data = await apiFetch<AffiliateEligibilityResult>(
+      API_ROUTES.affiliates.eligibility(phoneNumber),
+    );
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Vérification impossible." };
+  }
 }
 
 // ─── Créer un profil affilié ──────────────────────────────────────────────────
@@ -117,19 +193,60 @@ export async function updateCommissionRateAction(
   }
 }
 
-// ─── Réémettre mot de passe provisoire ───────────────────────────────────────
+// ─── Clôturer le partenariat ──────────────────────────────────────────────────
 
-export async function reissuePasswordAction(
+export interface CloseAffiliateResult {
+  affiliateId:      string;
+  status:           string;
+  closedAt:         string;
+  closeReason:      string | null;
+  deactivatedCodes: number;
+  message:          string;
+}
+
+export async function closeAffiliateAction(
   affiliateId: string,
-): Promise<ActionResult<{ affiliateId: string; message: string }>> {
+  reason: string,
+): Promise<ActionResult<CloseAffiliateResult>> {
   try {
-    const data = await apiFetch<{ affiliateId: string; message: string }>(
-      API_ROUTES.affiliates.reissuePassword(affiliateId),
-      { method: "POST" },
+    const data = await apiFetch<CloseAffiliateResult>(
+      API_ROUTES.affiliates.close(affiliateId),
+      { method: "POST", body: { reason } },
     );
+    revalidatePath("/affiliate");
+    revalidatePath(`/affiliate/${affiliateId}`);
     return { success: true, data };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Renvoi impossible." };
+    return { success: false, error: err instanceof Error ? err.message : "Clôture impossible." };
+  }
+}
+
+// ─── Réouvrir le partenariat ──────────────────────────────────────────────────
+
+export interface ReopenAffiliateResult {
+  affiliateId:   string;
+  status:        string;
+  reopenedAt:    string;
+  reopenReason:  string | null;
+  closedAt:      string | null;
+  walletRebound: boolean;
+  message:       string;
+}
+
+export async function reopenAffiliateAction(
+  affiliateId: string,
+  reason: string,
+): Promise<ActionResult<ReopenAffiliateResult>> {
+  try {
+    const data = await apiFetch<ReopenAffiliateResult>(
+      API_ROUTES.affiliates.reopen(affiliateId),
+      { method: "POST", body: { reason } },
+    );
+    revalidatePath("/affiliate");
+    revalidatePath(`/affiliate/${affiliateId}`);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Réouverture impossible." };
   }
 }
 

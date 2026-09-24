@@ -6,7 +6,8 @@ import { apiFetch } from "@/shared/lib/api/server";
 import { ApiError } from "@/shared/lib/api/types";
 import type {
   CreatePromoCodeInput,
-  PromoCode,
+  CreatePromoCodeResult,
+  SetPromoCodeAffiliateResult,
   ValidatePromoCodeInput,
   ValidatePromoCodeResult,
 } from "../domain/promo-code";
@@ -50,14 +51,23 @@ function clean<T extends Record<string, unknown>>(input: T): T {
 
 export async function createPromoCodeAction(
   input: CreatePromoCodeInput,
-): Promise<ActionResult<PromoCode>> {
+): Promise<ActionResult<CreatePromoCodeResult>> {
   try {
-    const data = await apiFetch<PromoCode>(API_ROUTES.adminPromos.create(), {
+    // Réponse réelle : { promoCodeId, warning?, suggestedMinOrderAmount?,
+    // suggestedMinBudget? } — PAS le PromoCode complet créé.
+    const data = await apiFetch<CreatePromoCodeResult>(API_ROUTES.adminPromos.create(), {
       method: "POST",
       body: clean(input as unknown as Record<string, unknown>),
     });
     refresh();
-    return { ok: true, message: "Code promo créé.", data };
+    return {
+      ok: true,
+      // Le warning n'est pas un log : c'est un avertissement non bloquant
+      // (perte chiffrée, coût par course non borné, budget suggéré) destiné
+      // à l'admin — on le remonte comme message plutôt que de le taire.
+      message: data.warning ? `Code promo créé. ${data.warning}` : "Code promo créé.",
+      data,
+    };
   } catch (e) {
     return fail(e, "Création impossible.");
   }
@@ -74,6 +84,30 @@ export async function togglePromoCodeAction(
     return { ok: true, message: "Statut basculé." };
   } catch (e) {
     return fail(e, "Bascule impossible.");
+  }
+}
+
+/** Rattache (affiliateId + commissionRate) ou détache (affiliateId: null)
+ * ce code d'un influenceur. Les deux champs se fixent ENSEMBLE — un taux
+ * sans affiliateId n'a pas de sens côté backend. */
+export async function setPromoCodeAffiliateAction(
+  promoCodeId: string,
+  affiliateId: string | null,
+  commissionRate: number | null,
+): Promise<ActionResult<SetPromoCodeAffiliateResult>> {
+  try {
+    const data = await apiFetch<SetPromoCodeAffiliateResult>(
+      API_ROUTES.adminPromos.setAffiliate(promoCodeId),
+      { method: "PATCH", body: { affiliateId, commissionRate } },
+    );
+    refresh();
+    return {
+      ok: true,
+      message: affiliateId ? "Code rattaché à l'affilié." : "Code détaché de l'affilié.",
+      data,
+    };
+  } catch (e) {
+    return fail(e, "Rattachement impossible.");
   }
 }
 

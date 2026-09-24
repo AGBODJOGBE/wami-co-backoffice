@@ -4,10 +4,14 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  CheckCircle2,
   Plus,
   RefreshCw,
+  Search,
   Settings,
+  ShieldAlert,
   Users,
+  XCircle,
 } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -20,11 +24,14 @@ import { toast } from "@/shared/ui/toast";
 import { formatDate, formatXof } from "@/shared/lib/format";
 import { CanView } from "@/shared/ui/can-view";
 import {
+  checkAffiliateEligibilityAction,
   createAffiliateAction,
   type CreateAffiliateInput,
 } from "../application/actions";
 import {
+  AFFILIATE_ELIGIBILITY_LABELS,
   AFFILIATE_STATUS_LABELS,
+  type AffiliateEligibilityResult,
   type AffiliateListItem,
 } from "../domain/affiliate";
 
@@ -66,6 +73,13 @@ export function AffiliateListPage({ affiliates }: Props) {
               {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
               Rafraîchir
             </Button>
+            <Link
+              href="/affiliate/commission-skips"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-[color:var(--foreground)] hover:bg-[color:var(--muted)] dark:bg-transparent"
+            >
+              <ShieldAlert className="size-4" />
+              Usages sans commission
+            </Link>
             <CanView permission="affiliate.config.manage">
               <Link
                 href="/affiliate/config"
@@ -137,7 +151,7 @@ export function AffiliateListPage({ affiliates }: Props) {
                     <td className="px-5 py-3 text-sm">{a.socialNetwork}</td>
                     <td className="px-5 py-3">
                       <Badge
-                        tone={a.status === "ACTIVE" ? "success" : "danger"}
+                        tone={a.status === "ACTIVE" ? "success" : a.status === "CLOSED" ? "neutral" : "danger"}
                       >
                         {AFFILIATE_STATUS_LABELS[a.status] ?? a.status}
                       </Badge>
@@ -194,88 +208,161 @@ export function AffiliateListPage({ affiliates }: Props) {
   );
 }
 
-// ─── Modale de création ───────────────────────────────────────────────────────
+// ─── Modale de création (2 étapes : éligibilité → formulaire) ────────────────
+//
+// L'admin ne crée plus de User ni de wallet : un profil affilié se rattache
+// à un compte PASSAGER existant. `POST /api/admin/affiliates` refuse sinon
+// (aucun accès admin ne crée de compte client) — le pré-check via
+// `GET /eligibility?phone=` est donc obligatoire avant d'afficher le
+// formulaire de création.
 
 function CreateAffiliateModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [checking, startChecking] = useTransition();
   const [pending, startTransition] = useTransition();
-  const [form, setForm] = useState<CreateAffiliateInput>({
-    phoneNumber: "",
+  const [phone, setPhone] = useState("");
+  const [eligibility, setEligibility] = useState<AffiliateEligibilityResult | null>(null);
+  const [form, setForm] = useState<Omit<CreateAffiliateInput, "phoneNumber">>({
     name: "",
     socialNetwork: "",
     audienceSize: null,
     commissionRate: null,
   });
 
+  function reset() {
+    setPhone("");
+    setEligibility(null);
+    setForm({ name: "", socialNetwork: "", audienceSize: null, commissionRate: null });
+  }
+
+  function handleClose() {
+    reset();
+    onClose();
+  }
+
+  function handleCheckEligibility() {
+    if (!phone.trim()) {
+      toast({ kind: "error", title: "Numéro requis" });
+      return;
+    }
+    startChecking(async () => {
+      const res = await checkAffiliateEligibilityAction(phone.trim());
+      if (res.success && res.data) {
+        setEligibility(res.data);
+        if (res.data.status === "ELIGIBLE" && res.data.displayName) {
+          setForm((f) => ({ ...f, name: f.name || res.data!.displayName! }));
+        }
+      } else {
+        toast({ kind: "error", title: "Vérification impossible", description: res.error });
+      }
+    });
+  }
+
   function handleSubmit() {
-    if (!form.phoneNumber.trim() || !form.name.trim() || !form.socialNetwork.trim()) {
-      toast({ kind: "error", title: "Champs requis", description: "Téléphone, nom et réseau social sont obligatoires." });
+    if (!form.name.trim() || !form.socialNetwork.trim()) {
+      toast({ kind: "error", title: "Champs requis", description: "Nom et réseau social sont obligatoires." });
       return;
     }
     startTransition(async () => {
-      const res = await createAffiliateAction(form);
+      const res = await createAffiliateAction({ ...form, phoneNumber: phone.trim() });
       if (res.success) {
-        toast({ kind: "success", title: "Affilié créé", description: `${form.name} — mot de passe provisoire envoyé par SMS.` });
-        onClose();
+        toast({ kind: "success", title: "Affilié créé", description: `${form.name} est maintenant rattaché au programme d'affiliation.` });
+        handleClose();
       } else {
         toast({ kind: "error", title: "Création échouée", description: res.error });
       }
     });
   }
 
+  const isEligible = eligibility?.status === "ELIGIBLE";
+
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       size="md"
       title="Créer un affilié"
-      description="Le mot de passe provisoire sera envoyé par SMS au numéro renseigné."
+      description="L'influenceur doit déjà avoir un compte passager dans l'app — vérifiez son numéro avant de continuer."
       footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={pending}>Annuler</Button>
-          <Button onClick={handleSubmit} disabled={pending || !form.phoneNumber || !form.name || !form.socialNetwork}>
-            {pending && <Spinner size="sm" />}
-            Créer
-          </Button>
-        </>
+        isEligible ? (
+          <>
+            <Button variant="ghost" onClick={handleClose} disabled={pending}>Annuler</Button>
+            <Button onClick={handleSubmit} disabled={pending || !form.name || !form.socialNetwork}>
+              {pending && <Spinner size="sm" />}
+              Créer
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="ghost" onClick={handleClose} disabled={checking}>Annuler</Button>
+            <Button onClick={handleCheckEligibility} disabled={checking || !phone.trim()}>
+              {checking ? <Spinner size="sm" /> : <Search className="size-4" />}
+              Vérifier l&apos;éligibilité
+            </Button>
+          </>
+        )
       }
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Input
-          label="Téléphone *"
-          required
-          value={form.phoneNumber}
-          onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))}
-          placeholder="+22961234567"
-        />
-        <Input
-          label="Nom *"
-          required
-          value={form.name}
-          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          placeholder="Aïcha K."
-        />
-        <Input
-          label="Réseau social *"
-          required
-          value={form.socialNetwork}
-          onChange={(e) => setForm((f) => ({ ...f, socialNetwork: e.target.value }))}
-          placeholder="Instagram, TikTok…"
-        />
-        <Input
-          label="Taille d'audience"
-          type="number"
-          value={form.audienceSize ?? ""}
-          onChange={(e) => setForm((f) => ({ ...f, audienceSize: e.target.value ? Number(e.target.value) : null }))}
-          placeholder="ex. 50000"
-        />
-        <Input
-          label="Taux de commission (%)"
-          type="number"
-          value={form.commissionRate ?? ""}
-          onChange={(e) => setForm((f) => ({ ...f, commissionRate: e.target.value ? Number(e.target.value) : null }))}
-          placeholder="ex. 15 (vide = taux par défaut)"
-          className="sm:col-span-2"
-        />
+      <div className="flex flex-col gap-4">
+        <div className="flex items-end gap-2">
+          <Input
+            label="Téléphone *"
+            required
+            value={phone}
+            onChange={(e) => { setPhone(e.target.value); setEligibility(null); }}
+            placeholder="+22961234567"
+            className="flex-1"
+            disabled={isEligible}
+          />
+        </div>
+
+        {eligibility && (
+          <div
+            className={`flex items-start gap-2 rounded-lg border p-3 text-xs ${
+              isEligible
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400"
+                : "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
+            }`}
+          >
+            {isEligible ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" /> : <XCircle className="mt-0.5 size-4 shrink-0" />}
+            <div>
+              <p className="font-medium">{AFFILIATE_ELIGIBILITY_LABELS[eligibility.status]}</p>
+              {eligibility.displayName && <p className="mt-0.5 opacity-80">Compte trouvé : {eligibility.displayName}</p>}
+            </div>
+          </div>
+        )}
+
+        {isEligible && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Nom *"
+              required
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Aïcha K."
+            />
+            <Input
+              label="Réseau social *"
+              required
+              value={form.socialNetwork}
+              onChange={(e) => setForm((f) => ({ ...f, socialNetwork: e.target.value }))}
+              placeholder="Instagram, TikTok…"
+            />
+            <Input
+              label="Taille d'audience"
+              type="number"
+              value={form.audienceSize ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, audienceSize: e.target.value ? Number(e.target.value) : null }))}
+              placeholder="ex. 50000"
+            />
+            <Input
+              label="Taux de commission (%)"
+              type="number"
+              value={form.commissionRate ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, commissionRate: e.target.value ? Number(e.target.value) : null }))}
+              placeholder="ex. 15 (vide = taux par défaut)"
+            />
+          </div>
+        )}
       </div>
     </Modal>
   );

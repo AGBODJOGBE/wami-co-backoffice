@@ -9,6 +9,7 @@ import { Modal } from "@/shared/ui/modal";
 import { Spinner } from "@/shared/ui/spinner";
 import { Textarea } from "@/shared/ui/textarea";
 import { toast } from "@/shared/ui/toast";
+import { CanView } from "@/shared/ui/can-view";
 import { formatDateTime } from "@/shared/lib/format";
 import {
   createPromoCodeAction,
@@ -19,6 +20,8 @@ import {
   CAMPAIGN_TYPE_LABELS,
   CHANNEL_LABELS,
   CODE_TYPE_LABELS,
+  COMMISSION_BASE_DESCRIPTIONS,
+  COMMISSION_BASE_LABELS,
   DISCOUNT_TYPE_LABELS,
   FUNDED_BY_LABELS,
   OBJECTIVE_LABELS,
@@ -29,6 +32,7 @@ import {
   type CampaignType,
   type Channel,
   type CodeType,
+  type CommissionBase,
   type CreatePromoCodeInput,
   type DiscountType,
   type FundedBy,
@@ -148,6 +152,15 @@ export function PromoCodeCreateModal({
         kind: "error",
         title: "Dates incohérentes",
         description: "La date de fin doit être postérieure au début.",
+      });
+      return;
+    }
+    if (final.budgetedLossCampaign && !final.sponsoredBudget) {
+      toast({
+        kind: "error",
+        title: "Budget requis",
+        description:
+          "Une campagne à perte budgétée exige un budget sponsorisé (section Financement) — dépense sinon non bornée, refusée sans condition.",
       });
       return;
     }
@@ -471,7 +484,44 @@ export function PromoCodeCreateModal({
           </div>
         </Section>
 
-        <Section title="7. Affichage & activation">
+        <Section title="7. Commission affiliée & dérogation budgétée">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Combobox
+                label="Base de commission affiliée"
+                options={optsFromLabels(COMMISSION_BASE_LABELS)}
+                value={form.commissionBase ?? "PLATFORM_MARGIN"}
+                onChange={(v) => set("commissionBase", v as CommissionBase)}
+              />
+              <p className="mt-1.5 text-xs text-[color:var(--muted-foreground)]">
+                {COMMISSION_BASE_DESCRIPTIONS[form.commissionBase ?? "PLATFORM_MARGIN"]}
+              </p>
+            </div>
+          </div>
+
+          <CanView permission="promo.manage-budgeted">
+            <div className="mt-4 flex flex-col gap-3 border-t border-[color:var(--border)] pt-4">
+              <CheckboxRow
+                label="Campagne à perte budgétée (ForYou accepte de perdre de l'argent sur ce code)"
+                checked={form.budgetedLossCampaign ?? false}
+                onChange={(v) => set("budgetedLossCampaign", v)}
+              />
+              {form.budgetedLossCampaign ? (
+                <div className="flex items-start gap-2 rounded-md border border-[color:var(--warning)]/30 bg-[color:var(--warning)]/10 px-3 py-2 text-xs text-[color:var(--warning)]">
+                  <Info className="mt-0.5 size-4 shrink-0" />
+                  <p>
+                    Désactive le plafonnement de la remise/commission à la marge ForYou. La dépense
+                    n&apos;est plus bornée que par <strong>Budget sponsorisé</strong> (section
+                    Financement ci-dessus), qui devient <strong>obligatoire</strong>
+                    {!form.sponsoredBudget ? " — non renseigné pour l'instant." : "."}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </CanView>
+        </Section>
+
+        <Section title="8. Affichage & activation">
           <Textarea
             label="Texte d'affichage *"
             value={form.displayText}

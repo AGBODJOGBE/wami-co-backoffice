@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  Archive,
+  ArchiveRestore,
   ArrowLeft,
   CheckCircle2,
+  Eye,
   Lock,
   RefreshCw,
   XCircle,
@@ -27,15 +30,18 @@ import {
   suspendAffiliateAction,
   reactivateAffiliateAction,
   updateCommissionRateAction,
-  reissuePasswordAction,
+  closeAffiliateAction,
+  reopenAffiliateAction,
   holdCommissionAction,
   releaseCommissionAction,
   cancelCommissionAction,
+  getAffiliateCommissionDetailAction,
 } from "../application/actions";
 import {
   AFFILIATE_STATUS_LABELS,
   COMMISSION_STATUS_LABELS,
   SUSPENSION_MODE_LABELS,
+  type AffiliateCommissionDetail,
   type AffiliateDetail,
   type AffiliateStatementLine,
   type AffiliateSuspensionMode,
@@ -144,6 +150,7 @@ function CommissionsTab({
   const [cancelModal, setCancelModal] = useState<{ open: boolean; commissionId: string; amount: number }>({ open: false, commissionId: "", amount: 0 });
   const [holdReason,   setHoldReason]   = useState("");
   const [cancelReason, setCancelReason] = useState("");
+  const [detailTarget, setDetailTarget] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
@@ -313,9 +320,19 @@ function CommissionsTab({
                 <td className="px-5 py-3 text-right font-mono text-xs">{line.appliedRate}%</td>
                 <td className="px-5 py-3 text-xs text-[color:var(--muted-foreground)]">{formatDate(line.accruedAt)}</td>
                 <td className="px-5 py-3">
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[11px]"
+                      onClick={() => setDetailTarget(line.commissionId)}
+                    >
+                      <Eye className="size-3" />
+                      Détail
+                    </Button>
                   {line.status !== "CANCELLED" && line.status !== "PAID" && (
                     <CanView permission="affiliate.manage">
-                      <div className="flex items-center gap-1.5">
+                      <>
                         {line.held ? (
                           <>
                             <Button
@@ -351,15 +368,127 @@ function CommissionsTab({
                             Geler
                           </Button>
                         )}
-                      </div>
+                      </>
                     </CanView>
                   )}
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </Card>
+
+      <CommissionDetailModal
+        commissionId={detailTarget}
+        onClose={() => setDetailTarget(null)}
+      />
+    </div>
+  );
+}
+
+// ─── Modale détail commission (écrêtage, gel, annulation) ─────────────────────
+
+function CommissionDetailModal({
+  commissionId,
+  onClose,
+}: {
+  commissionId: string | null;
+  onClose: () => void;
+}) {
+  const [detail, setDetail] = useState<AffiliateCommissionDetail | null>(null);
+  const [loading, startLoading] = useTransition();
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!commissionId) {
+      setDetail(null);
+      setLoadError(null);
+      return;
+    }
+    startLoading(async () => {
+      const res = await getAffiliateCommissionDetailAction(commissionId);
+      if (res.success && res.data) {
+        setDetail(res.data);
+        setLoadError(null);
+      } else {
+        setLoadError(res.error ?? "Détail indisponible.");
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commissionId]);
+
+  return (
+    <Modal
+      open={!!commissionId}
+      onClose={onClose}
+      size="md"
+      title="Détail de la commission"
+      description={commissionId ? `ID : ${commissionId}` : undefined}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Spinner size="lg" />
+        </div>
+      ) : loadError ? (
+        <p className="text-sm text-[color:var(--danger)]">{loadError}</p>
+      ) : detail ? (
+        <div className="flex flex-col gap-4 text-sm">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <Field label="Statut" value={<Badge tone={detail.status === "PAID" ? "success" : detail.status === "CANCELLED" ? "danger" : "warning"}>{COMMISSION_STATUS_LABELS[detail.status] ?? detail.status}</Badge>} />
+            <Field label="Taux appliqué" value={`${detail.appliedRate}% (${detail.rateSource})`} />
+            <Field label="Commission ForYou" value={formatXof(detail.platformCommission)} />
+            <Field label="Montant" value={<span className="font-mono font-semibold">{formatXof(detail.amount)}</span>} />
+            {detail.wasCapped && (
+              <>
+                <Field label="Montant avant écrêtage" value={detail.rawAmount != null ? formatXof(detail.rawAmount) : "—"} />
+                <Field label="Plafond de marge" value={detail.maxAllowedAmount != null ? formatXof(detail.maxAllowedAmount) : "—"} />
+                <Field
+                  label="Manque à gagner (écrêtage)"
+                  value={<span className="text-amber-600 dark:text-amber-400">{formatXof(detail.cappingShortfall)}</span>}
+                />
+              </>
+            )}
+            {detail.zeroAmountReason && (
+              <Field
+                label="Pourquoi 0 FCFA"
+                value={
+                  detail.zeroAmountReason === "NEGATIVE_MARGIN"
+                    ? "Marge ForYou nulle/négative sur cette course"
+                    : "Taux historique résolu à 0"
+                }
+              />
+            )}
+            <Field label="Part cash (non recouvrée)" value={formatXof(detail.cashPortionAmount)} />
+            <Field label="Payable" value={formatXof(detail.payableAmount)} />
+            <Field label="Payé" value={formatXof(detail.paidAmount)} />
+            <Field label="Accumulé le" value={formatDate(detail.accruedAt)} />
+          </div>
+
+          {detail.held && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Gelée</p>
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{detail.holdReason ?? "—"}</p>
+              {detail.heldAt && <p className="mt-0.5 text-[10px] text-amber-600/80 dark:text-amber-500/80">le {formatDate(detail.heldAt)}</p>}
+            </div>
+          )}
+          {detail.cancelledAt && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/30">
+              <p className="text-xs font-medium text-red-700 dark:text-red-400">Annulée le {formatDate(detail.cancelledAt)}</p>
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{detail.cancelReason ?? "—"}</p>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </Modal>
+  );
+}
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-medium uppercase tracking-wider text-[color:var(--muted-foreground)]">{label}</dt>
+      <dd className="mt-0.5">{value}</dd>
     </div>
   );
 }
@@ -369,8 +498,12 @@ function CommissionsTab({
 function ProfileTab({ detail, onRefresh }: { detail: AffiliateDetail; onRefresh: () => void }) {
   const [suspendModal, setSuspendModal]   = useState(false);
   const [rateModal,    setRateModal]      = useState(false);
+  const [closeModal,   setCloseModal]     = useState(false);
+  const [reopenModal,  setReopenModal]    = useState(false);
   const [suspendMode,  setSuspendMode]    = useState<AffiliateSuspensionMode>("PAUSE");
   const [suspendReason, setSuspendReason] = useState("");
+  const [closeReason,  setCloseReason]    = useState("");
+  const [reopenReason, setReopenReason]   = useState("");
   const [newRate, setNewRate]             = useState<string>("");
   const [pending, startTransition]        = useTransition();
 
@@ -422,13 +555,46 @@ function ProfileTab({ detail, onRefresh }: { detail: AffiliateDetail; onRefresh:
     });
   }
 
-  function handleReissuePassword() {
+  function handleClose() {
+    if (!closeReason.trim()) {
+      toast({ kind: "error", title: "Motif requis", description: "La clôture est définitive — indiquez le motif." });
+      return;
+    }
     startTransition(async () => {
-      const res = await reissuePasswordAction(detail.affiliateId);
+      const res = await closeAffiliateAction(detail.affiliateId, closeReason.trim());
       if (res.success) {
-        toast({ kind: "success", title: "Mot de passe renvoyé", description: res.data?.message });
+        toast({
+          kind: "success",
+          title: "Partenariat clôturé",
+          description: res.data?.deactivatedCodes ? `${res.data.deactivatedCodes} code(s) promo désactivé(s).` : undefined,
+        });
+        setCloseModal(false);
+        setCloseReason("");
+        onRefresh();
       } else {
-        toast({ kind: "error", title: "Renvoi impossible", description: res.error });
+        toast({ kind: "error", title: "Clôture impossible", description: res.error });
+      }
+    });
+  }
+
+  function handleReopen() {
+    if (!reopenReason.trim()) {
+      toast({ kind: "error", title: "Motif requis" });
+      return;
+    }
+    startTransition(async () => {
+      const res = await reopenAffiliateAction(detail.affiliateId, reopenReason.trim());
+      if (res.success) {
+        toast({
+          kind: "success",
+          title: "Partenariat réouvert",
+          description: res.data?.walletRebound ? "Rattaché à un nouveau wallet PAYMENT." : undefined,
+        });
+        setReopenModal(false);
+        setReopenReason("");
+        onRefresh();
+      } else {
+        toast({ kind: "error", title: "Réouverture impossible", description: res.error });
       }
     });
   }
@@ -443,7 +609,7 @@ function ProfileTab({ detail, onRefresh }: { detail: AffiliateDetail; onRefresh:
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
           {([
             { label: "ID",           value: <span className="font-mono text-xs">{detail.affiliateId}</span> },
-            { label: "Statut",       value: <Badge tone={detail.status === "ACTIVE" ? "success" : "danger"}>{AFFILIATE_STATUS_LABELS[detail.status] ?? detail.status}</Badge> },
+            { label: "Statut",       value: <Badge tone={detail.status === "ACTIVE" ? "success" : detail.status === "CLOSED" ? "neutral" : "danger"}>{AFFILIATE_STATUS_LABELS[detail.status] ?? detail.status}</Badge> },
             { label: "Téléphone",    value: detail.phoneNumber },
             { label: "Réseau",       value: detail.socialNetwork },
             { label: "Audience",     value: detail.audienceSize != null ? detail.audienceSize.toLocaleString("fr-FR") : "—" },
@@ -468,7 +634,7 @@ function ProfileTab({ detail, onRefresh }: { detail: AffiliateDetail; onRefresh:
         </CardHeader>
         <CanView permission="affiliate.manage">
           <div className="flex flex-col gap-3">
-            {detail.status === "ACTIVE" ? (
+            {detail.status === "ACTIVE" && (
               <Button
                 variant="outline"
                 className="justify-start border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400"
@@ -478,7 +644,8 @@ function ProfileTab({ detail, onRefresh }: { detail: AffiliateDetail; onRefresh:
                 <XCircle className="size-4" />
                 Suspendre
               </Button>
-            ) : (
+            )}
+            {detail.status === "SUSPENDED" && (
               <Button
                 variant="outline"
                 className="justify-start border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400"
@@ -489,23 +656,37 @@ function ProfileTab({ detail, onRefresh }: { detail: AffiliateDetail; onRefresh:
                 Réactiver
               </Button>
             )}
-            <Button
-              variant="outline"
-              className="justify-start"
-              onClick={() => setRateModal(true)}
-              disabled={pending}
-            >
-              Modifier le taux de commission
-            </Button>
-            <Button
-              variant="outline"
-              className="justify-start"
-              onClick={handleReissuePassword}
-              disabled={pending}
-            >
-              {pending ? <Spinner size="sm" /> : null}
-              Réémettre le mot de passe provisoire
-            </Button>
+            {detail.status !== "CLOSED" && (
+              <Button
+                variant="outline"
+                className="justify-start"
+                onClick={() => setRateModal(true)}
+                disabled={pending}
+              >
+                Modifier le taux de commission
+              </Button>
+            )}
+            {detail.status === "CLOSED" ? (
+              <Button
+                variant="outline"
+                className="justify-start border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400"
+                onClick={() => setReopenModal(true)}
+                disabled={pending}
+              >
+                <ArchiveRestore className="size-4" />
+                Réouvrir le partenariat
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                className="justify-start border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400"
+                onClick={() => setCloseModal(true)}
+                disabled={pending}
+              >
+                <Archive className="size-4" />
+                Clôturer le partenariat
+              </Button>
+            )}
           </div>
         </CanView>
       </Card>
@@ -571,6 +752,46 @@ function ProfileTab({ detail, onRefresh }: { detail: AffiliateDetail; onRefresh:
           onChange={(e) => setNewRate(e.target.value)}
           placeholder="ex. 15 (vide = taux par défaut)"
         />
+      </Modal>
+
+      {/* Modale clôture */}
+      <Modal
+        open={closeModal}
+        onClose={() => { setCloseModal(false); setCloseReason(""); }}
+        size="md"
+        title="Clôturer le partenariat"
+        description="Action définitive : les codes promo de l'affilié seront désactivés. Les commissions déjà dues restent versables."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => { setCloseModal(false); setCloseReason(""); }} disabled={pending}>Annuler</Button>
+            <Button variant="danger" onClick={handleClose} disabled={pending || !closeReason.trim()}>
+              {pending && <Spinner size="sm" />}
+              Clôturer définitivement
+            </Button>
+          </>
+        }
+      >
+        <Textarea label="Motif de la clôture *" required value={closeReason} onChange={(e) => setCloseReason(e.target.value)} placeholder="Fin d'accord commercial, non-respect des conditions…" rows={3} />
+      </Modal>
+
+      {/* Modale réouverture */}
+      <Modal
+        open={reopenModal}
+        onClose={() => { setReopenModal(false); setReopenReason(""); }}
+        size="md"
+        title="Réouvrir le partenariat"
+        description="Le profil repasse à ACTIF. S'il n'a plus de wallet PAYMENT d'origine, il sera rattaché à son wallet passager actuel."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => { setReopenModal(false); setReopenReason(""); }} disabled={pending}>Annuler</Button>
+            <Button onClick={handleReopen} disabled={pending || !reopenReason.trim()}>
+              {pending && <Spinner size="sm" />}
+              Réouvrir
+            </Button>
+          </>
+        }
+      >
+        <Textarea label="Motif de la réouverture *" required value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} placeholder="Nouvel accord signé, erreur de clôture…" rows={3} />
       </Modal>
     </div>
   );

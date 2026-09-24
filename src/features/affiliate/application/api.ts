@@ -5,6 +5,8 @@ import { apiFetch } from "@/shared/lib/api/server";
 import type {
   AffiliateConfig,
   AffiliateCommissionDetail,
+  AffiliateCommissionSkipsFilters,
+  AffiliateCommissionSkipsResult,
   AffiliateDetail,
   AffiliateListItem,
 } from "../domain/affiliate";
@@ -56,5 +58,15 @@ export async function getAffiliateCommissionDetail(
 ): Promise<AffiliateCommissionDetail> {
   return apiFetch<AffiliateCommissionDetail>(
     API_ROUTES.affiliates.commissionDetail(commissionId),
+  );
+}
+
+// ─── Usages écartés (aucune commission générée) ───────────────────────────────
+
+export async function listAffiliateCommissionSkips(
+  filters?: AffiliateCommissionSkipsFilters,
+): Promise<AffiliateCommissionSkipsResult> {
+  return apiFetch<AffiliateCommissionSkipsResult>(
+    API_ROUTES.affiliates.commissionSkips(filters),
   );
 }
