@@ -2,7 +2,12 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { env } from "@/shared/config/env";
-import { SESSION_COOKIE } from "@/features/auth/application/session-cookie";
+import {
+  ADMIN_COOKIE,
+  SESSION_COOKIE,
+  SESSION_EXPIRED_FLAG_COOKIE,
+  SESSION_EXPIRED_FLAG_MAX_AGE_SECONDS,
+} from "@/features/auth/application/session-cookie";
 import { ApiError, extractFailureMessage, type ApiResponse } from "./types";
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
@@ -15,6 +20,12 @@ interface RequestOptions extends Omit<RequestInit, "body"> {
   query?: Record<string, string | number | boolean | undefined>;
   /** If true, suppresses console.error on failure (still throws). */
   silent?: boolean;
+  /**
+   * If true, a 401 does NOT clear the local session — for endpoints where 401
+   * means "wrong credentials" (e.g. change-password with a bad current
+   * password) rather than "your token was revoked".
+   */
+  preserveSessionOn401?: boolean;
 }
 
 function buildUrl(path: string, query?: RequestOptions["query"]) {
@@ -34,6 +45,39 @@ function buildUrl(path: string, query?: RequestOptions["query"]) {
  * and injects it as a Bearer token. Unwraps the standard `{success, data}`
  * envelope and throws an `ApiError` on failure.
  */
+/**
+ * Best-effort logout when the backend rejects our token with 401 — token
+ * superseded by a login elsewhere, OR by `ActiveSessionService.revokeAllSessions`
+ * on a password reset (same rejection path, `authMiddleware.ts`). Without
+ * this, the admin keeps navigating a board that LOOKS logged in
+ * (`getCurrentAdmin()` only reads the local cookie, never re-validates
+ * against the backend — see `session.ts`) while every single data fetch
+ * silently fails underneath. Clearing the session here means the next
+ * `requireAdmin()` check — on the very next navigation — cleanly redirects
+ * to /login instead of leaving stale, half-broken pages up.
+ *
+ * `cookies().set()` throws when called outside a Server Action / Route
+ * Handler (e.g. from a plain Server Component render, which is most of
+ * apiFetch's callers) — caught and ignored: this is a best-effort nicety,
+ * never the primary way an expired session gets discovered.
+ */
+async function clearSupersededSession(): Promise<void> {
+  try {
+    const store = await cookies();
+    store.delete(SESSION_COOKIE);
+    store.delete(ADMIN_COOKIE);
+    store.set(SESSION_EXPIRED_FLAG_COOKIE, "1", {
+      httpOnly: true,
+      secure: env.isProd,
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_EXPIRED_FLAG_MAX_AGE_SECONDS,
+    });
+  } catch {
+    // Not in a Server Action / Route Handler — nothing we can do here.
+  }
+}
+
 function redactBody(body: unknown): unknown {
   if (!body || typeof body !== "object") return body;
   const clone: Record<string, unknown> = { ...(body as Record<string, unknown>) };
@@ -45,7 +89,7 @@ function redactBody(body: unknown): unknown {
 
 export async function apiFetch<T>(
   path: string,
-  { body, authenticated = true, query, silent = false, headers, ...init }: RequestOptions = {},
+  { body, authenticated = true, query, silent = false, preserveSessionOn401 = false, headers, ...init }: RequestOptions = {},
 ): Promise<T> {
   const finalHeaders = new Headers(headers);
   finalHeaders.set("Accept", "application/json");
@@ -89,6 +133,8 @@ export async function apiFetch<T>(
 
   let response: Response | null = null;
   let lastError: unknown = null;
+  let rawText = "";
+  let bodyReadError: string | null = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       response = await fetch(url, {
@@ -106,6 +152,30 @@ export async function apiFetch<T>(
         const elapsed = Date.now() - startedAt;
         console.warn(
           `[apiFetch] ⟳ ${method} ${url} attempt ${attempt}/${maxAttempts} — HTTP ${response.status} in ${elapsed}ms, retrying…`,
+        );
+        await new Promise((r) => setTimeout(r, 300 * attempt));
+        response = null;
+        continue;
+      }
+
+      // Lit le corps DANS la boucle : un 200 dont le corps est coupé net ou
+      // vide (connexion réinitialisée en plein transfert sous charge) est une
+      // panne transitoire d'un GET idempotent — on retente au lieu de finir
+      // sur un « Request failed with status 200 » sans indice.
+      rawText = "";
+      bodyReadError = null;
+      try {
+        rawText = await response.text();
+      } catch (readError) {
+        bodyReadError = readError instanceof Error ? readError.message : String(readError);
+      }
+      const emptyOkBody =
+        response.ok && response.status !== 204 && rawText.trim() === "";
+      if ((bodyReadError || emptyOkBody) && attempt < maxAttempts) {
+        console.warn(
+          `[apiFetch] ⟳ ${method} ${url} attempt ${attempt}/${maxAttempts} — HTTP ${response.status} but body ${
+            bodyReadError ? `unreadable (${bodyReadError})` : "empty"
+          }, retrying…`,
         );
         await new Promise((r) => setTimeout(r, 300 * attempt));
         response = null;
@@ -153,13 +223,6 @@ export async function apiFetch<T>(
   }
 
   const ms = Date.now() - startedAt;
-  let rawText = "";
-  try {
-    rawText = await response.text();
-  } catch {
-    // ignore
-  }
-
   let payload: ApiResponse<T> | null = null;
   if (rawText) {
     try {
@@ -170,6 +233,13 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok || !payload || payload.success === false) {
+    // A 401 on an authenticated call means our token was rejected —
+    // superseded by another login, or by a password reset. Distinct from
+    // an unauthenticated call (e.g. login itself) legitimately failing.
+    if (response.status === 401 && authenticated && !preserveSessionOn401) {
+      await clearSupersededSession();
+    }
+
     // Try the three known failure shapes — message / error:string /
     // error:{message,code}. Falling back to the raw body keeps the
     // toast helpful when the backend invents a new shape rather than
@@ -187,12 +257,19 @@ export async function apiFetch<T>(
     const errors =
       payload && payload.success === false ? payload.errors : undefined;
     const errorsPart = errors ? ` errors=${JSON.stringify(errors)}` : "";
+    const bodyDiag = bodyReadError
+      ? ` bodyReadError=${JSON.stringify(bodyReadError)}`
+      : !rawText
+        ? " emptyBody=true"
+        : payload && payload.success === false && !fromPayload
+          ? ` payloadKeys=${JSON.stringify(Object.keys(payload))}`
+          : "";
     const rawPart =
       !payload && rawText
         ? ` rawBody=${JSON.stringify(rawText.slice(0, 500))}`
         : "";
     if (!silent) console.error(
-      `[apiFetch] ✗ ${method} ${url} — ${response.status} ${response.statusText} (${ms}ms): ${message}${errorsPart}${rawPart}`,
+      `[apiFetch] ✗ ${method} ${url} — ${response.status} ${response.statusText} (${ms}ms): ${message}${errorsPart}${rawPart}${bodyDiag}`,
     );
     throw new ApiError(message, response.status, errors);
   }

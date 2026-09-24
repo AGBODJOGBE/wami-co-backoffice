@@ -85,6 +85,47 @@ export async function loginAction(
   redirect("/");
 }
 
+export interface ChangePasswordResult {
+  ok: boolean;
+  message: string;
+}
+
+const PASSWORD_RULES_MESSAGE =
+  "8 caractères minimum, avec une majuscule, une minuscule et un chiffre.";
+
+export async function changePasswordAction(
+  currentPassword: string,
+  newPassword: string,
+): Promise<ChangePasswordResult> {
+  if (!currentPassword || !newPassword) {
+    return { ok: false, message: "Renseigne le mot de passe actuel et le nouveau." };
+  }
+  if (
+    newPassword.length < 8 ||
+    !/[A-Z]/.test(newPassword) ||
+    !/[a-z]/.test(newPassword) ||
+    !/[0-9]/.test(newPassword)
+  ) {
+    return { ok: false, message: `Nouveau mot de passe trop faible : ${PASSWORD_RULES_MESSAGE}` };
+  }
+  if (newPassword === currentPassword) {
+    return { ok: false, message: "Le nouveau mot de passe doit être différent de l'actuel." };
+  }
+  try {
+    await apiFetch<unknown>(API_ROUTES.admin.changePassword(), {
+      method: "PUT",
+      body: { currentPassword, newPassword },
+      preserveSessionOn401: true,
+    });
+    return { ok: true, message: "Mot de passe modifié." };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Modification impossible.",
+    };
+  }
+}
+
 export async function logoutAction() {
   await destroySession();
   redirect("/login");

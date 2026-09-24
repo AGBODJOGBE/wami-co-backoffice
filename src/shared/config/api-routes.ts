@@ -18,6 +18,8 @@ export const API_ROUTES = {
     login: () => "/api/admin/login",
     /** POST — register a new admin (super-admin only). */
     register: () => "/api/admin/register",
+    /** PUT — the logged-in admin changes their OWN password. Body: { currentPassword, newPassword }. */
+    changePassword: () => "/api/admin/password",
     /** GET — current admin's effective permissions. */
     myPermissions: () => "/api/admin/me/permissions",
     /** GET — list every active role. POST — create a custom role. Body: { name, displayName, permissionIds }. */
@@ -135,6 +137,8 @@ export const API_ROUTES = {
     create: () => "/api/admin/promo-codes",
     /** GET — list promo codes. */
     list: () => "/api/admin/promo-codes",
+    /** PATCH — attach (or detach) this code to an affiliate. Body: { affiliateId: string | null, commissionRate: number | null }. Permission: promo.manage. */
+    setAffiliate: (id: string) => `/api/admin/promo-codes/${id}/affiliate`,
     /** PATCH — toggle active flag. */
     toggle: (id: string) => `/api/admin/promo-codes/${id}/toggle`,
     /** POST — validate a promo code before a ride (used by passenger app). */
@@ -161,6 +165,21 @@ export const API_ROUTES = {
     detail: (rideId: string) => `/api/admin/rides/${rideId}`,
     /** PATCH — admin force a status transition (body: { status, reason }). */
     forceStatus: (rideId: string) => `/api/admin/rides/${rideId}/status`,
+    /** GET — permanent telemetry summary of a ride (distances, durations, system decisions, GPS signal quality). Permission: ride.telemetry.view. EVERY access is logged (fail-closed: 503 if the log write fails). */
+    telemetry: (rideId: string) => `/api/admin/rides/${rideId}/telemetry`,
+    /** GET — raw GPS track as GeoJSON for map replay. Query: every (decimation, default 1). Permission: ride.telemetry.track.view (OPS_ADMIN only). EVERY access is logged. */
+    /** GET — trace de règlement de la garantie d'une réservation (gel, libération/capture/imputation, compensation, pénalité). Permission: ride.scheduled.settlement.view. */
+    guaranteeSettlement: (rideId: string) => `/api/admin/rides/${rideId}/guarantee-settlement`,
+    track: (rideId: string, every?: number) =>
+      `/api/admin/rides/${rideId}/track${every && every > 1 ? `?every=${every}` : ""}`,
+  },
+
+  // ─── Admin: réservations programmées (bascule manuelle) ────────────────────
+  adminScheduledRides: {
+    /** GET — réservations sans pilote à l'approche du départ + pilotes candidats. Permission: ride.scheduled.assign.view. */
+    manualAssignmentQueue: () => "/api/admin/scheduled-rides/manual-assignment",
+    /** POST — impose un pilote à une réservation (il ne peut pas refuser). Body: { driverId } SEUL. Permission: ride.scheduled.assign. */
+    assignDriver: (rideId: string) => `/api/admin/scheduled-rides/${rideId}/manual-assignment`,
   },
 
   // ─── Driver: ride lifecycle (admin uses these to act on behalf of driver) ──
@@ -237,7 +256,9 @@ export const API_ROUTES = {
   affiliates: {
     /** GET — list all affiliate profiles. Permission: affiliate.view. */
     list: () => "/api/admin/affiliates",
-    /** POST — create an affiliate profile. Body: CreateAffiliateProfileInput. Permission: affiliate.manage. */
+    /** GET — eligibility of a phone number BEFORE creation (NO_ACCOUNT | NO_PASSENGER_PROFILE | ALREADY_AFFILIATE | ELIGIBLE). Permission: affiliate.view. */
+    eligibility: (phone: string) => `/api/admin/affiliates/eligibility?phone=${encodeURIComponent(phone)}`,
+    /** POST — create an affiliate profile for an EXISTING passenger account. Body: CreateAffiliateProfileInput. Permission: affiliate.manage. */
     create: () => "/api/admin/affiliates",
     /** GET — full admin detail of one affiliate. Permission: affiliate.view. */
     detail: (id: string) => `/api/admin/affiliates/${id}`,
@@ -251,8 +272,10 @@ export const API_ROUTES = {
     suspend: (id: string) => `/api/admin/affiliates/${id}/suspend`,
     /** POST — reactivate a suspended profile. Permission: affiliate.manage. */
     reactivate: (id: string) => `/api/admin/affiliates/${id}/reactivate`,
-    /** POST — reissue provisional password via SMS. Permission: affiliate.manage. */
-    reissuePassword: (id: string) => `/api/admin/affiliates/${id}/password/reissue`,
+    /** POST — permanently close a partnership (ACTIVE|SUSPENDED → CLOSED). Body: { reason } required. Permission: affiliate.manage. */
+    close: (id: string) => `/api/admin/affiliates/${id}/close`,
+    /** POST — reopen a closed partnership (CLOSED → ACTIVE). Body: { reason } required. Permission: affiliate.manage. */
+    reopen: (id: string) => `/api/admin/affiliates/${id}/reopen`,
     /** GET — full commission detail. Permission: affiliate.view. */
     commissionDetail: (commissionId: string) => `/api/admin/affiliates/commissions/${commissionId}`,
     /** POST — hold (freeze) a commission. Body: { reason }. Permission: affiliate.manage. */
@@ -261,6 +284,29 @@ export const API_ROUTES = {
     releaseCommission: (commissionId: string) => `/api/admin/affiliates/commissions/${commissionId}/release`,
     /** POST — cancel a held commission. Body: { reason }. Permission: affiliate.manage. */
     cancelCommission: (commissionId: string) => `/api/admin/affiliates/commissions/${commissionId}/cancel`,
+    /** GET — durable trace of every affiliated promo usage that produced NO commission
+     * (profile not found/suspended/closed/sanctioned, self-referral, zero rate, missing
+     * base amount, exhausted net amount…). Permission: affiliate.view. */
+    commissionSkips: (query?: {
+      affiliateId?: string;
+      reason?: string;
+      resolved?: boolean;
+      from?: string;
+      to?: string;
+      limit?: number;
+      offset?: number;
+    }) => {
+      const p = new URLSearchParams();
+      if (query?.affiliateId) p.set("affiliateId", query.affiliateId);
+      if (query?.reason) p.set("reason", query.reason);
+      if (query?.resolved !== undefined) p.set("resolved", String(query.resolved));
+      if (query?.from) p.set("from", query.from);
+      if (query?.to) p.set("to", query.to);
+      if (query?.limit !== undefined) p.set("limit", String(query.limit));
+      if (query?.offset !== undefined) p.set("offset", String(query.offset));
+      const qs = p.toString();
+      return `/api/admin/affiliates/commission-skips${qs ? `?${qs}` : ""}`;
+    },
   },
 
   // ─── Admin: payments ───────────────────────────────────────────────────────
@@ -294,6 +340,8 @@ export const API_ROUTES = {
     unassign: (id: string) => `/api/vehicles/admin/${id}/unassign`,
     /** PATCH — change a vehicle's category. */
     setCategory: (id: string) => `/api/vehicles/admin/${id}/category`,
+    /** PATCH — activate SEVERAL categories at once (CAR only; admin may exceed the ceiling, which is then raised). Body: { categories: VehicleCategory[] } — the full list of ticked boxes, it replaces the previous one. */
+    setActiveCategories: (id: string) => `/api/vehicles/admin/${id}/active-categories`,
     /** POST — start maintenance. */
     startMaintenance: (id: string) =>
       `/api/vehicles/admin/${id}/maintenance/start`,
