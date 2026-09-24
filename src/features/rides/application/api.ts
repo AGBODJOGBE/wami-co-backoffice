@@ -70,3 +70,12 @@ export async function getAdminRide(rideId: string): Promise<RideDetail> {
   }
   throw new Error(`Course introuvable : ${rideId}`);
 }
+
+/** GET /api/admin/scheduled-rides/manual-assignment — rendu serveur de la page. */
+export async function getManualAssignmentQueue(): Promise<
+  import("../domain/scheduled-rides").ManualAssignmentQueue
+> {
+  return apiFetch<import("../domain/scheduled-rides").ManualAssignmentQueue>(
+    API_ROUTES.adminScheduledRides.manualAssignmentQueue(),
+  );
+}
