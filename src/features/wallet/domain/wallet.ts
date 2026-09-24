@@ -203,6 +203,16 @@ export const TRANSACTION_TYPE_META: Record<
 export type WithdrawalStatus = "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
 export type WithdrawalMethod = "MOBILE_MONEY" | "BANK_TRANSFER" | string;
 
+/** Sous-solde débité par le retrait. MAIN pour driver/partenaire (EARNINGS/PARTNER) ;
+ * AFFILIATE pour un passager qui retire ses commissions d'affiliation sur son
+ * wallet PAYMENT — le seul sous-solde retirable sur ce type de wallet. */
+export type WithdrawalSourceBalance = "MAIN" | "AFFILIATE" | string;
+
+export const WITHDRAWAL_SOURCE_BALANCE_LABELS: Record<string, string> = {
+  MAIN:      "Solde principal",
+  AFFILIATE: "Commissions affilié",
+};
+
 export interface Withdrawal {
   withdrawalId: string;
   walletId: string;
@@ -222,6 +232,11 @@ export interface Withdrawal {
   failureReason: string | null;
   processedAt: string | null;
   createdAt: string;
+  /** MAIN (driver/partenaire) ou AFFILIATE (passager — commissions d'affiliation). */
+  sourceBalance?: WithdrawalSourceBalance;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string | null;
   /** @deprecated Use createdAt */
   requestedAt?: string;
 }

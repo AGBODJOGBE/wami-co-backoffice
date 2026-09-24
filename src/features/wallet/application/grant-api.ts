@@ -5,27 +5,7 @@ import { apiFetch } from "@/shared/lib/api/server";
 import type {
   WalletGrantCampaignsResult,
   WalletGrantCampaignDetail,
-  WalletGrantPreview,
-  GrantAudience,
-  GrantBalanceType,
-  GrantTargeting,
 } from "../domain/wallet-grant";
-
-export interface PreviewGrantInput {
-  audience:             GrantAudience;
-  balanceType:          GrantBalanceType;
-  amountPerBeneficiary: number;
-  targeting:            GrantTargeting;
-}
-
-export async function previewWalletGrant(
-  input: PreviewGrantInput,
-): Promise<WalletGrantPreview> {
-  return apiFetch<WalletGrantPreview>(API_ROUTES.adminWalletGrants.preview(), {
-    method: "POST",
-    body: input,
-  });
-}
 
 export interface ListGrantsFilters {
   status?:   string;

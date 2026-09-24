@@ -20,6 +20,7 @@ import {
   deleteVehicleAction,
   rejectVehicleAction,
   retireVehicleAction,
+  setVehicleActiveCategoriesAction,
   setVehicleCategoryAction,
   startMaintenanceAction,
   unassignVehicleAction,
@@ -30,6 +31,7 @@ import {
 import {
   SEAT_RANGE,
   VEHICLE_CATEGORY_LABELS,
+  VEHICLE_CATEGORY_ORDER,
   VEHICLE_OWNERSHIP_LABELS,
   VEHICLE_STATUS_META,
   VEHICLE_TYPE_LABELS,
@@ -1122,6 +1124,112 @@ export function VehicleCategoryModal({
         onChange={(v) => setCategory(v as VehicleCategory)}
         required
       />
+    </Modal>
+  );
+}
+
+export function VehicleActiveCategoriesModal({
+  open,
+  vehicle,
+  onClose,
+}: CategoryModalProps) {
+  const [selected, setSelected] = useState<VehicleCategory[]>([]);
+  const [pending, start] = useTransition();
+
+  useEffect(() => {
+    if (open && vehicle) {
+      setSelected(
+        vehicle.activeCategories && vehicle.activeCategories.length > 0
+          ? vehicle.activeCategories
+          : vehicle.category
+            ? [vehicle.category]
+            : [],
+      );
+    }
+  }, [open, vehicle]);
+
+  if (!vehicle) return null;
+
+  const ceiling = vehicle.verifiedCategory;
+  const ceilingIdx = ceiling ? VEHICLE_CATEGORY_ORDER.indexOf(ceiling) : -1;
+  const exceeding = selected.filter(
+    (c) => ceilingIdx >= 0 && VEHICLE_CATEGORY_ORDER.indexOf(c) > ceilingIdx,
+  );
+
+  function toggle(c: VehicleCategory) {
+    setSelected((cur) =>
+      cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c],
+    );
+  }
+
+  function submit() {
+    if (!vehicle) return;
+    if (selected.length === 0) return;
+    const ordered = VEHICLE_CATEGORY_ORDER.filter((c) => selected.includes(c));
+    start(async () => {
+      const r = await setVehicleActiveCategoriesAction(vehicle.id, ordered);
+      notify(r, "Catégories actives mises à jour");
+      if (r.ok) onClose();
+    });
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Catégories actives"
+      description="Le véhicule reçoit des courses de toutes les catégories cochées, sans priorité entre elles. Chaque course est payée au tarif de sa propre catégorie."
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={pending}>
+            Annuler
+          </Button>
+          <Button onClick={submit} isLoading={pending} disabled={selected.length === 0}>
+            Enregistrer
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2">
+          {VEHICLE_CATEGORY_ORDER.map((c) => {
+            const over = ceilingIdx >= 0 && VEHICLE_CATEGORY_ORDER.indexOf(c) > ceilingIdx;
+            return (
+              <label
+                key={c}
+                className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-[color:var(--border)] px-3 py-2 hover:bg-[color:var(--muted)]"
+              >
+                <span className="flex items-center gap-2 text-sm text-[color:var(--foreground)]">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(c)}
+                    onChange={() => toggle(c)}
+                    className="size-4 rounded border-[color:var(--border)]"
+                  />
+                  {VEHICLE_CATEGORY_LABELS[c]}
+                </span>
+                {over ? (
+                  <span className="text-[10px] text-[color:var(--warning)]">
+                    au-dessus du plafond
+                  </span>
+                ) : null}
+              </label>
+            );
+          })}
+        </div>
+        {selected.length === 0 ? (
+          <p className="text-xs text-[color:var(--danger)]">
+            Au moins une catégorie doit rester cochée.
+          </p>
+        ) : null}
+        {exceeding.length > 0 ? (
+          <p className="rounded-md border border-[color:var(--warning)]/30 bg-[color:var(--warning)]/10 px-3 py-2 text-xs text-[color:var(--warning)]">
+            {exceeding.map((c) => VEHICLE_CATEGORY_LABELS[c]).join(", ")} dépasse le
+            plafond validé ({ceiling ? VEHICLE_CATEGORY_LABELS[ceiling] : "—"}) : en tant
+            qu'admin tu peux le faire, le plafond sera alors relevé.
+          </p>
+        ) : null}
+      </div>
     </Modal>
   );
 }

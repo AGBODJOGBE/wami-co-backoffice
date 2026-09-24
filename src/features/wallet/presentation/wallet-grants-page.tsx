@@ -20,9 +20,9 @@ import { Spinner } from "@/shared/ui/spinner";
 import { toast } from "@/shared/ui/toast";
 import { formatDate, formatXof } from "@/shared/lib/format";
 import { CanView } from "@/shared/ui/can-view";
-import { previewWalletGrant } from "../application/grant-api";
 import {
   createGrantCampaignAction,
+  previewGrantCampaignAction,
   type CreateGrantCampaignInput,
 } from "../application/grant-actions";
 import {
@@ -206,17 +206,17 @@ function CreateGrantModal({ open, onClose }: { open: boolean; onClose: () => voi
       return;
     }
     startTransition(async () => {
-      try {
-        const result = await previewWalletGrant({
-          audience:             form.audience,
-          balanceType:          form.balanceType,
-          amountPerBeneficiary: form.amountPerBeneficiary,
-          targeting:            form.targeting,
-        });
-        setPreview(result);
+      const res = await previewGrantCampaignAction({
+        audience:             form.audience,
+        balanceType:          form.balanceType,
+        amountPerBeneficiary: form.amountPerBeneficiary,
+        targeting:            form.targeting,
+      });
+      if (res.success && res.data) {
+        setPreview(res.data);
         setStep("preview");
-      } catch (err) {
-        toast({ kind: "error", title: "Prévisualisation échouée", description: err instanceof Error ? err.message : "Erreur" });
+      } else {
+        toast({ kind: "error", title: "Prévisualisation échouée", description: res.error });
       }
     });
   }

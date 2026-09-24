@@ -25,10 +25,12 @@ import {
 import {
   COMPONENT_TYPE_LABELS,
   RIDE_VEHICLE_TEMPLATES,
+  SERVICE_KEY_LABELS,
   STRATEGY_LABELS,
   type CreatePricingProfileInput,
   type PricingComponent,
   type PricingProfile,
+  type ServiceKey,
 } from "../domain/pricing-profile";
 import {
   RIDE_VEHICLE_LABELS,
@@ -41,6 +43,11 @@ import { PricingProfileModal } from "./pricing-profile-modal";
 const VEHICLE_ORDER: RideVehicleType[] = [
   "MOTO", "TRICYCLE", "ECO", "STANDARD", "CONFORT", "VIP", "VAN",
 ];
+
+/** Les deux serviceKey administrés par cet écran — RIDE (course app) et
+ * RIDE_PICKUP (course créée par le chauffeur pour un client sans app),
+ * tarifées et commissionnées séparément depuis leur scission backend. */
+const RIDE_SERVICE_KEYS: ServiceKey[] = ["RIDE", "RIDE_PICKUP"];
 
 function fmtFcfa(n: number) {
   return `${n.toLocaleString("fr-FR")} FCFA`;
@@ -276,6 +283,7 @@ export function RidePricingProfileEditor({ profiles, error }: RidePricingProfile
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [selectedVehicle, setSelectedVehicle] = useState<RideVehicleType>("MOTO");
+  const [serviceKey, setServiceKey] = useState<ServiceKey>("RIDE");
 
   // Modal states
   const [editTarget, setEditTarget] = useState<PricingProfile | null>(null);
@@ -303,7 +311,15 @@ export function RidePricingProfileEditor({ profiles, error }: RidePricingProfile
   function openCreate() {
     setEditTarget(null);
     setCopySource(null);
-    setCreateTemplate(RIDE_VEHICLE_TEMPLATES[selectedVehicle] ?? null);
+    const rideTemplate = RIDE_VEHICLE_TEMPLATES[selectedVehicle] ?? null;
+    // Pas de template dédié RIDE_PICKUP (le backend le seede lui-même au
+    // démarrage) — on part du template RIDE du même véhicule comme point de
+    // départ neutre, l'admin ajuste ensuite tarifs/commission/part chauffeur.
+    setCreateTemplate(
+      serviceKey === "RIDE_PICKUP" && rideTemplate
+        ? { ...rideTemplate, serviceKey: "RIDE_PICKUP", name: rideTemplate.name.replace("RIDE ", "RIDE PICKUP ") }
+        : rideTemplate,
+    );
     setModalOpen(true);
   }
   function closeModal() {
@@ -326,8 +342,8 @@ export function RidePricingProfileEditor({ profiles, error }: RidePricingProfile
     });
   }
 
-  // All RIDE profiles, selected vehicle profiles
-  const allRideProfiles = profiles.filter((p) => p.serviceKey === "RIDE");
+  // Profils du serviceKey sélectionné (RIDE ou RIDE_PICKUP), puis du véhicule
+  const allRideProfiles = profiles.filter((p) => p.serviceKey === serviceKey);
   const vehicleProfiles = allRideProfiles.filter(
     (p) => (p.vehicleType ?? "").toUpperCase() === selectedVehicle,
   );
@@ -343,7 +359,7 @@ export function RidePricingProfileEditor({ profiles, error }: RidePricingProfile
         <div className="flex items-center gap-2">
           <Car className="size-5 text-[color:var(--primary)]" />
           <h2 className="text-base font-semibold text-[color:var(--foreground)]">
-            Grille tarifaire VTC
+            Grille tarifaire {SERVICE_KEY_LABELS[serviceKey]}
           </h2>
           <span className="text-sm text-[color:var(--muted-foreground)]">
             ({allRideProfiles.length} profil{allRideProfiles.length !== 1 ? "s" : ""})
@@ -371,6 +387,26 @@ export function RidePricingProfileEditor({ profiles, error }: RidePricingProfile
           {error}
         </div>
       )}
+
+      {/* Service key toggle — RIDE (course app) vs RIDE_PICKUP (course créée
+          par le chauffeur, sans app) : tarification et commission séparées
+          depuis leur scission backend, chacune administrée ici. */}
+      <div className="flex items-center gap-2">
+        {RIDE_SERVICE_KEYS.map((sk) => (
+          <button
+            key={sk}
+            type="button"
+            onClick={() => setServiceKey(sk)}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+              serviceKey === sk
+                ? "bg-[color:var(--foreground)] text-[color:var(--background)]"
+                : "border border-[color:var(--border)] text-[color:var(--muted-foreground)] hover:bg-[color:var(--muted)]"
+            }`}
+          >
+            {SERVICE_KEY_LABELS[sk]}
+          </button>
+        ))}
+      </div>
 
       {/* Vehicle selector + KPI stats */}
       <div className="rounded-xl border border-[color:var(--border)] bg-[color:var(--background)] p-4">

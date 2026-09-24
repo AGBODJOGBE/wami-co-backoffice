@@ -7,6 +7,7 @@ import { ApiError } from "@/shared/lib/api/types";
 import type {
   CreatePlatformVehicleInput,
   UpdateVehicleInput,
+  SetActiveCategoriesResult,
   VehicleCategory,
   VehicleSummary,
   VerifyVehicleResult,
@@ -157,6 +158,22 @@ export async function setVehicleCategoryAction(
     return { ok: true, message: "Catégorie mise à jour." };
   } catch (e) {
     return fail(e, "Changement de catégorie impossible.");
+  }
+}
+
+export async function setVehicleActiveCategoriesAction(
+  id: string,
+  categories: VehicleCategory[],
+): Promise<ActionResult<SetActiveCategoriesResult>> {
+  try {
+    const data = await apiFetch<SetActiveCategoriesResult>(
+      API_ROUTES.vehicles.setActiveCategories(id),
+      { method: "PATCH", body: { categories } },
+    );
+    refresh(id);
+    return { ok: true, message: "Catégories actives mises à jour.", data };
+  } catch (e) {
+    return fail(e, "Mise à jour des catégories impossible.");
   }
 }
 

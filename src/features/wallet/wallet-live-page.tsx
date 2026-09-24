@@ -47,6 +47,7 @@ import {
   TRANSACTION_TYPE_META,
   WALLET_TYPE_META,
   WITHDRAWAL_METHOD_LABELS,
+  WITHDRAWAL_SOURCE_BALANCE_LABELS,
   WITHDRAWAL_STATUS_LABELS,
   type AdminTransaction,
   type AdminWallet,
@@ -714,6 +715,11 @@ function WithdrawalsTab({ withdrawals, total, onRefresh }: { withdrawals: Withdr
                   {w.walletType && (
                     <Badge tone={walletMeta(w.walletType).tone}>{walletMeta(w.walletType).label}</Badge>
                   )}
+                  {w.sourceBalance === "AFFILIATE" && (
+                    <p className="mt-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                      {WITHDRAWAL_SOURCE_BALANCE_LABELS.AFFILIATE}
+                    </p>
+                  )}
                 </td>
                 <td className="px-5 py-3 text-right font-mono font-semibold">{formatXof(w.amount)}</td>
                 <td className="px-5 py-3 text-sm">
@@ -746,6 +752,9 @@ function WithdrawalsTab({ withdrawals, total, onRefresh }: { withdrawals: Withdr
                   </div>
                   {w.failureReason && (
                     <p className="mt-0.5 text-[10px] text-red-600 dark:text-red-400">{w.failureReason}</p>
+                  )}
+                  {w.rejectionReason && (
+                    <p className="mt-0.5 text-[10px] text-red-600 dark:text-red-400">{w.rejectionReason}</p>
                   )}
                 </td>
                 <td className="px-5 py-3 text-xs text-[color:var(--muted-foreground)]">

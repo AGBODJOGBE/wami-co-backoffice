@@ -5,6 +5,7 @@ import { API_ROUTES } from "@/shared/config/api-routes";
 import { apiFetch } from "@/shared/lib/api/server";
 import type {
   WalletGrantCampaignStatus,
+  WalletGrantPreview,
   GrantAudience,
   GrantBalanceType,
   GrantTargeting,
@@ -14,6 +15,29 @@ export interface ActionResult<T = undefined> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+// ─── Prévisualiser une campagne ───────────────────────────────────────────────
+
+export interface PreviewGrantInput {
+  audience:             GrantAudience;
+  balanceType:          GrantBalanceType;
+  amountPerBeneficiary: number;
+  targeting:            GrantTargeting;
+}
+
+export async function previewGrantCampaignAction(
+  input: PreviewGrantInput,
+): Promise<ActionResult<WalletGrantPreview>> {
+  try {
+    const data = await apiFetch<WalletGrantPreview>(
+      API_ROUTES.adminWalletGrants.preview(),
+      { method: "POST", body: input },
+    );
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Prévisualisation impossible." };
+  }
 }
 
 // ─── Créer une campagne ───────────────────────────────────────────────────────
