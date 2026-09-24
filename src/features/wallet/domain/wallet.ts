@@ -203,6 +203,16 @@ export const TRANSACTION_TYPE_META: Record<
 export type WithdrawalStatus = "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
 export type WithdrawalMethod = "MOBILE_MONEY" | "BANK_TRANSFER" | string;
 
+/** Sous-solde débité par le retrait. MAIN pour driver/partenaire (EARNINGS/PARTNER) ;
+ * AFFILIATE pour un passager qui retire ses commissions d'affiliation sur son
+ * wallet PAYMENT — le seul sous-solde retirable sur ce type de wallet. */
+export type WithdrawalSourceBalance = "MAIN" | "AFFILIATE" | string;
+
+export const WITHDRAWAL_SOURCE_BALANCE_LABELS: Record<string, string> = {
+  MAIN:      "Solde principal",
+  AFFILIATE: "Commissions affilié",
+};
+
 export interface Withdrawal {
   withdrawalId: string;
   walletId: string;
@@ -222,6 +232,11 @@ export interface Withdrawal {
   failureReason: string | null;
   processedAt: string | null;
   createdAt: string;
+  /** MAIN (driver/partenaire) ou AFFILIATE (passager — commissions d'affiliation). */
+  sourceBalance?: WithdrawalSourceBalance;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string | null;
   /** @deprecated Use createdAt */
   requestedAt?: string;
 }
@@ -253,10 +268,43 @@ export interface PlatformRevenueBreakdownItem {
   total: number;
 }
 
+export type PlatformOutflowCategory =
+  | "DEFINITIVE_EXPENSE"
+  | "REVENUE_CORRECTION"
+  | "RECOVERABLE_ADVANCE";
+
+export interface PlatformOutflowBreakdownItem {
+  source: string;
+  label: string;
+  category: PlatformOutflowCategory;
+  total: number;
+}
+
+export interface PlatformOutflowCategoryTotal {
+  category: PlatformOutflowCategory;
+  total: number;
+}
+
+export interface PlatformOutflowSummary {
+  breakdown: PlatformOutflowBreakdownItem[];
+  totalsByCategory: PlatformOutflowCategoryTotal[];
+  total: number;
+}
+
+export const OUTFLOW_CATEGORY_LABELS: Record<PlatformOutflowCategory, string> = {
+  DEFINITIVE_EXPENSE:  "Dépenses définitives",
+  REVENUE_CORRECTION:  "Corrections de revenus",
+  RECOVERABLE_ADVANCE: "Avances récupérables",
+};
+
 export interface PlatformRevenue {
   walletId: string;
   balance: number;
   period: { from: string | null; to: string | null };
   breakdown: PlatformRevenueBreakdownItem[];
   totalRevenue: number;
+  /** Toutes les sorties du wallet PLATFORM (Lot F dashboard). Absent sur les anciens payloads. */
+  outflows?: PlatformOutflowSummary;
+  /** totalRevenue − DEFINITIVE_EXPENSE. Absent sur les anciens payloads. */
+  netResult?: number;
 }

@@ -117,8 +117,9 @@ export const MISSING_PERMISSIONS: MissingPermissionEntry[] = [
   { code: "referral.validate",                    name: "Valider un parrainage manuellement",                             module: "referral",     category: "MANAGE"       },
 
   // ─── CODES PROMO ─────────────────────────────────────────────────────────────
-  { code: "promo_code.view_all",                  name: "Voir tous les codes promo",                                      module: "promo_code",   category: "VIEW"         },
-  { code: "promo_code.manage",                    name: "Créer et gérer les codes promo",                                 module: "promo_code",   category: "MANAGE"       },
+  { code: "promo.view",                           name: "Voir les codes promo",                                           module: "promo",        category: "VIEW"         },
+  { code: "promo.manage",                         name: "Gérer les codes promo",                                          module: "promo",        category: "MANAGE"       },
+  { code: "promo.manage-budgeted",                name: "Déclarer une campagne à perte budgétée",                         module: "promo",        category: "MANAGE"       },
 
   // ─── TARIFICATION ────────────────────────────────────────────────────────────
   { code: "pricing.grid.configure",               name: "Configurer la grille tarifaire",                                 module: "pricing",      category: "CONFIG"       },

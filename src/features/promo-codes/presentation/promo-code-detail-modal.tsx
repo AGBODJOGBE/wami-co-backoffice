@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Power, X } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -8,10 +8,12 @@ import { Modal } from "@/shared/ui/modal";
 import { toast } from "@/shared/ui/toast";
 import { formatDateTime } from "@/shared/lib/format";
 import { togglePromoCodeAction } from "../application/actions";
+import { AffiliateAttachment } from "./promo-code-affiliate-attachment";
 import {
   CAMPAIGN_TYPE_LABELS,
   CHANNEL_LABELS,
   CODE_TYPE_LABELS,
+  COMMISSION_BASE_LABELS,
   DISCOUNT_TYPE_LABELS,
   FUNDED_BY_LABELS,
   OBJECTIVE_LABELS,
@@ -20,6 +22,7 @@ import {
   VERTICAL_LABELS,
   discountSummary,
   type PromoCode,
+  type SetPromoCodeAffiliateResult,
 } from "../domain/promo-code";
 
 export interface PromoCodeDetailModalProps {
@@ -94,7 +97,15 @@ export function PromoCodeDetailModal({
   onClose,
 }: PromoCodeDetailModalProps) {
   const [pending, start] = useTransition();
+  // Reflète immédiatement un rattachement/détachement d'affilié sans
+  // attendre le prochain rafraîchissement de la liste parente.
+  const [affiliateOverride, setAffiliateOverride] = useState<SetPromoCodeAffiliateResult | null>(null);
   if (!promo) return null;
+
+  const effectivePromo: PromoCode =
+    affiliateOverride && affiliateOverride.promoCodeId === promo.id
+      ? { ...promo, affiliateId: affiliateOverride.affiliateId, affiliateCommissionRate: affiliateOverride.affiliateCommissionRate }
+      : promo;
 
   function toggle() {
     if (!promo) return;
@@ -288,6 +299,62 @@ export function PromoCodeDetailModal({
                 ? `${promo.dailySpendingLimit.toLocaleString("fr-FR")} FCFA`
                 : "—"
             }
+          />
+          <Row
+            label="Base commission affiliée"
+            value={promo.commissionBase ? COMMISSION_BASE_LABELS[promo.commissionBase] : COMMISSION_BASE_LABELS.PLATFORM_MARGIN}
+          />
+          <Row
+            label="Campagne à perte budgétée"
+            value={
+              promo.budgetedLossCampaign ? (
+                <Badge tone="warning">Oui — dérogation assumée</Badge>
+              ) : (
+                <Badge tone="neutral">Non</Badge>
+              )
+            }
+          />
+        </Section>
+
+        {promo.budgetedLossCampaign ? (
+          <Section title="Coût réel de la campagne" cols={1}>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-baseline justify-between text-sm">
+                <span className="font-mono font-semibold">
+                  {(promo.realCostAccrued ?? 0).toLocaleString("fr-FR")} FCFA dépensés
+                </span>
+                <span className="text-xs text-[color:var(--muted-foreground)]">
+                  sur {promo.sponsoredBudget ? `${promo.sponsoredBudget.toLocaleString("fr-FR")} FCFA` : "budget non défini"}
+                </span>
+              </div>
+              {promo.sponsoredBudget ? (
+                <div className="h-2 w-full overflow-hidden rounded-full bg-[color:var(--muted)]">
+                  <div
+                    className={`h-full rounded-full ${
+                      (promo.realCostAccrued ?? 0) >= promo.sponsoredBudget
+                        ? "bg-red-500"
+                        : (promo.realCostAccrued ?? 0) / promo.sponsoredBudget >= 0.8
+                          ? "bg-amber-500"
+                          : "bg-emerald-500"
+                    }`}
+                    style={{
+                      width: `${Math.min(100, ((promo.realCostAccrued ?? 0) / promo.sponsoredBudget) * 100)}%`,
+                    }}
+                  />
+                </div>
+              ) : null}
+              <p className="text-xs text-[color:var(--muted-foreground)]">
+                Remise absorbée au-delà de la marge + commission affiliée versée. Dès épuisement du
+                budget, plus aucun nouvel usage du code n&apos;est accepté.
+              </p>
+            </div>
+          </Section>
+        ) : null}
+
+        <Section title="Affiliation" cols={1}>
+          <AffiliateAttachment
+            promo={effectivePromo}
+            onUpdated={(result) => setAffiliateOverride(result)}
           />
         </Section>
 

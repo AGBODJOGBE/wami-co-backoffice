@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Car } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import {
@@ -10,9 +11,11 @@ import {
 } from "@/shared/ui/card";
 import {
   COMPONENT_TYPE_LABELS,
+  SERVICE_KEY_LABELS,
   STRATEGY_LABELS,
   type PricingComponent,
   type PricingProfile,
+  type ServiceKey,
 } from "../domain/pricing-profile";
 import {
   RIDE_VEHICLE_LABELS,
@@ -28,6 +31,10 @@ const VEHICLE_ORDER: RideVehicleType[] = [
   "VIP",
   "VAN",
 ];
+
+/** RIDE (course app) et RIDE_PICKUP (course créée par le chauffeur, sans
+ * app) — tarifées et commissionnées séparément depuis leur scission backend. */
+const RIDE_SERVICE_KEYS: ServiceKey[] = ["RIDE", "RIDE_PICKUP"];
 
 function fmtFcfa(n: number) {
   return `${n.toLocaleString("fr-FR")} FCFA`;
@@ -283,7 +290,8 @@ export interface VehiclePricingGridProps {
 }
 
 export function VehiclePricingGrid({ profiles, error }: VehiclePricingGridProps) {
-  const rideProfiles = profiles.filter((p) => p.serviceKey === "RIDE");
+  const [serviceKey, setServiceKey] = useState<ServiceKey>("RIDE");
+  const rideProfiles = profiles.filter((p) => p.serviceKey === serviceKey);
   const configuredCount = VEHICLE_ORDER.filter((v) =>
     rideProfiles.some((p) => (p.vehicleType ?? "").toUpperCase() === v),
   ).length;
@@ -305,12 +313,29 @@ export function VehiclePricingGrid({ profiles, error }: VehiclePricingGridProps)
         <Car className="size-5 text-[color:var(--primary)]" />
         <div>
           <h2 className="text-base font-semibold text-[color:var(--foreground)]">
-            Tarifs par véhicule
+            Tarifs par véhicule — {SERVICE_KEY_LABELS[serviceKey]}
           </h2>
           <p className="text-xs text-[color:var(--muted-foreground)]">
-            {configuredCount}/{VEHICLE_ORDER.length} catégories configurées — {rideProfiles.length} profil{rideProfiles.length !== 1 ? "s" : ""} RIDE au total
+            {configuredCount}/{VEHICLE_ORDER.length} catégories configurées — {rideProfiles.length} profil{rideProfiles.length !== 1 ? "s" : ""} au total
           </p>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {RIDE_SERVICE_KEYS.map((sk) => (
+          <button
+            key={sk}
+            type="button"
+            onClick={() => setServiceKey(sk)}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+              serviceKey === sk
+                ? "bg-[color:var(--foreground)] text-[color:var(--background)]"
+                : "border border-[color:var(--border)] text-[color:var(--muted-foreground)] hover:bg-[color:var(--muted)]"
+            }`}
+          >
+            {SERVICE_KEY_LABELS[sk]}
+          </button>
+        ))}
       </div>
 
       {error && (

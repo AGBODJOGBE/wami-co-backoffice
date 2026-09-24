@@ -72,7 +72,13 @@ export interface PricingComponent {
 
 // ─── PricingProfile ────────────────────────────────────────────────────────
 
-export type ServiceKey = "RIDE" | "DELIVERY_B2C" | "DELIVERY_B2B";
+/** RIDE_PICKUP : course créée par le chauffeur pour un client sans application
+ * (walk-in). Tarification et commission administrées séparément de RIDE —
+ * même CRUD, profil distinct par vehicleType (`ride/domain/constants/
+ * PricingServiceKeys.ts` côté backend). Le backend seede un profil actif par
+ * type de véhicule au démarrage ; l'admin les ajuste comme n'importe quel
+ * profil RIDE. */
+export type ServiceKey = "RIDE" | "RIDE_PICKUP" | "DELIVERY_B2C" | "DELIVERY_B2B";
 export type PricingStrategy = "PER_KM" | "PER_ZONE" | "FIXED" | "CATALOG";
 
 export interface PricingProfile {
@@ -116,6 +122,7 @@ export type PatchPricingProfileInput = Partial<CreatePricingProfileInput>;
 
 export const SERVICE_KEY_LABELS: Record<ServiceKey, string> = {
   RIDE: "VTC",
+  RIDE_PICKUP: "VTC Pickup (sans app)",
   DELIVERY_B2C: "Livraison B2C",
   DELIVERY_B2B: "Livraison B2B",
 };

@@ -4,6 +4,7 @@ import {
   Bike,
   BriefcaseBusiness,
   Building2,
+  CalendarClock,
   Car,
   ClipboardList,
   CreditCard,
@@ -19,6 +20,7 @@ import {
   Radio,
   Route as RouteIcon,
   Settings,
+  ShieldAlert,
   ShoppingBag,
   Star,
   Tag,
@@ -28,6 +30,7 @@ import {
   UserPlus,
   Users,
   Wallet,
+  Handshake,
 } from "lucide-react";
 import type { DataSource } from "@/shared/ui/data-source-badge";
 
@@ -91,6 +94,13 @@ export const navSections: NavSection[] = [
             icon: ListChecks,
             dataSource: "live",
             requiredPermissions: ["ride.view_all"],
+          },
+          {
+            href: "/vtc/rides/scheduled",
+            label: "Réservations à affecter",
+            icon: CalendarClock,
+            dataSource: "live",
+            requiredPermissions: ["ride.scheduled.assign.view"],
           },
           {
             href: "/vtc/drivers",
@@ -227,7 +237,7 @@ export const navSections: NavSection[] = [
         label: "Codes promo",
         icon: Tag,
         dataSource: "live",
-        requiredPermissions: ["promo_code.view_all"],
+        requiredPermissions: ["promo.view"],
       },
       {
         label: "Parrainage",
@@ -261,6 +271,34 @@ export const navSections: NavSection[] = [
             icon: Settings,
             dataSource: "live",
             requiredPermissions: ["referral.config.view"],
+          },
+        ],
+      },
+      {
+        label: "Affiliés",
+        icon: Handshake,
+        requiredPermissions: ["affiliate.view", "affiliate.manage", "affiliate.config.manage"],
+        children: [
+          {
+            href: "/affiliate",
+            label: "Tous les affiliés",
+            icon: Users,
+            dataSource: "live",
+            requiredPermissions: ["affiliate.view"],
+          },
+          {
+            href: "/affiliate/commission-skips",
+            label: "Usages sans commission",
+            icon: ShieldAlert,
+            dataSource: "live",
+            requiredPermissions: ["affiliate.view"],
+          },
+          {
+            href: "/affiliate/config",
+            label: "Configuration",
+            icon: Settings,
+            dataSource: "live",
+            requiredPermissions: ["affiliate.config.manage"],
           },
         ],
       },
@@ -335,7 +373,7 @@ export const navSections: NavSection[] = [
       {
         label: "Wallet & transactions",
         icon: CreditCard,
-        requiredPermissions: ["wallet.view_all", "transaction.view_all"],
+        requiredPermissions: ["wallet.view_all", "transaction.view_all", "wallet.grant.view", "wallet.grant.request"],
         children: [
           {
             href: "/wallet",
@@ -350,6 +388,13 @@ export const navSections: NavSection[] = [
             icon: TrendingUp,
             dataSource: "live",
             requiredPermissions: ["wallet.view_all", "transaction.view_all"],
+          },
+          {
+            href: "/wallet/grants",
+            label: "Campagnes de crédit",
+            icon: Gift,
+            dataSource: "live",
+            requiredPermissions: ["wallet.grant.view", "wallet.grant.request"],
           },
         ],
       },

@@ -1,57 +1,36 @@
 import { requirePermission } from "@/features/auth/application/dal";
 import { listAdminRides } from "@/features/rides/application/api";
 import { AdminRidesListClient } from "@/features/rides/presentation/admin-rides-list-client";
-import type { AdminRide } from "@/features/rides/domain/admin-ride";
 
 export const dynamic = "force-dynamic";
 
-const PAGE_LIMIT = 200; // backend hard cap — Math.min(200, ...) in ListAllRidesUseCase
+/** Backend hard cap — Math.min(200, ...) in ListAllRidesUseCase. */
+const PAGE_LIMIT = 200;
 
-/** Fetches every page until all rides are collected. */
-async function fetchAllRides(): Promise<{ rides: AdminRide[]; total: number }> {
-  // Page 1
-  const first = await listAdminRides({ page: 1, limit: PAGE_LIMIT });
-  const total = first.total;
-  const allRides: AdminRide[] = [...first.rides];
-
-  if (allRides.length >= total) {
-    return { rides: allRides, total };
-  }
-
-  // How many more pages are needed?
-  const totalPages = Math.ceil(total / PAGE_LIMIT);
-  const remainingPages = Array.from(
-    { length: totalPages - 1 },
-    (_, i) => i + 2,
-  );
-
-  // Fetch remaining pages in parallel (max 10 concurrent)
-  const CONCURRENCY = 10;
-  for (let i = 0; i < remainingPages.length; i += CONCURRENCY) {
-    const batch = remainingPages.slice(i, i + CONCURRENCY);
-    const results = await Promise.allSettled(
-      batch.map((p) => listAdminRides({ page: p, limit: PAGE_LIMIT })),
-    );
-    for (const r of results) {
-      if (r.status === "fulfilled") {
-        allRides.push(...r.value.rides);
-      }
-    }
-  }
-
-  return { rides: allRides, total };
-}
-
+/**
+ * Charge UNIQUEMENT la première page (les 200 courses les plus récentes) pour
+ * que la page s'affiche en ~2 s. Le reste de l'historique est rapatrié en
+ * arrière-plan par le client (`fetchRidesPageAction`), page après page, pour
+ * que la recherche finisse par couvrir toutes les courses sans bloquer
+ * l'affichage initial.
+ */
 export default async function VtcRidesPage() {
   await requirePermission("ride.view_all");
   try {
-    const { rides, total } = await fetchAllRides();
-    return <AdminRidesListClient rides={rides} total={total} />;
+    const first = await listAdminRides({ page: 1, limit: PAGE_LIMIT });
+    return (
+      <AdminRidesListClient
+        rides={first.rides}
+        total={first.total}
+        pageSize={PAGE_LIMIT}
+      />
+    );
   } catch (error) {
     return (
       <AdminRidesListClient
         rides={[]}
         total={0}
+        pageSize={PAGE_LIMIT}
         error={error instanceof Error ? error.message : "Erreur de chargement."}
       />
     );

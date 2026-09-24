@@ -82,6 +82,49 @@ export async function debitWalletAction(
   }
 }
 
+// ─── Retraits : approve / reject ─────────────────────────────────────────────
+
+/**
+ * PATCH /api/admin/withdrawals/:id/approve
+ * Approuve un retrait PENDING. Déclenche le décaissement réel.
+ * Permission : wallet.withdrawal.approve
+ */
+export async function approveWithdrawalAction(
+  withdrawalId: string,
+): Promise<ActionResult<{ withdrawalId: string; status: string }>> {
+  try {
+    const data = await apiFetch<{ withdrawalId: string; status: string }>(
+      API_ROUTES.adminWallets.approveWithdrawal(withdrawalId),
+      { method: "PATCH" },
+    );
+    revalidatePath("/wallet");
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Approbation impossible." };
+  }
+}
+
+/**
+ * PATCH /api/admin/withdrawals/:id/reject
+ * Rejette un retrait PENDING et recrédite le wallet de l'influenceur.
+ * Permission : wallet.withdrawal.reject
+ */
+export async function rejectWithdrawalAction(
+  withdrawalId: string,
+  reason: string,
+): Promise<ActionResult<{ withdrawalId: string; status: string; refundedAmount: number }>> {
+  try {
+    const data = await apiFetch<{ withdrawalId: string; status: string; refundedAmount: number }>(
+      API_ROUTES.adminWallets.rejectWithdrawal(withdrawalId),
+      { method: "PATCH", body: { reason } },
+    );
+    revalidatePath("/wallet");
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Rejet impossible." };
+  }
+}
+
 /**
  * POST /api/wallets/{walletId}/credit
  * Crédite manuellement un sous-solde du wallet. Admin only.

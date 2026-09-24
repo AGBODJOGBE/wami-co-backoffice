@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, Gift, Pencil, RefreshCw, Settings, Smartphone, Wallet } from "lucide-react";
+import { AlertTriangle, Clock, Gift, Pencil, RefreshCw, Settings, Smartphone, Wallet } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
@@ -16,6 +16,12 @@ import { upsertAppConfigAction, updateSystemConfigAction, configureWelcomeBonusC
 import { CanView } from "@/shared/ui/can-view";
 import type { AppVersionConfig } from "../domain/admin-user";
 import type { SystemConfigEntry, WalletConfig, WelcomeBonusCampaign } from "../application/api";
+import {
+  SCHEDULED_SUBGROUPS,
+  SYSTEM_CONFIG_CATALOG,
+  SYSTEM_CONFIG_GROUPS,
+  resolveConfigGroup,
+} from "../domain/system-config-catalog";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -164,11 +170,15 @@ function EditConfigModal({
 }
 
 // ─── Wallet config card ───────────────────────────────────────────────────────
+//
+// ⚠️ Tous les montants de WalletConfig sont des ENTIERS FCFA, jamais des
+// centimes (CLAUDE.md backend — seule exception au dépôt : delivery-subscription).
+// Incident 2026-09-21 documenté dans WalletConfig.ts : ce même écran avait un
+// bug FCFA→centimes qui a envoyé withdrawalMinMobileMoney=100000 au lieu de
+// 1000, bloquant tous les retraits pendant deux semaines (le backend n'a
+// ajouté qu'un garde-fou de plausibilité depuis, pas corrigé la cause côté
+// front). Ne jamais réintroduire de conversion ×100 / ÷100 sur ces champs.
 
-/** Centimes → FCFA pour affichage. */
-function centsToFcfa(c: number) { return Math.round(c / 100); }
-/** FCFA → centimes pour envoi. */
-function fcfaToCents(f: number) { return Math.round(f * 100); }
 /** Ratio (0–1) → pourcentage pour affichage. */
 function ratioToPct(r: number) { return parseFloat((r * 100).toFixed(4)); }
 /** Pourcentage → ratio (0–1) pour envoi. */
@@ -189,12 +199,12 @@ function walletConfigToForm(cfg: WalletConfig): WalletConfigForm {
   return {
     consolidationEnabled:    cfg.consolidationEnabled,
     consolidationFeeRatePct: ratioToPct(cfg.consolidationFeeRate),
-    consolidationMinFcfa:    centsToFcfa(cfg.consolidationMinAmount),
+    consolidationMinFcfa:    cfg.consolidationMinAmount,
     p2pTransferEnabled:      cfg.p2pTransferEnabled,
     p2pTransferFeeRatePct:   ratioToPct(cfg.p2pTransferFeeRate),
-    p2pMinFcfa:              centsToFcfa(cfg.p2pMinimumAmount),
-    withdrawalMinMoMoFcfa:   centsToFcfa(cfg.withdrawalMinMobileMoney),
-    withdrawalMinBankFcfa:   centsToFcfa(cfg.withdrawalMinBankTransfer),
+    p2pMinFcfa:              cfg.p2pMinimumAmount,
+    withdrawalMinMoMoFcfa:   cfg.withdrawalMinMobileMoney,
+    withdrawalMinBankFcfa:   cfg.withdrawalMinBankTransfer,
   };
 }
 
@@ -247,12 +257,12 @@ function WalletConfigCard({ config }: { config: WalletConfig | null }) {
       const r = await updateWalletConfigAction({
         consolidationEnabled:      form.consolidationEnabled,
         consolidationFeeRate:      pctToRatio(consolidationFeeRatePct),
-        consolidationMinAmount:    fcfaToCents(Number(form.consolidationMinFcfa) || 0),
+        consolidationMinAmount:    Math.round(Number(form.consolidationMinFcfa) || 0),
         p2pTransferEnabled:        form.p2pTransferEnabled,
         p2pTransferFeeRate:        pctToRatio(p2pTransferFeeRatePct),
-        p2pMinimumAmount:          fcfaToCents(Number(form.p2pMinFcfa) || 0),
-        withdrawalMinMobileMoney:  fcfaToCents(Number(form.withdrawalMinMoMoFcfa) || 0),
-        withdrawalMinBankTransfer: fcfaToCents(Number(form.withdrawalMinBankFcfa) || 0),
+        p2pMinimumAmount:          Math.round(Number(form.p2pMinFcfa) || 0),
+        withdrawalMinMobileMoney:  Math.round(Number(form.withdrawalMinMoMoFcfa) || 0),
+        withdrawalMinBankTransfer: Math.round(Number(form.withdrawalMinBankFcfa) || 0),
       });
       if (r.ok) {
         toast({ kind: "success", title: "Config wallet mise à jour", description: r.message });
@@ -296,7 +306,7 @@ function WalletConfigCard({ config }: { config: WalletConfig | null }) {
                 </div>
                 <dl className="flex flex-col gap-1 text-xs text-[color:var(--muted-foreground)]">
                   <div className="flex justify-between"><dt>Frais</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{ratioToPct(config.consolidationFeeRate)} %</dd></div>
-                  <div className="flex justify-between"><dt>Montant min.</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{centsToFcfa(config.consolidationMinAmount).toLocaleString("fr-FR")} FCFA</dd></div>
+                  <div className="flex justify-between"><dt>Montant min.</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{config.consolidationMinAmount.toLocaleString("fr-FR")} FCFA</dd></div>
                 </dl>
               </div>
               {/* P2P */}
@@ -309,15 +319,15 @@ function WalletConfigCard({ config }: { config: WalletConfig | null }) {
                 </div>
                 <dl className="flex flex-col gap-1 text-xs text-[color:var(--muted-foreground)]">
                   <div className="flex justify-between"><dt>Frais</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{ratioToPct(config.p2pTransferFeeRate)} %</dd></div>
-                  <div className="flex justify-between"><dt>Montant min.</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{centsToFcfa(config.p2pMinimumAmount).toLocaleString("fr-FR")} FCFA</dd></div>
+                  <div className="flex justify-between"><dt>Montant min.</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{config.p2pMinimumAmount.toLocaleString("fr-FR")} FCFA</dd></div>
                 </dl>
               </div>
               {/* Retraits */}
               <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/10 p-3 sm:col-span-2">
                 <span className="mb-2 block text-xs font-semibold text-[color:var(--foreground)]">Minimums de retrait</span>
                 <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-[color:var(--muted-foreground)]">
-                  <div className="flex justify-between"><dt>Mobile Money</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{centsToFcfa(config.withdrawalMinMobileMoney).toLocaleString("fr-FR")} FCFA</dd></div>
-                  <div className="flex justify-between"><dt>Virement bancaire</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{centsToFcfa(config.withdrawalMinBankTransfer).toLocaleString("fr-FR")} FCFA</dd></div>
+                  <div className="flex justify-between"><dt>Mobile Money</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{config.withdrawalMinMobileMoney.toLocaleString("fr-FR")} FCFA</dd></div>
+                  <div className="flex justify-between"><dt>Virement bancaire</dt><dd className="font-mono font-semibold text-[color:var(--foreground)]">{config.withdrawalMinBankTransfer.toLocaleString("fr-FR")} FCFA</dd></div>
                 </dl>
               </div>
             </div>
@@ -714,6 +724,10 @@ function SystemConfigRow({ entry }: { entry: SystemConfigEntry }) {
   const [value, setValue] = useState(entry.value);
   const [pending, start] = useTransition();
 
+  const meta = SYSTEM_CONFIG_CATALOG[entry.key];
+  const displayLabel = meta?.label ?? entry.key;
+  const displayDescription = meta?.description ?? entry.description;
+
   function save() {
     start(async () => {
       const r = await updateSystemConfigAction(entry.key, value);
@@ -740,13 +754,20 @@ function SystemConfigRow({ entry }: { entry: SystemConfigEntry }) {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex flex-col gap-0.5 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-xs font-semibold text-[color:var(--foreground)]">{entry.key}</span>
+            <span className="text-sm font-semibold text-[color:var(--foreground)]">{displayLabel}</span>
             <Badge tone={CONFIG_TYPE_TONE[entry.type] ?? "neutral"}>
               {entry.type}
             </Badge>
           </div>
-          {entry.description && (
-            <span className="text-[10px] text-[color:var(--muted-foreground)]">{entry.description}</span>
+          <span className="font-mono text-[10px] text-[color:var(--muted-foreground)]">{entry.key}</span>
+          {displayDescription && (
+            <span className="text-[11px] text-[color:var(--muted-foreground)]">{displayDescription}</span>
+          )}
+          {meta?.warning && (
+            <span className="mt-0.5 flex items-start gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+              {meta.warning}
+            </span>
           )}
           {entry.updatedAt && (
             <span className="text-[9px] text-[color:var(--muted-foreground)]">
@@ -808,18 +829,46 @@ function SystemConfigRow({ entry }: { entry: SystemConfigEntry }) {
   );
 }
 
+/** Ordre d'affichage des groupes — des sujets les plus "temps réel" aux plus "back-office". */
+const GROUP_ORDER = ["presence", "matching", "scheduled", "contracts", "promo", "other"] as const;
+const SUBGROUP_ORDER = ["window", "guarantee", "dispatch", "incidents"] as const;
+
 function SystemConfigsCard({ configs }: { configs: SystemConfigEntry[] }) {
   const [search, setSearch] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const isSearching = search.trim() !== "";
+
+  const filtered = useMemo(() => {
+    if (!isSearching) return configs;
+    const q = search.trim().toLowerCase();
+    return configs.filter((c) => {
+      const meta = SYSTEM_CONFIG_CATALOG[c.key];
+      const hay = `${c.key} ${meta?.label ?? ""} ${meta?.description ?? c.description ?? ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [configs, search, isSearching]);
+
+  const grouped = useMemo(() => {
+    const byGroup = new Map<string, SystemConfigEntry[]>();
+    for (const entry of filtered) {
+      const groupId = resolveConfigGroup(entry.key);
+      if (!byGroup.has(groupId)) byGroup.set(groupId, []);
+      byGroup.get(groupId)!.push(entry);
+    }
+    return byGroup;
+  }, [filtered]);
+
+  function toggleGroup(id: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   if (configs.length === 0) return null;
-
-  const filtered = search
-    ? configs.filter(
-        (c) =>
-          c.key.toLowerCase().includes(search.toLowerCase()) ||
-          (c.description ?? "").toLowerCase().includes(search.toLowerCase()),
-      )
-    : configs;
 
   return (
     <Card>
@@ -831,10 +880,10 @@ function SystemConfigsCard({ configs }: { configs: SystemConfigEntry[] }) {
             <Badge tone="neutral">{configs.length}</Badge>
           </div>
           <Input
-            placeholder="Filtrer par clé ou description…"
+            placeholder="Filtrer par nom, clé ou description…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-56"
+            className="w-64"
           />
         </div>
       </CardHeader>
@@ -842,10 +891,58 @@ function SystemConfigsCard({ configs }: { configs: SystemConfigEntry[] }) {
         {filtered.length === 0 ? (
           <p className="text-sm text-[color:var(--muted-foreground)]">Aucun paramètre trouvé.</p>
         ) : (
-          <div className="flex flex-col gap-2">
-            {filtered.map((entry) => (
-              <SystemConfigRow key={entry.key} entry={entry} />
-            ))}
+          <div className="flex flex-col gap-4">
+            {GROUP_ORDER.filter((id) => grouped.has(id)).map((id) => {
+              const group = SYSTEM_CONFIG_GROUPS[id];
+              const entries = grouped.get(id)!;
+              const Icon = group.icon;
+              const isOpen = isSearching || !collapsed.has(id);
+
+              // Sous-groupes uniquement pour "scheduled" (23 clés — trop pour une liste plate).
+              const bySubgroup =
+                id === "scheduled"
+                  ? SUBGROUP_ORDER.map((sub) => ({
+                      sub,
+                      items: entries.filter((e) => SYSTEM_CONFIG_CATALOG[e.key]?.subgroup === sub),
+                    })).filter((g) => g.items.length > 0)
+                  : null;
+
+              return (
+                <div key={id} className="rounded-xl border border-[color:var(--border)]">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(id)}
+                    className="flex w-full items-center justify-between gap-2 rounded-t-xl bg-[color:var(--muted)]/30 px-4 py-2.5 text-left"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icon className="size-4 text-[color:var(--primary)]" />
+                      <span className="text-sm font-semibold text-[color:var(--foreground)]">{group.label}</span>
+                      <Badge tone="neutral">{entries.length}</Badge>
+                    </span>
+                    <span className="text-xs text-[color:var(--muted-foreground)]">{isOpen ? "Réduire" : "Déplier"}</span>
+                  </button>
+
+                  {isOpen && (
+                    <div className="flex flex-col gap-3 p-3 pt-2">
+                      {bySubgroup ? (
+                        bySubgroup.map(({ sub, items }) => (
+                          <div key={sub} className="flex flex-col gap-2">
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">
+                              {SCHEDULED_SUBGROUPS[sub]}
+                            </span>
+                            {items.map((entry) => (
+                              <SystemConfigRow key={entry.key} entry={entry} />
+                            ))}
+                          </div>
+                        ))
+                      ) : (
+                        entries.map((entry) => <SystemConfigRow key={entry.key} entry={entry} />)
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </CardContent>

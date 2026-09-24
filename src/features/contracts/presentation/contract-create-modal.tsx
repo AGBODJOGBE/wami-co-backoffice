@@ -90,17 +90,19 @@ export function ContractCreateModal({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  // ── Driver options — non approuvés, sans véhicule en propre ────────────────
+  // ── Driver options — sans véhicule en propre, non suspendus ────────────────
+  // Backend (CreateContractUseCase.checkPreconditions) n'exige que
+  // isDocumentsVerified + status !== SUSPENDED : isApproved n'est pas un
+  // critère serveur, uniquement une restriction produit d'origine — un
+  // driver déjà approuvé mais sans véhicule à lui reste un candidat valide.
   const driverOptions = useMemo(
     () =>
       drivers
-        .filter((d) => !d.isApproved && !d.isVehicleOwner && d.status !== "SUSPENDED")
+        .filter((d) => !d.isVehicleOwner && d.status !== "SUSPENDED")
         .map((d) => ({
           value: d.driverId,
           label: `${d.firstName} ${d.lastName}`.trim() || d.driverId,
-          description: d.isDocumentsVerified
-            ? `${d.phoneNumber} · ✓ Documents vérifiés`
-            : `${d.phoneNumber} · ⚠ Documents non vérifiés`,
+          description: `${d.phoneNumber} · ${d.isDocumentsVerified ? "✓ Documents vérifiés" : "⚠ Documents non vérifiés"} · ${d.isApproved ? "Approuvé" : "Non approuvé"}`,
         })),
     [drivers],
   );
@@ -247,7 +249,7 @@ export function ContractCreateModal({
               onChange={onDriverChange}
               allowClear
               required
-              hint="Drivers non approuvés, sans véhicule en propre."
+              hint="Drivers sans véhicule en propre (approuvés ou non) — documents vérifiés requis pour créer le contrat."
             />
 
             <Combobox

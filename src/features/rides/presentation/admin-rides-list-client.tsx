@@ -36,6 +36,7 @@ import {
   rideStatusMeta,
   type AdminRide,
 } from "../domain/admin-ride";
+import { fetchRidesPageAction } from "../application/actions";
 import { InterventionDesignModal } from "./intervention-design-modal";
 
 const STATUS_OPTIONS = [
@@ -102,19 +103,135 @@ const TERMINAL_STATUSES = new Set<string>([
 ]);
 
 export interface AdminRidesListClientProps {
+  /** Première page (courses les plus récentes) — rendue immédiatement. */
   rides: AdminRide[];
   total: number;
+  /** Taille de page utilisée côté serveur, pour paginer le reste de l'historique. */
+  pageSize: number;
   error?: string;
 }
 
 const PAGE_SIZE = 50;
 
+// ─── Cache de session des anciennes courses ──────────────────────────────────
+// Les courses terminées ne changent plus : on les garde dans sessionStorage pour
+// ne pas re-télécharger ~10 pages à chaque visite. La page 1 (les plus récentes,
+// seules susceptibles d'avoir bougé) est toujours rafraîchie par le serveur.
+// Le cache est un ENSEMBLE par rideId, pas des pages : la pagination par offset
+// se décale à chaque nouvelle course, des pages en cache deviendraient fausses.
+const RIDES_CACHE_KEY = "fyb:rides:cache:v1";
+const RIDES_CACHE_TTL_MS = 15 * 60 * 1000;
+
+interface RidesCache {
+  savedAt: number;
+  total: number;
+  rides: AdminRide[];
+}
+
+function readRidesCache(): RidesCache | null {
+  try {
+    const raw = sessionStorage.getItem(RIDES_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as RidesCache;
+    if (Date.now() - parsed.savedAt > RIDES_CACHE_TTL_MS) return null;
+    return Array.isArray(parsed.rides) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeRidesCache(total: number, rides: AdminRide[]) {
+  try {
+    sessionStorage.setItem(RIDES_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), total, rides }));
+  } catch {
+    // quota dépassé ou stockage indisponible : on se contente du réseau
+  }
+}
+
 export function AdminRidesListClient({
-  rides,
+  rides: initialRides,
   total,
+  pageSize,
   error,
 }: AdminRidesListClientProps) {
   const router = useRouter();
+  const [rides, setRides] = useState<AdminRide[]>(initialRides);
+  const [failedPages, setFailedPages] = useState<number[]>([]);
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  // Rapatrie le reste de l'historique en arrière-plan : la page est déjà
+  // utilisable avec les 200 courses les plus récentes, la recherche couvre
+  // progressivement tout le reste. Pages demandées 2 par 2 avec un retry —
+  // le backend enrichit chaque course (N+1) et n'aime pas la rafale.
+  useEffect(() => {
+    setRides(initialRides);
+    if (totalPages <= 1) {
+      setFailedPages([]);
+      return;
+    }
+    // Cache valide et pas plus de `pageSize` nouvelles courses depuis : la page 1
+    // fraîche + le cache couvrent tout l'historique, zéro appel supplémentaire.
+    const cache = readRidesCache();
+    if (retryTick === 0 && cache && total - cache.total >= 0 && total - cache.total <= pageSize) {
+      const fresh = new Set(initialRides.map((r) => r.rideId));
+      setRides([...initialRides, ...cache.rides.filter((r) => !fresh.has(r.rideId))]);
+      setFailedPages([]);
+      setBackgroundLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const CONCURRENCY = 2;
+
+    async function loadPage(p: number): Promise<AdminRide[] | null> {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const r = await fetchRidesPageAction(p, pageSize);
+        if (r.ok && r.data) return r.data.rides;
+        await new Promise((res) => setTimeout(res, 600));
+      }
+      return null;
+    }
+
+    (async () => {
+      setBackgroundLoading(true);
+      setFailedPages([]);
+      const remaining = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+      const failed: number[] = [];
+      for (let i = 0; i < remaining.length && !cancelled; i += CONCURRENCY) {
+        const batch = remaining.slice(i, i + CONCURRENCY);
+        const results = await Promise.all(batch.map(loadPage));
+        if (cancelled) return;
+        const got: AdminRide[] = [];
+        results.forEach((rows, idx) => {
+          if (rows) got.push(...rows);
+          else failed.push(batch[idx]);
+        });
+        if (got.length > 0) {
+          setRides((prev) => {
+            const seen = new Set(prev.map((r) => r.rideId));
+            return [...prev, ...got.filter((r) => !seen.has(r.rideId))];
+          });
+        }
+      }
+      if (!cancelled) {
+        setFailedPages(failed);
+        setBackgroundLoading(false);
+        if (failed.length === 0) {
+          setRides((prev) => {
+            writeRidesCache(total, prev);
+            return prev;
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialRides, pageSize, totalPages, total, retryTick]);
+
   const [refreshing, startRefresh] = useTransition();
   const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState("ALL");
@@ -426,6 +543,33 @@ export function AdminRidesListClient({
           <p className="text-sm text-[color:var(--danger)]">
             Impossible de charger les courses : {error}
           </p>
+        </Card>
+      ) : null}
+
+      {backgroundLoading ? (
+        <Card className="flex items-center gap-3 p-4">
+          <Spinner size="sm" />
+          <p className="text-sm text-[color:var(--muted-foreground)]">
+            Chargement de l&apos;historique en arrière-plan —{" "}
+            <strong className="text-[color:var(--foreground)]">
+              {rides.length.toLocaleString("fr-FR")} / {total.toLocaleString("fr-FR")}
+            </strong>{" "}
+            courses. La recherche couvre déjà les courses chargées.
+          </p>
+        </Card>
+      ) : null}
+
+      {!backgroundLoading && failedPages.length > 0 ? (
+        <Card className="flex flex-wrap items-center justify-between gap-3 border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950/30">
+          <p className="text-sm text-amber-700 dark:text-amber-400">
+            ⚠ Liste incomplète — {rides.length.toLocaleString("fr-FR")} course(s) sur{" "}
+            {total.toLocaleString("fr-FR")} : {failedPages.length > 1 ? "les pages" : "la page"}{" "}
+            {failedPages.join(", ")} n&apos;{failedPages.length > 1 ? "ont" : "a"} pas pu être chargée
+            {failedPages.length > 1 ? "s" : ""}.
+          </p>
+          <Button size="sm" variant="outline" onClick={() => setRetryTick((n) => n + 1)}>
+            Réessayer
+          </Button>
         </Card>
       ) : null}
 

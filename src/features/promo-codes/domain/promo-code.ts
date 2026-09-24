@@ -93,6 +93,28 @@ export const OBJECTIVE_LABELS: Record<Objective, string> = {
   RETENTION: "Rétention",
 };
 
+/**
+ * Base de calcul de la commission de l'influenceur sur ce code. Portée par
+ * le code lui-même — ne cascade jamais vers le profil affilié ou la config
+ * globale, contrairement à `affiliateCommissionRate`.
+ */
+export type CommissionBase = "PLATFORM_MARGIN" | "GROSS_AMOUNT" | "NET_AMOUNT";
+
+export const COMMISSION_BASE_LABELS: Record<CommissionBase, string> = {
+  PLATFORM_MARGIN: "Marge ForYou (historique)",
+  GROSS_AMOUNT: "Prix affiché (avant remise)",
+  NET_AMOUNT: "Montant payé (après remise)",
+};
+
+export const COMMISSION_BASE_DESCRIPTIONS: Record<CommissionBase, string> = {
+  PLATFORM_MARGIN:
+    "% du gain de ForYou sur la course — structurellement borné, ForYou ne peut jamais y perdre. C'est ce qui donne 0 FCFA quand la marge est nulle.",
+  GROSS_AMOUNT:
+    "% du prix affiché avant remise — l'influenceur est payé même quand la marge de ForYou est nulle ou négative.",
+  NET_AMOUNT:
+    "% du montant réellement payé par le client après remise — toujours ≤ ce que GROSS_AMOUNT donnerait. Sur une course offerte (remise totale), la commission est honnêtement 0.",
+};
+
 export interface TimeWindow {
   startHour: number;
   endHour: number;
@@ -130,6 +152,19 @@ export interface CreatePromoCodeInput {
   objective: Objective;
   isActive?: boolean;
   isScheduled?: boolean;
+  /** Rattache directement le code à un influenceur dès la création (niveau
+   * 1 de la cascade de taux). Aucune vérification que l'id référence un
+   * profil affilié existant. */
+  affiliateId?: string | null;
+  /** Taux négocié pour CE code (0-100). Ignoré si affiliateId est absent. */
+  affiliateCommissionRate?: number | null;
+  /** Base de calcul de la commission affiliée. Défaut serveur : PLATFORM_MARGIN. */
+  commissionBase?: CommissionBase;
+  /** Dérogation budgétée EXPLICITE : ForYou accepte de perdre de l'argent
+   * sur ce code (remise non plafonnée par sa marge, commission versée
+   * intégralement) jusqu'à épuisement de `sponsoredBudget`, qui devient
+   * alors OBLIGATOIRE. Requiert la permission `promo.manage-budgeted`. */
+  budgetedLossCampaign?: boolean;
 }
 
 /** Promo code as returned by the list endpoint (best-effort shape, the
@@ -142,6 +177,35 @@ export interface PromoCode extends CreatePromoCodeInput {
   usageCount?: number;
   isActive: boolean;
   isScheduled: boolean;
+  /** Ce que la campagne a RÉELLEMENT coûté à ForYou jusqu'ici, en FCFA
+   * entiers : remise absorbée au-delà de la marge + commission affiliée
+   * versée. Tenu par le système, jamais accepté en entrée. Vaut toujours 0
+   * pour un code qui n'est pas une campagne à perte budgétée. C'est ce
+   * compteur, comparé à `sponsoredBudget`, qui arrête la campagne. */
+  realCostAccrued?: number;
+}
+
+/** Réponse de PATCH /api/admin/promo-codes/{id}/affiliate. */
+export interface SetPromoCodeAffiliateResult {
+  promoCodeId: string;
+  affiliateId: string | null;
+  affiliateCommissionRate: number | null;
+}
+
+/** Réponse RÉELLE de POST /api/admin/promo-codes — pas un `PromoCode`
+ * complet (contrairement à ce qu'un appelant naïf pourrait supposer). */
+export interface CreatePromoCodeResult {
+  promoCodeId: string;
+  /** Avertissement(s) non bloquant(s) — chiffrage d'une perte assumée sous
+   * dérogation, coût par course non borné, budget minimum suggéré. Plusieurs
+   * avertissements sont joints par une ligne vide. À afficher à l'admin. */
+  warning?: string | null;
+  /** Montant de commande suggéré à partir duquel une remise FIXED_AMOUNT/
+   * CASHBACK ne dépasse plus la marge. Indicatif, jamais appliqué. */
+  suggestedMinOrderAmount?: number | null;
+  /** Budget total minimum suggéré pour une campagne à perte budgétée dont
+   * le nombre d'usages est plafonné. Indicatif, jamais un plafond. */
+  suggestedMinBudget?: number | null;
 }
 
 export interface PromoCodeListQuery {
@@ -194,6 +258,10 @@ export function defaultPromoCodeInput(): CreatePromoCodeInput {
     objective: "ACQUISITION",
     isActive: true,
     isScheduled: false,
+    affiliateId: null,
+    affiliateCommissionRate: null,
+    commissionBase: "PLATFORM_MARGIN",
+    budgetedLossCampaign: false,
   };
 }
 

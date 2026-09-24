@@ -16,6 +16,19 @@ export interface CurrentMaintenance {
 
 export type VehicleCategory = "ECO" | "STANDARD" | "PREMIUM" | "VIP";
 
+/** Ordre croissant des catégories — sert à trier et à détecter un dépassement du plafond. */
+export const VEHICLE_CATEGORY_ORDER: VehicleCategory[] = ["ECO", "STANDARD", "PREMIUM", "VIP"];
+
+/** Réponse de PATCH /api/vehicles/admin/{id}/active-categories. */
+export interface SetActiveCategoriesResult {
+  vehicleId: string;
+  oldCategory: VehicleCategory;
+  newCategory: VehicleCategory;
+  activeCategories: VehicleCategory[];
+  verifiedCategory: VehicleCategory;
+  changedAt: string;
+}
+
 export type VehicleStatus =
   | "PENDING"
   | "AVAILABLE"
@@ -67,6 +80,10 @@ export interface VehicleSummary {
   type: VehicleType;
   category: VehicleCategory | null;
   verifiedCategory: VehicleCategory | null;
+  /** Cases COCHÉES (CAR uniquement). Vaut [category] si jamais choisi ; vide pour MOTO/TRICYCLE. `category` reste la plus haute. */
+  activeCategories?: VehicleCategory[];
+  /** Cases AFFICHÉES au chauffeur : toutes celles ≤ verifiedCategory. Vide pour MOTO/TRICYCLE. */
+  selectableCategories?: VehicleCategory[];
   status: VehicleStatus;
   make: string;
   model: string;

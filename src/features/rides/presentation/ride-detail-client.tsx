@@ -38,6 +38,9 @@ import { Tabs } from "@/shared/ui/tabs";
 import { formatDateTime, formatXof } from "@/shared/lib/format";
 import { rideStatusMeta, type RideDetail } from "../domain/admin-ride";
 import { InterventionDesignModal } from "./intervention-design-modal";
+import { RideTelemetryTab } from "./ride-telemetry-tab";
+import { GuaranteeSettlementTab } from "./guarantee-settlement-tab";
+import { usePermissions } from "@/features/auth/presentation/use-permissions";
 
 /* ─────────────────────────── helpers ──────────────────────────────────── */
 
@@ -72,6 +75,7 @@ export function RideDetailClient({ ride }: RideDetailClientProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [interventionOpen, setInterventionOpen] = useState(false);
+  const { canAny, can } = usePermissions();
 
   const statusMeta  = rideStatusMeta(ride.status);
   const isTerminal  = TERMINAL.has(ride.status);
@@ -524,6 +528,13 @@ export function RideDetailClient({ ride }: RideDetailClientProps) {
     { value: "evals",     label: "Évaluations",
       badge: hasRatings ? { count: [ride.passengerRating, ride.driverRating].filter(Boolean).length, tone: "success" as const } : undefined,
       content: tabEvals },
+    // Réservation programmée uniquement (la route rend `guarantee: null` sinon).
+    ...(ride.scheduledAt && can("ride.scheduled.settlement.view")
+      ? [{ value: "guarantee", label: "Garantie", content: <GuaranteeSettlementTab rideId={ride.rideId} /> }]
+      : []),
+    ...(canAny(["ride.telemetry.view", "ride.telemetry.track.view"])
+      ? [{ value: "telemetry", label: "Télémétrie & GPS", content: <RideTelemetryTab rideId={ride.rideId} /> }]
+      : []),
   ];
 
   /* ── Render ──────────────────────────────────────────────────────────── */

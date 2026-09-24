@@ -10,6 +10,7 @@ import {
 import { Bell, Check, X } from "lucide-react";
 import { API_ROUTES } from "@/shared/config/api-routes";
 import { clientFetch } from "@/shared/lib/api/client";
+import { ApiError } from "@/shared/lib/api/types";
 import { Spinner } from "@/shared/ui/spinner";
 import { formatDateTime } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/cn";
@@ -20,6 +21,17 @@ import {
 } from "../domain/notification";
 
 const POLL_INTERVAL_MS = 30_000;
+/** Posé quand l'API répond 404 : ce compte n'a pas de flux de notifications. On cesse alors
+ * d'interroger (une requête perdue toutes les 30 s sur chaque page) pour le reste de la session. */
+const UNAVAILABLE_KEY = "fyb:notifications:unavailable";
+
+function readUnavailable(): boolean {
+  try {
+    return sessionStorage.getItem(UNAVAILABLE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 const PAGE_SIZE = 10;
 
 export function NotificationBell() {
@@ -30,7 +42,15 @@ export function NotificationBell() {
   const [, startMark] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
 
+  const [unavailable, setUnavailable] = useState(false);
+
   const fetchOnce = useCallback(async () => {
+    if (readUnavailable()) {
+      setUnavailable(true);
+      setLoading(false);
+      return;
+    }
+    if (typeof document !== "undefined" && document.hidden) return;
     try {
       const data = await clientFetch<NotificationHistory>(
         `${API_ROUTES.notifications.list()}?page=1&limit=${PAGE_SIZE}`,
@@ -38,7 +58,16 @@ export function NotificationBell() {
       setItems(data.notifications ?? []);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur de chargement.");
+      if (e instanceof ApiError && e.status === 404) {
+        try {
+          sessionStorage.setItem(UNAVAILABLE_KEY, "1");
+        } catch {
+          // stockage indisponible : on retentera au prochain chargement
+        }
+        setUnavailable(true);
+      } else {
+        setError(e instanceof Error ? e.message : "Erreur de chargement.");
+      }
     } finally {
       setLoading(false);
     }
@@ -47,7 +76,14 @@ export function NotificationBell() {
   // Initial + polling
   useEffect(() => {
     fetchOnce();
-    const id = setInterval(fetchOnce, POLL_INTERVAL_MS);
+    if (readUnavailable()) return;
+    const id = setInterval(() => {
+      if (readUnavailable()) {
+        clearInterval(id);
+        return;
+      }
+      fetchOnce();
+    }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, [fetchOnce]);
 
@@ -123,7 +159,7 @@ export function NotificationBell() {
               </span>
               <span className="text-[10px] text-[color:var(--muted-foreground)]">
                 {unread.length} non lue{unread.length > 1 ? "s" : ""} ·
-                rafraîchi toutes les {POLL_INTERVAL_MS / 1000}s
+                {unavailable ? " indisponible" : ` rafraîchi toutes les ${POLL_INTERVAL_MS / 1000}s`}
               </span>
             </div>
             <button

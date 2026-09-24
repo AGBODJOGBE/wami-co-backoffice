@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Download,
   FlaskConical,
+  Handshake,
   Plus,
   Power,
   RefreshCw,
@@ -33,6 +34,7 @@ import {
   type ActionResult,
 } from "../application/actions";
 import { PromoCodeDetailModal } from "./promo-code-detail-modal";
+import { PromoCodeAffiliateModal } from "./promo-code-affiliate-attachment";
 import {
   CAMPAIGN_TYPE_LABELS,
   CHANNEL_LABELS,
@@ -40,6 +42,7 @@ import {
   VERTICAL_LABELS,
   discountSummary,
   type PromoCode,
+  type SetPromoCodeAffiliateResult,
 } from "../domain/promo-code";
 import {
   PromoCodeCreateModal,
@@ -79,7 +82,7 @@ function ToggleButton({ promo }: { promo: PromoCode }) {
   const [pending, start] = useTransition();
   const isActive = promo.isActive;
   return (
-    <CanView permission="promo_code.manage">
+    <CanView permission="promo.manage">
       <Button
         variant={isActive ? "outline" : "primary"}
         size="sm"
@@ -120,10 +123,22 @@ export function PromoCodesListClient({
   const [createOpen, setCreateOpen] = useState(false);
   const [validateOpen, setValidateOpen] = useState(false);
   const [detailTarget, setDetailTarget] = useState<PromoCode | null>(null);
+  const [affiliateTarget, setAffiliateTarget] = useState<PromoCode | null>(null);
+  // Reflète immédiatement un rattachement/détachement depuis la liste, sans
+  // attendre le prochain rafraîchissement de la page.
+  const [affiliateOverrides, setAffiliateOverrides] = useState<Record<string, SetPromoCodeAffiliateResult>>({});
+
+  const enrichedPromoCodes = useMemo(() => {
+    if (Object.keys(affiliateOverrides).length === 0) return promoCodes;
+    return promoCodes.map((p) => {
+      const o = affiliateOverrides[p.id];
+      return o ? { ...p, affiliateId: o.affiliateId, affiliateCommissionRate: o.affiliateCommissionRate } : p;
+    });
+  }, [promoCodes, affiliateOverrides]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return promoCodes.filter((p) => {
+    return enrichedPromoCodes.filter((p) => {
       if (q) {
         const hay = `${p.code} ${p.campaignName} ${p.displayText}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -137,7 +152,7 @@ export function PromoCodesListClient({
         return false;
       return true;
     });
-  }, [promoCodes, search, statusFilter, verticalFilter, campaignFilter]);
+  }, [enrichedPromoCodes, search, statusFilter, verticalFilter, campaignFilter]);
 
   const stats = useMemo(() => {
     const active = promoCodes.filter((p) => p.isActive).length;
@@ -243,6 +258,64 @@ export function PromoCodesListClient({
         ),
     },
     {
+      key: "budget",
+      header: "Budget",
+      sortAccessor: (row) => (row.budgetedLossCampaign ? (row.realCostAccrued ?? 0) : -1),
+      render: (row) => {
+        if (!row.budgetedLossCampaign) {
+          return <span className="text-xs text-[color:var(--muted-foreground)]">—</span>;
+        }
+        const spent = row.realCostAccrued ?? 0;
+        const budget = row.sponsoredBudget ?? 0;
+        const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
+        return (
+          <div className="flex w-28 flex-col gap-0.5">
+            <span className="text-[10px] text-[color:var(--muted-foreground)]">
+              {spent.toLocaleString("fr-FR")} / {budget ? budget.toLocaleString("fr-FR") : "?"} FCFA
+            </span>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-[color:var(--muted)]">
+              <div
+                className={`h-full rounded-full ${
+                  pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500"
+                }`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: "affiliate",
+      header: "Affilié",
+      sortAccessor: (row) => (row.affiliateId ? 1 : 0),
+      render: (row) => (
+        <CanView
+          permission="promo.manage"
+          fallback={
+            row.affiliateId ? (
+              <Badge tone="primary">Rattaché</Badge>
+            ) : (
+              <span className="text-xs text-[color:var(--muted-foreground)]">—</span>
+            )
+          }
+        >
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px]"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAffiliateTarget(row);
+            }}
+          >
+            <Handshake className="size-3" />
+            {row.affiliateId ? "Rattaché" : "Rattacher"}
+          </Button>
+        </CanView>
+      ),
+    },
+    {
       key: "actions",
       header: "",
       align: "right",
@@ -304,7 +377,7 @@ export function PromoCodesListClient({
               <FlaskConical className="size-4" />
               Tester un code
             </Button>
-            <CanView permission="promo_code.manage">
+            <CanView permission="promo.manage">
               <Button size="sm" onClick={() => setCreateOpen(true)}>
                 <Plus className="size-4" />
                 Nouveau code
@@ -413,6 +486,14 @@ export function PromoCodesListClient({
         open={!!detailTarget}
         promo={detailTarget}
         onClose={() => setDetailTarget(null)}
+      />
+      <PromoCodeAffiliateModal
+        open={!!affiliateTarget}
+        promo={affiliateTarget}
+        onClose={() => setAffiliateTarget(null)}
+        onUpdated={(result) =>
+          setAffiliateOverrides((prev) => ({ ...prev, [result.promoCodeId]: result }))
+        }
       />
     </div>
   );

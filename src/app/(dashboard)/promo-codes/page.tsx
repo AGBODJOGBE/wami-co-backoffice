@@ -7,7 +7,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 export const dynamic = "force-dynamic";
 
 export default async function PromoCodesPageRoute() {
-  await requirePermission("promo_code.view_all");
+  await requirePermission("promo.view");
   try {
     const result = await listPromoCodes();
     return (

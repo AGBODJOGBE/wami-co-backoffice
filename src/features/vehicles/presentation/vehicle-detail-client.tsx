@@ -52,6 +52,7 @@ import {
 } from "../domain/vehicle";
 import {
   VehicleAssignModal,
+  VehicleActiveCategoriesModal,
   VehicleCategoryModal,
   VehicleEditModal,
   VehicleMaintenanceCompleteModal,
@@ -593,6 +594,7 @@ export function VehicleDetailClient({
   const [rejectOpen, setRejectOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [activeCategoriesOpen, setActiveCategoriesOpen] = useState(false);
   const [maintenanceStartOpen, setMaintenanceStartOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [confirm, setConfirm] = useState<SimpleConfirmKind | null>(null);
@@ -755,7 +757,16 @@ export function VehicleDetailClient({
         <MiniStat
           label="Catégorie active"
           value={vehicle.category ? VEHICLE_CATEGORY_LABELS[vehicle.category] : "Non définie"}
-          sub={vehicle.verifiedCategory ? `Plafond : ${VEHICLE_CATEGORY_LABELS[vehicle.verifiedCategory]}` : undefined}
+          sub={
+            [
+              vehicle.activeCategories && vehicle.activeCategories.length > 1
+                ? `Actives : ${vehicle.activeCategories.map((c) => VEHICLE_CATEGORY_LABELS[c]).join(" + ")}`
+                : null,
+              vehicle.verifiedCategory ? `Plafond : ${VEHICLE_CATEGORY_LABELS[vehicle.verifiedCategory]}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || undefined
+          }
           icon={ShieldCheck}
         />
         <MiniStat
@@ -956,6 +967,7 @@ export function VehicleDetailClient({
       <VehicleRejectModal open={rejectOpen} vehicle={vehicle} onClose={() => setRejectOpen(false)} />
       <VehicleAssignModal open={assignOpen} vehicle={vehicle} drivers={drivers} onClose={() => setAssignOpen(false)} />
       <VehicleCategoryModal open={categoryOpen} vehicle={vehicle} onClose={() => setCategoryOpen(false)} />
+      <VehicleActiveCategoriesModal open={activeCategoriesOpen} vehicle={vehicle} onClose={() => setActiveCategoriesOpen(false)} />
       <VehicleMaintenanceStartModal open={maintenanceStartOpen} vehicle={vehicle} onClose={() => setMaintenanceStartOpen(false)} />
       <VehicleMaintenanceCompleteModal open={completeOpen} vehicle={vehicle} onClose={() => setCompleteOpen(false)} />
       <VehicleSimpleConfirm kind={confirm} vehicle={confirm ? vehicle : null} onClose={() => setConfirm(null)} />
@@ -974,6 +986,9 @@ export function VehicleDetailClient({
     }
     if (can("vehicle.manage")) {
       lifecycle.push({ label: "Changer la catégorie", icon: Pencil, onSelect: () => setCategoryOpen(true) });
+      if (vehicle.type === "CAR") {
+        lifecycle.push({ label: "Catégories actives (plusieurs)", icon: Pencil, onSelect: () => setActiveCategoriesOpen(true) });
+      }
     }
     if (vehicle.ownership === "PLATFORM" && can("vehicle.manage")) {
       if (vehicle.status === "AVAILABLE") {
