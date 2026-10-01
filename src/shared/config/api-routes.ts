@@ -42,6 +42,10 @@ export const API_ROUTES = {
     deactivateAdmin: (adminId: string) => `/api/admin/admins/${adminId}/deactivate`,
     /** PATCH — reactivate an admin. */
     reactivateAdmin: (adminId: string) => `/api/admin/admins/${adminId}/reactivate`,
+    /** POST — request a password-reset SMS code. Body: { phoneNumber } or { email }. No auth. Always resolves with a generic message (never reveals whether the account exists). */
+    forgotPassword: () => "/api/admin/password/forgot",
+    /** POST — reset password using the SMS code from forgotPassword. Body: { phoneNumber, verificationCode, newPassword }. No auth. */
+    resetPassword: () => "/api/admin/password/reset",
   },
 
   // ─── Admin: drivers ────────────────────────────────────────────────────────
@@ -402,6 +406,15 @@ export const API_ROUTES = {
     /** POST — débloquer manuellement un chauffeur suspendu pour impayés */
     unblockDriver: (driverId: string) =>
       `/api/admin/contracts/drivers/${driverId}/unblock`,
+    /** GET — contrats PAR_REVENU nécessitant une attention admin. */
+    revenueShareAlerts: () => "/api/admin/contracts/revenue-share/alerts",
+    /** GET — historique paginé des prélèvements CONTRACT_REVENUE_SHARE. Query: page, limit. */
+    revenueShareWithholdings: (id: string) =>
+      `/api/admin/contracts/${id}/revenue-share/withholdings`,
+    /** POST — bascule un contrat ECHEANCIER → PAR_REVENU. Body: { tauxPrelevementRevenu? }. Permission: contract.modify_terms. */
+    switchToRevenueShare: (id: string) => `/api/admin/contracts/${id}/repayment-mode`,
+    /** PATCH — modifie le taux de prélèvement d'un contrat PAR_REVENU. Body: { tauxPrelevementRevenu }. Permission: contract.modify_terms. */
+    updateRevenueShareRate: (id: string) => `/api/admin/contracts/${id}/revenue-share-rate`,
   },
 
   // ─── Admin: parrainage ────────────────────────────────────────────────────
@@ -418,6 +431,10 @@ export const API_ROUTES = {
     validate: (referralId: string) => `/api/admin/referrals/${referralId}/validate`,
     /** POST — expirer manuellement un parrainage. */
     expire: (referralId: string) => `/api/admin/referrals/${referralId}/expire`,
+    /** GET — détail d'un filleul (userId = referredUserId). */
+    filleulDetail: (userId: string) => `/api/admin/referrals/filleuls/${userId}`,
+    /** GET — détail d'un parrain : liste de tous ses filleuls (userId = referrerId). */
+    parrainDetail: (userId: string) => `/api/admin/referrals/parrains/${userId}`,
     /** GET — liste toutes les configs. */
     configs: () => "/api/admin/referrals/config",
     /** GET — config active. */
@@ -550,6 +567,28 @@ export const API_ROUTES = {
   adminUsers: {
     /** GET — list users filtered by role, search, isActive. */
     list: () => "/api/admin/users",
+    /** POST — deactivate a user account (any role). No body. */
+    deactivate: (userId: string) => `/api/users/${userId}/deactivate`,
+    /** POST — reactivate a deactivated user account. No body. */
+    activate: (userId: string) => `/api/users/${userId}/activate`,
+    /** PATCH — change a driver's pricing/bonus category. Body: { category: "STANDARD" | "PREMIUM" | "VIP" }. Distinct from the vehicle's own category. */
+    updateDriverCategory: (userId: string) => `/api/users/${userId}/driver-category`,
+  },
+
+  // ─── Admin: delivery subscription plans (catalogue B2B) ────────────────────
+  adminSubscriptionPlans: {
+    /** POST — créer un plan d'abonnement. Body: { name, description?, durationInDays, deliveryQuota, onQuotaExhausted, price } — price en CENTIMES XOF. */
+    create: () => "/api/admin/subscription-plans",
+    /** GET — lister les plans. Query: includeInactive ("true" | omis). */
+    list: () => "/api/admin/subscription-plans",
+    /** GET — détail d'un plan. */
+    detail: (planId: string) => `/api/admin/subscription-plans/${planId}`,
+    /** PATCH — mettre à jour un plan (tous champs optionnels, comme create). */
+    update: (planId: string) => `/api/admin/subscription-plans/${planId}`,
+    /** PATCH — retirer du catalogue partenaire (suppression logique — pas de DELETE dur). */
+    deactivate: (planId: string) => `/api/admin/subscription-plans/${planId}/deactivate`,
+    /** PATCH — remettre un plan désactivé dans le catalogue. */
+    reactivate: (planId: string) => `/api/admin/subscription-plans/${planId}/reactivate`,
   },
 
   // ─── Notifications (admin can read) ────────────────────────────────────────

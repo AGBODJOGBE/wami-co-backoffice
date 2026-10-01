@@ -54,6 +54,8 @@ export interface RidePricing {
   commissionRate: number;
   waitingFee: number;
   pauseFee: number | null;
+  /** Frais d'approche chauffeur → passager (FCFA). */
+  approachFee: number;
   driverEarnings: number | null;
   platformCommission: number | null;
   discountAmount: number | null;
@@ -77,7 +79,7 @@ export interface AdminRide {
   pickup?: RideLocation;
   dropoff?: RideLocation;
   pricing: RidePricing;
-  distance?: { estimatedMeters: number; actualMeters: number | null };
+  distance?: { estimatedMeters: number; actualMeters: number | null; approachBilledMeters: number | null };
   duration?: { estimatedSeconds: number; actualSeconds: number | null };
   dispute?: { isDisputed: boolean; reason: string | null };
   cancelledBy?: string | null;
@@ -172,6 +174,11 @@ export interface RideDetail {
     durationSeconds: number | null;
   }>;
   pauseFeeFcfa: number;
+
+  /** Distance d'approche (chauffeur → point de prise en charge) retenue après plafonnement GPS/OSRM, en mètres. null = pas de mesure. */
+  approachDistanceMeters: number | null;
+  /** Frais d'approche facturés au passager (FCFA), calculés depuis approachDistanceMeters — 0 si sous la franchise ou si RIDE_APPROACH_FEE_ENABLED est coupé. */
+  approachFeeFcfa: number;
 
   noShowMinutes: number | null;
   noShowFee: number | null;

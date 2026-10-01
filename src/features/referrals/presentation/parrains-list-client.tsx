@@ -29,6 +29,7 @@ import {
   REFERRAL_TYPE_LABELS,
   type Referral,
 } from "../domain/referral";
+import { ParrainDetailModal } from "./referral-detail-modal";
 
 /* Group referrals by referrerId to build "parrain" rows */
 interface ParrainRow {
@@ -87,6 +88,7 @@ export function ParrainsListClient({ referrals, total }: ParrainsListClientProps
   const [refreshing, startRefresh] = useTransition();
   const [search, setSearch] = useState("");
   const [type,   setType]   = useState("ALL");
+  const [detailTarget, setDetailTarget] = useState<{ referrerId: string; referralCode: string } | null>(null);
 
   const allParrains = useMemo(() => buildParrainRows(referrals), [referrals]);
 
@@ -188,6 +190,19 @@ export function ParrainsListClient({ referrals, total }: ParrainsListClientProps
       ),
       sortAccessor: (r) => r.lastReferralAt,
     },
+    {
+      key: "actions",
+      header: "",
+      render: (r) => (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setDetailTarget({ referrerId: r.referrerId, referralCode: r.referralCode })}
+        >
+          Détail
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -249,6 +264,12 @@ export function ParrainsListClient({ referrals, total }: ParrainsListClientProps
         />
         <PaginationFooter total={allParrains.length} shown={filtered.length} />
       </div>
+
+      <ParrainDetailModal
+        userId={detailTarget?.referrerId ?? null}
+        referralCode={detailTarget?.referralCode}
+        onClose={() => setDetailTarget(null)}
+      />
     </div>
   );
 }

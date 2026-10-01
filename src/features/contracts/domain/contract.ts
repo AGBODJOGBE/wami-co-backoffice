@@ -165,6 +165,118 @@ export interface Contract {
   createdAt: string;
   updatedAt: string;
   breakReason?: string | null;
+  /** ECHEANCIER (par défaut) ou PAR_REVENU (prélèvement % sur chaque course/livraison). */
+  modeRemboursement: ModeRemboursement;
+  /** Fraction 0–1 (0.5 = 50%). Non-null uniquement si modeRemboursement = PAR_REVENU. */
+  tauxPrelevementRevenu: number | null;
+  /** Date de bascule ECHEANCIER → PAR_REVENU, ou null si jamais basculé. */
+  dateBasculePrelevement: string | null;
+  /** Présent UNIQUEMENT sur GET /:id (jamais sur la liste) et seulement pour un contrat PAR_REVENU. */
+  revenueShareSummary?: RevenueShareSummary;
+}
+
+// ─── Revenue share (remboursement par prélèvement sur revenus) ───────────────
+
+/** Valeurs acceptées par le backend (champ modeRemboursement). */
+export type ModeRemboursement = "ECHEANCIER" | "PAR_REVENU";
+
+export const MODE_REMBOURSEMENT_LABELS: Record<ModeRemboursement, string> = {
+  ECHEANCIER: "Échéancier",
+  PAR_REVENU: "Prélèvement sur revenus",
+};
+
+export type RevenueShareAlertReason = "DEBT_THRESHOLD_EXCEEDED" | "INACTIVITY";
+
+export const REVENUE_SHARE_ALERT_REASON_LABELS: Record<RevenueShareAlertReason, string> = {
+  DEBT_THRESHOLD_EXCEEDED: "Dette non recouvrée au-delà du seuil",
+  INACTIVITY: "Aucun prélèvement récent (chauffeur inactif)",
+};
+
+export interface RevenueShareSummary {
+  /** FCFA — cumul prélevé depuis la bascule/création du contrat. */
+  cumulPreleve: number;
+  dernierPrelevement: string | null;
+  alertReasons: RevenueShareAlertReason[];
+}
+
+/** Item de GET /api/admin/contracts/revenue-share/alerts — PAS de nom de chauffeur (driverId seul). */
+export interface RevenueShareAlertItem {
+  contractId: string;
+  driverId: string;
+  montantNonReconnu: number;
+  montantRestant: number;
+  lastWithholdingDate: string | null;
+  reasons: RevenueShareAlertReason[];
+}
+
+export interface RevenueShareAlertsResult {
+  items: RevenueShareAlertItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/** Source d'un prélèvement — course, livraison, bonus, etc. (jamais remboursement/ajustement/P2P). */
+export type RevenueShareSourceType =
+  | "RIDE"
+  | "RIDE_PICKUP"
+  | "B2C_DELIVERY"
+  | "WELCOME_BONUS"
+  | "MILESTONE_BONUS"
+  | "ACTIVITY_BONUS"
+  | "QUALITY_BONUS"
+  | "REFERRAL_REWARD"
+  | "SCHEDULED_RIDE_DRIVER_BOOKING_BONUS"
+  | "CANCELLATION_INDEMNITY"
+  | "WALLET_GRANT"
+  | string;
+
+export const REVENUE_SHARE_SOURCE_LABELS: Record<string, string> = {
+  RIDE: "Course VTC",
+  RIDE_PICKUP: "Course Pickup",
+  B2C_DELIVERY: "Livraison B2C",
+  WELCOME_BONUS: "Bonus de bienvenue",
+  MILESTONE_BONUS: "Bonus palier",
+  ACTIVITY_BONUS: "Bonus activité",
+  QUALITY_BONUS: "Bonus qualité",
+  REFERRAL_REWARD: "Récompense parrainage",
+  SCHEDULED_RIDE_DRIVER_BOOKING_BONUS: "Prime réservation programmée",
+  CANCELLATION_INDEMNITY: "Indemnité annulation",
+  WALLET_GRANT: "Campagne de crédit",
+};
+
+/** Item de GET /api/admin/contracts/:id/revenue-share/withholdings */
+export interface RevenueShareWithholding {
+  transactionId: string;
+  /** FCFA — montant prélevé. */
+  amount: number;
+  sourceType: RevenueShareSourceType | null;
+  sourceId: string | null;
+  date: string;
+}
+
+export interface RevenueShareWithholdingsResult {
+  items: RevenueShareWithholding[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+/** Réponse de POST /:id/repayment-mode */
+export interface SwitchToRevenueShareResult {
+  contractId: string;
+  modeRemboursement: "PAR_REVENU";
+  tauxPrelevementRevenu: number;
+  /** Échéances EN_ATTENTE annulées définitivement par la bascule. */
+  cancelledInstallmentsCount: number;
+  /** true si le chauffeur était bloqué (SUSPENDED) et vient d'être débloqué. */
+  driverUnblocked: boolean;
+}
+
+/** Réponse de PATCH /:id/revenue-share-rate */
+export interface UpdateRevenueShareRateResult {
+  contractId: string;
+  tauxPrelevementRevenu: number;
 }
 
 // ─── Payment frequency ────────────────────────────────────────────────────────
@@ -293,6 +405,11 @@ export interface CreateContractInput {
   /** Marge en % (ex: 20 pour 20%). Backend calcule montantTotal = purchasePrice * (1 + marginPct/100) */
   marginPct?: number;
   notes?: string;
+  /** Défaut ECHEANCIER si omis. */
+  modeRemboursement?: ModeRemboursement;
+  /** Fraction 0.05–1. N'envoyer QUE si modeRemboursement = PAR_REVENU — exige la permission
+   * contract.modify_terms (SUPER_ADMIN) en plus de contract.create, sinon 403. */
+  tauxPrelevementRevenu?: number;
 }
 
 export interface BreakContractInput {

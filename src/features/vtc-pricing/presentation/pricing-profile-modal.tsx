@@ -125,6 +125,7 @@ export function PricingProfileModal({
       type,
       value: undefined, rate: undefined, rateFromContext: undefined,
       threshold: undefined, freeUnits: undefined, minimum: undefined,
+      maxBillableUnits: undefined,
       tiers: undefined, zones: undefined, packages: undefined,
       condition: undefined,
     });
@@ -403,6 +404,7 @@ function ComponentEditor({
   const hasZones        = comp.type === "PER_ZONE" || comp.type === "DISTANCE_ZONE";
   const hasKgFields     = comp.type === "PER_KG";
   const hasWaitingFields = comp.type === "WAITING_FEE";
+  const hasApproachFields = comp.type === "APPROACH_FEE";
   const hasPackages     = comp.type === "TIMED_PACKAGE";
   const isZoneMatrix    = comp.type === "ZONE_MATRIX_PRICE";
   const hasCondition    = comp.type === "MULTIPLIER" || comp.type === "PERCENTAGE_FEE";
@@ -536,6 +538,33 @@ function ComponentEditor({
             value={comp.freeUnits ?? 0}
             onChange={(e) => onUpdate({ freeUnits: Number(e.target.value) })}
             hint="Minutes d'attente incluses avant facturation"
+          />
+        </div>
+      )}
+
+      {/* ── Approach fee fields ────────────────────────────────────────────── */}
+      {hasApproachFields && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Input
+            label="Tarif (centimes/km) *"
+            type="number" step="1" min={0}
+            value={comp.value ?? 0}
+            onChange={(e) => onUpdate({ value: Number(e.target.value) })}
+          />
+          <Input
+            label="Km gratuits (franchise)"
+            type="number" step="0.1" min={0}
+            value={comp.freeUnits ?? 0}
+            onChange={(e) => onUpdate({ freeUnits: Number(e.target.value) })}
+            hint="Distance d'approche incluse avant facturation"
+          />
+          <Input
+            label="Plafond facturable (km)"
+            type="number" step="0.1" min={0}
+            value={comp.maxBillableUnits ?? ""}
+            onChange={(e) => onUpdate({ maxBillableUnits: e.target.value === "" ? undefined : Number(e.target.value) })}
+            placeholder="∞"
+            hint="Au-delà de franchise + plafond, l'excédent n'est jamais facturé"
           />
         </div>
       )}

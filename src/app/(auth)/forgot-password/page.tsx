@@ -6,7 +6,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthCard
       title="Mot de passe oublié"
-      description="Entre l'email du compte admin. Nous t'enverrons un lien de réinitialisation."
+      description="Entre le téléphone du compte admin. Nous t'enverrons un code de vérification par SMS."
       footer={
         <Link
           href="/login"

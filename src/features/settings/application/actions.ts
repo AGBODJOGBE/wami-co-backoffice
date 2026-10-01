@@ -146,17 +146,43 @@ export async function updateWalletConfigAction(
   }
 }
 
+export interface UpdateSystemConfigResult {
+  id: string;
+  key: string;
+  value: string;
+  type: string;
+  version: number;
+  updatedAt: string;
+  unit?: string;
+  displayValue?: string;
+  withinBounds: boolean;
+  forcedOutOfBounds: boolean;
+}
+
+/**
+ * `value` est TOUJOURS l'unité humaine (minutes, FCFA, % — jamais la
+ * convention de stockage) : le backend convertit lui-même via la spec de la
+ * clé. `force`+`justification` permettent de déroger aux bornes déclarées —
+ * `justification` est alors obligatoire (le backend refuse sinon).
+ */
 export async function updateSystemConfigAction(
   key: string,
   value: string,
-): Promise<ActionResult> {
+  opts?: { force?: boolean; justification?: string },
+): Promise<ActionResult<UpdateSystemConfigResult>> {
   try {
-    await apiFetch<unknown>(API_ROUTES.systemConfig.update(key), {
+    const data = await apiFetch<UpdateSystemConfigResult>(API_ROUTES.systemConfig.update(key), {
       method: "PUT",
-      body: { value },
+      body: { value, force: opts?.force, justification: opts?.justification },
     });
     revalidatePath("/settings");
-    return { ok: true, message: "Configuration mise à jour." };
+    return {
+      ok: true,
+      message: data.forcedOutOfBounds
+        ? "Configuration mise à jour — valeur acceptée hors bornes (dérogation)."
+        : "Configuration mise à jour.",
+      data,
+    };
   } catch (e) {
     return fail(e, "Impossible de mettre à jour la configuration.");
   }

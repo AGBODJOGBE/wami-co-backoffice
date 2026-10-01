@@ -111,14 +111,24 @@ export default async function VtcDriversPage() {
 
   // ── Approved tab ───────────────────────────────────────────────────────────
   const approvedDrivers = patchedDrivers.filter((d) => d.isApproved);
-  const all = { drivers: approvedDrivers, total: approvedDrivers.length };
 
-  // ── Véhicule plateforme vs autres ──────────────────────────────────────────
+  // ── Séparation VTC vs Livraison ────────────────────────────────────────────
+  // Cette page ("Opérations VTC > Pilotes") ne doit montrer par défaut que les
+  // pilotes VTC — les pilotes purement Livraison (driverType === "DELIVERY")
+  // vont dans leur propre onglet "Livreurs" plutôt que d'être mélangés ici.
+  // Les pilotes "BOTH" apparaissent légitimement dans les deux onglets.
+  const vtcDrivers = approvedDrivers.filter((d) => d.driverType !== "DELIVERY");
+  const deliveryDrivers = approvedDrivers.filter(
+    (d) => d.driverType === "DELIVERY" || d.driverType === "BOTH",
+  );
+  const all = { drivers: vtcDrivers, total: vtcDrivers.length };
+
+  // ── Véhicule plateforme vs autres (parmi les pilotes VTC) ──────────────────
   // isVehicleOwner === false → véhicule appartient à ForYou (plateforme)
-  const platformVehicleDrivers = approvedDrivers.filter(
+  const platformVehicleDrivers = vtcDrivers.filter(
     (d) => d.isVehicleOwner === false && !!d.vehicle,
   );
-  const otherApprovedDrivers = approvedDrivers.filter(
+  const otherApprovedDrivers = vtcDrivers.filter(
     (d) => d.isVehicleOwner === true || !d.vehicle,
   );
 
@@ -194,6 +204,7 @@ export default async function VtcDriversPage() {
         sessionsByDriverId={sessionsByDriverId}
         platformVehicleDrivers={platformVehicleDrivers}
         otherApprovedDrivers={otherApprovedDrivers}
+        deliveryDrivers={deliveryDrivers}
       />
     </div>
   );

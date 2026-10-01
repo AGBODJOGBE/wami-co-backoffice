@@ -15,11 +15,14 @@ import {
   VEHICLE_TYPE_LABELS,
   type VehicleSummary,
 } from "@/features/vehicles/domain/vehicle";
+import { CanView } from "@/shared/ui/can-view";
+import { usePermissions } from "@/features/auth/presentation/use-permissions";
 import { createContractAction } from "../application/actions";
 import {
   formatXof,
   PAYMENT_FREQUENCY_OPTIONS,
   type CreateContractInput,
+  type ModeRemboursement,
   type PaymentFrequency,
 } from "../domain/contract";
 
@@ -60,12 +63,18 @@ export function ContractCreateModal({
   const [pending, start] = useTransition();
   const [vehicleDetail, setVehicleDetail] = useState<VehicleSummary | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const { can } = usePermissions();
+  const canModifyTerms = can("contract.modify_terms");
+  const [revenueShareMode, setRevenueShareMode] = useState(false);
+  const [revenueSharePct, setRevenueSharePct] = useState(50);
 
   // Reset on open
   useEffect(() => {
     if (open) {
       setForm(defaultForm());
       setVehicleDetail(null);
+      setRevenueShareMode(false);
+      setRevenueSharePct(50);
     }
   }, [open]);
 
@@ -193,6 +202,12 @@ export function ContractCreateModal({
         montantCaution: Math.floor(form.montantCaution) || 0,
         marginPct:      form.marginPct !== undefined ? (isNaN(form.marginPct) ? 20 : form.marginPct) : undefined,
         notes:          form.notes?.trim() || undefined,
+        ...(canModifyTerms && revenueShareMode
+          ? {
+              modeRemboursement: "PAR_REVENU" as ModeRemboursement,
+              tauxPrelevementRevenu: revenueSharePct / 100,
+            }
+          : {}),
       };
       const r = await createContractAction(payload);
       if (r.ok) {
@@ -426,6 +441,38 @@ export function ContractCreateModal({
               }
             />
           </div>
+
+          {/* ── Mode de remboursement (SUPER_ADMIN uniquement) ──────────── */}
+          <CanView permission="contract.modify_terms">
+            <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/30 px-4 py-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-[color:var(--foreground)]">
+                <input
+                  type="checkbox"
+                  checked={revenueShareMode}
+                  onChange={(e) => setRevenueShareMode(e.target.checked)}
+                  className="size-4 rounded border-[color:var(--border)]"
+                />
+                Créer directement en prélèvement sur revenus (PAR_REVENU)
+              </label>
+              <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">
+                Remplace l&apos;échéancier fixe par un pourcentage prélevé sur chaque course/livraison du chauffeur. Laisser décoché pour un échéancier classique.
+              </p>
+              {revenueShareMode && (
+                <div className="mt-3">
+                  <Input
+                    label="Taux de prélèvement (%)"
+                    type="number"
+                    min={5}
+                    max={100}
+                    step={1}
+                    value={revenueSharePct}
+                    onChange={(e) => setRevenueSharePct(Math.min(100, Math.max(5, Number(e.target.value))))}
+                    hint="Entre 5% et 100%. Laisser à 50% pour utiliser le taux par défaut de la plateforme."
+                  />
+                </div>
+              )}
+            </div>
+          </CanView>
 
           {/* ── Simulation montant total ─────────────────────────────── */}
           {simulation ? (

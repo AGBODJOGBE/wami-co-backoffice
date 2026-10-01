@@ -12,6 +12,8 @@ import type {
   InstallmentStatus,
   ManualPaymentMethod,
   PaymentSource,
+  SwitchToRevenueShareResult,
+  UpdateRevenueShareRateResult,
 } from "../domain/contract";
 import { listContracts, getContractInstallments, listContractAuditLogs } from "./api";
 import { listAdminDrivers } from "@/features/drivers/application/api";
@@ -55,6 +57,61 @@ export async function createContractAction(
     };
   } catch (e) {
     return fail<Contract>(e, "Impossible de créer le contrat.");
+  }
+}
+
+// ─── Revenue share (remboursement par prélèvement sur revenus) ───────────────
+
+/**
+ * POST /:id/repayment-mode — bascule ECHEANCIER → PAR_REVENU. `taux` optionnel
+ * (fraction 0.05–1) ; omis = taux par défaut de la config admin. Effets :
+ * les échéances EN_ATTENTE sont annulées définitivement, le chauffeur bloqué
+ * est débloqué automatiquement. Permission contract.modify_terms (SUPER_ADMIN).
+ */
+export async function switchToRevenueShareAction(
+  contractId: string,
+  taux?: number,
+): Promise<ActionResult<SwitchToRevenueShareResult>> {
+  try {
+    const data = await apiFetch<SwitchToRevenueShareResult>(
+      API_ROUTES.adminContracts.switchToRevenueShare(contractId),
+      { method: "POST", body: taux !== undefined ? { mode: "PAR_REVENU", taux } : { mode: "PAR_REVENU" } },
+    );
+    revalidatePath("/contracts");
+    revalidatePath(`/contracts/${contractId}`);
+    return {
+      ok: true,
+      message: `Contrat basculé en prélèvement sur revenus (${Math.round(data.tauxPrelevementRevenu * 100)}%).`,
+      data,
+    };
+  } catch (e) {
+    return fail<SwitchToRevenueShareResult>(e, "Impossible de basculer le contrat.");
+  }
+}
+
+/**
+ * PATCH /:id/revenue-share-rate — modifie le taux d'un contrat déjà PAR_REVENU.
+ * `taux` fraction 0.05–1. S'applique aux prochains prélèvements uniquement
+ * (aucun effet rétroactif). Permission contract.modify_terms (SUPER_ADMIN).
+ */
+export async function updateRevenueShareRateAction(
+  contractId: string,
+  taux: number,
+): Promise<ActionResult<UpdateRevenueShareRateResult>> {
+  try {
+    const data = await apiFetch<UpdateRevenueShareRateResult>(
+      API_ROUTES.adminContracts.updateRevenueShareRate(contractId),
+      { method: "PATCH", body: { taux } },
+    );
+    revalidatePath("/contracts");
+    revalidatePath(`/contracts/${contractId}`);
+    return {
+      ok: true,
+      message: `Taux de prélèvement mis à jour à ${Math.round(data.tauxPrelevementRevenu * 100)}%.`,
+      data,
+    };
+  } catch (e) {
+    return fail<UpdateRevenueShareRateResult>(e, "Impossible de modifier le taux.");
   }
 }
 

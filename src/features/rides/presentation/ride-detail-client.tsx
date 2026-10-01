@@ -237,6 +237,13 @@ export function RideDetailClient({ ride }: RideDetailClientProps) {
             {ride.pauseFeeFcfa > 0 && (
               <ReceiptRow label="Frais de pause"    value={`+ ${formatXof(ride.pauseFeeFcfa)}`}    accent="warning" />
             )}
+            {ride.approachFeeFcfa > 0 && (
+              <ReceiptRow
+                label={`Frais d'approche${ride.approachDistanceMeters != null ? ` (${fmtMeter(ride.approachDistanceMeters)})` : ""}`}
+                value={`+ ${formatXof(ride.approachFeeFcfa)}`}
+                accent="warning"
+              />
+            )}
             {ride.discountAmount != null && ride.discountAmount > 0 && (
               <ReceiptRow label="Remise promo"      value={`− ${formatXof(ride.discountAmount)}`}  accent="success" />
             )}
@@ -383,6 +390,24 @@ export function RideDetailClient({ ride }: RideDetailClientProps) {
           icon={<Clock className="size-4" />}
         />
       </div>
+
+      {/* ── Approche chauffeur → passager ────────────────────────────────── */}
+      {ride.approachDistanceMeters != null && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <StatCard
+            icon={<Navigation className="size-5" />}
+            label="Distance d'approche facturable"
+            value={fmtMeter(ride.approachDistanceMeters)}
+            tone="neutral"
+          />
+          <StatCard
+            icon={<CreditCard className="size-5" />}
+            label="Frais d'approche"
+            value={formatXof(ride.approachFeeFcfa)}
+            tone={ride.approachFeeFcfa > 0 ? "warning" : "neutral"}
+          />
+        </div>
+      )}
     </div>
   );
 

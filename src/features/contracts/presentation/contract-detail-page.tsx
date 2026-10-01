@@ -35,6 +35,7 @@ import {
   CONTRACT_STATUS_TONES,
   INSTALLMENT_STATUS_LABELS,
   MANUAL_PAYMENT_METHOD_LABELS,
+  MODE_REMBOURSEMENT_LABELS,
   PAYMENT_FREQUENCY_LABELS,
   driverFullName,
   formatXof,
@@ -46,12 +47,14 @@ import {
   type ContractStatus,
   type InstallmentStatus,
   type ManualPaymentMethod,
+  type RevenueShareWithholdingsResult,
 } from "../domain/contract";
 import {
   recordManualPaymentAction,
   resumeContractAction,
   unblockDriverAction,
 } from "../application/actions";
+import { RevenueShareSection } from "./revenue-share-section";
 import { Modal } from "@/shared/ui/modal";
 import type { AdminWallet } from "@/features/wallet/domain/wallet";
 import { ContractBreakModal } from "./contract-break-modal";
@@ -515,9 +518,17 @@ interface Props {
   auditLogs?: ContractAuditLog[];
   toleranceDays?: number;
   earningsWallet?: AdminWallet | null;
+  revenueShareWithholdings?: RevenueShareWithholdingsResult | null;
 }
 
-export function ContractDetailPage({ contract, installments, auditLogs = [], toleranceDays = 3, earningsWallet = null }: Props) {
+export function ContractDetailPage({
+  contract,
+  installments,
+  auditLogs = [],
+  toleranceDays = 3,
+  earningsWallet = null,
+  revenueShareWithholdings = null,
+}: Props) {
   const router = useRouter();
   const [breakOpen, setBreakOpen] = useState(false);
   const [suspendOpen, setSuspendOpen] = useState(false);
@@ -660,6 +671,11 @@ export function ContractDetailPage({ contract, installments, auditLogs = [], tol
               </h1>
               <Badge tone={CONTRACT_STATUS_TONES[contract.status as ContractStatus]}>
                 {CONTRACT_STATUS_LABELS[contract.status as ContractStatus] ?? contract.status}
+              </Badge>
+              <Badge tone={contract.modeRemboursement === "PAR_REVENU" ? "info" : "neutral"}>
+                {contract.modeRemboursement === "PAR_REVENU" && contract.tauxPrelevementRevenu != null
+                  ? `${MODE_REMBOURSEMENT_LABELS.PAR_REVENU} (${Math.round(contract.tauxPrelevementRevenu * 100)}%)`
+                  : MODE_REMBOURSEMENT_LABELS[contract.modeRemboursement]}
               </Badge>
             </div>
             <span className="text-sm text-[color:var(--muted-foreground)]">
@@ -819,6 +835,9 @@ export function ContractDetailPage({ contract, installments, auditLogs = [], tol
           </div>
         </div>
       </Card>
+
+      {/* ── Revenue share (remboursement par prélèvement) ── */}
+      <RevenueShareSection contract={contract} withholdings={revenueShareWithholdings} />
 
       {/* ── Infos ── */}
       <div className="grid gap-4 lg:grid-cols-3">

@@ -130,3 +130,95 @@ export async function logoutAction() {
   await destroySession();
   redirect("/login");
 }
+
+export interface ForgotPasswordResult {
+  ok: boolean;
+  message: string;
+}
+
+/**
+ * POST /api/admin/password/forgot — body: { phoneNumber } (le backend envoie
+ * toujours le code par SMS, même si un email est fourni en alternative pour
+ * identifier le compte — on utilise ici uniquement le téléphone, plus fiable
+ * pour un compte admin béninois).
+ *
+ * Sécurité : le backend renvoie un message VOLONTAIREMENT générique en cas
+ * d'échec (compte introuvable, pas de profil admin, téléphone non vérifié)
+ * pour empêcher l'énumération de comptes admin — donc on affiche le MÊME
+ * message de succès dans presque tous les cas, sauf une erreur de validation
+ * franche (numéro absent/mal formé) ou un problème réseau.
+ */
+export async function forgotAdminPasswordAction(
+  phoneNumber: string,
+): Promise<ForgotPasswordResult> {
+  const GENERIC_MESSAGE =
+    "Si un compte admin correspond à ce numéro, un code de vérification vient d'être envoyé par SMS.";
+  if (!phoneNumber.trim()) {
+    return { ok: false, message: "Le numéro de téléphone est requis." };
+  }
+  try {
+    await apiFetch<unknown>(API_ROUTES.admin.forgotPassword(), {
+      method: "POST",
+      authenticated: false,
+      body: { phoneNumber: phoneNumber.trim() },
+    });
+    return { ok: true, message: GENERIC_MESSAGE };
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      // NotFoundError générique côté backend — traité comme un "succès" côté UI
+      // pour ne rien révéler sur l'existence du compte.
+      return { ok: true, message: GENERIC_MESSAGE };
+    }
+    if (error instanceof ApiError && error.status === 400) {
+      return { ok: false, message: error.message || "Numéro de téléphone invalide." };
+    }
+    return {
+      ok: false,
+      message: error instanceof Error ? `Erreur inattendue : ${error.message}` : "Erreur inattendue.",
+    };
+  }
+}
+
+export interface ResetPasswordResult {
+  ok: boolean;
+  message: string;
+}
+
+/** POST /api/admin/password/reset — body: { phoneNumber, verificationCode, newPassword }. */
+export async function resetAdminPasswordAction(
+  phoneNumber: string,
+  verificationCode: string,
+  newPassword: string,
+): Promise<ResetPasswordResult> {
+  if (!phoneNumber.trim() || !verificationCode.trim()) {
+    return { ok: false, message: "Numéro de téléphone et code de vérification requis." };
+  }
+  if (
+    newPassword.length < 8 ||
+    !/[A-Z]/.test(newPassword) ||
+    !/[a-z]/.test(newPassword) ||
+    !/[0-9]/.test(newPassword)
+  ) {
+    return { ok: false, message: `Mot de passe trop faible : ${PASSWORD_RULES_MESSAGE}` };
+  }
+  try {
+    await apiFetch<unknown>(API_ROUTES.admin.resetPassword(), {
+      method: "POST",
+      authenticated: false,
+      body: {
+        phoneNumber: phoneNumber.trim(),
+        verificationCode: verificationCode.trim(),
+        newPassword,
+      },
+    });
+    return { ok: true, message: "Mot de passe réinitialisé. Vous pouvez vous connecter." };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, message: error.message || "Réinitialisation impossible." };
+    }
+    return {
+      ok: false,
+      message: error instanceof Error ? `Erreur inattendue : ${error.message}` : "Erreur inattendue.",
+    };
+  }
+}

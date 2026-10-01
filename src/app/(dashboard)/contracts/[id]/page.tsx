@@ -1,5 +1,10 @@
 import { requirePermission } from "@/features/auth/application/dal";
-import { getContract, getContractInstallments, listContractAuditLogs } from "@/features/contracts/application/api";
+import {
+  getContract,
+  getContractInstallments,
+  getContractRevenueShareWithholdings,
+  listContractAuditLogs,
+} from "@/features/contracts/application/api";
 import { ContractDetailPage } from "@/features/contracts/presentation/contract-detail-page";
 import { DetailNotFound } from "@/shared/ui/detail-header";
 import { ApiError } from "@/shared/lib/api/types";
@@ -69,6 +74,12 @@ export default async function ContractDetailRoute({
       vehicle: enrichedVehicle,
     };
 
+    // ── 5. Historique des prélèvements — uniquement pour un contrat PAR_REVENU ──
+    const withholdings =
+      contract.modeRemboursement === "PAR_REVENU"
+        ? await getContractRevenueShareWithholdings(id, { limit: 100 }).catch(() => null)
+        : null;
+
     return (
       <ContractDetailPage
         contract={enrichedContract}
@@ -86,6 +97,7 @@ export default async function ContractDetailRoute({
         earningsWallet={
           earningsWalletRes.status === "fulfilled" ? earningsWalletRes.value ?? null : null
         }
+        revenueShareWithholdings={withholdings}
       />
     );
   } catch (error) {

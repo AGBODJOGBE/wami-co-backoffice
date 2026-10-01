@@ -89,6 +89,31 @@ export async function updateDriverTypeAction(
   }
 }
 
+const DRIVER_CATEGORIES = ["STANDARD", "PREMIUM", "VIP"] as const;
+export type DriverCategory = (typeof DRIVER_CATEGORIES)[number];
+
+/** PATCH /api/users/:userId/driver-category — catégorie tarifaire/bonus du
+ * chauffeur (STANDARD | PREMIUM | VIP). Distincte de la catégorie du véhicule
+ * affecté. Note : cette route est scopée par USER id, pas par driver profile
+ * id (contrairement à `updateDriverTypeAction` ci-dessus) — `driverId` n'est
+ * utilisé ici que pour revalider la bonne page de détail. */
+export async function updateDriverCategoryAction(
+  userId: string,
+  category: DriverCategory,
+  driverId?: string,
+): Promise<ActionResult> {
+  try {
+    await apiFetch<unknown>(API_ROUTES.adminUsers.updateDriverCategory(userId), {
+      method: "PATCH",
+      body: { category },
+    });
+    refresh(driverId);
+    return { ok: true, message: "Catégorie tarifaire mise à jour." };
+  } catch (e) {
+    return fail(e, "Mise à jour impossible.");
+  }
+}
+
 export async function approveDriverAction(
   driverId: string,
 ): Promise<ActionResult<DriverStatusChangeResult>> {

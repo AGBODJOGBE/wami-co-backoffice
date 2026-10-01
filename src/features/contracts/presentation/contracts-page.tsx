@@ -65,6 +65,8 @@ const CONTRACT_CSV_COLUMNS: CsvColumn<Contract>[] = [
   { key: "echeancesPayees", header: "Échéances payées",   value: (r) => r.echeancesPayees ?? "" },
   { key: "echeancesTotal",  header: "Échéances total",    value: (r) => r.echeancesTotal ?? "" },
   { key: "nbImpayes",       header: "Nb impayés",         value: (r) => r.nbImpayes ?? 0 },
+  { key: "mode",            header: "Mode remboursement", value: (r) => r.modeRemboursement === "PAR_REVENU" ? "Prélèvement sur revenus" : "Échéancier" },
+  { key: "tauxRevenu",      header: "Taux prélèvement",   value: (r) => r.tauxPrelevementRevenu != null ? `${Math.round(r.tauxPrelevementRevenu * 100)}%` : "" },
 ];
 
 // ─── Options filtre statut ────────────────────────────────────────────────────
@@ -314,6 +316,11 @@ export function ContractsPage({ contracts, total, error, drivers, vehicles, kpis
           <Badge tone={CONTRACT_STATUS_TONES[row.status as ContractStatus]}>
             {CONTRACT_STATUS_LABELS[row.status as ContractStatus] ?? row.status}
           </Badge>
+          {row.modeRemboursement === "PAR_REVENU" && (
+            <Badge tone="info">
+              Prélèvement {row.tauxPrelevementRevenu != null ? `${Math.round(row.tauxPrelevementRevenu * 100)}%` : ""}
+            </Badge>
+          )}
           {row.status === "SUSPENDED" && (row.nbImpayes ?? 0) > 0 && (
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-600 dark:text-red-400">
               <ShieldAlert className="size-3" />

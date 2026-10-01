@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { Eye, EyeOff, Lock } from "lucide-react";
+import { Eye, EyeOff, Hash, Lock, Phone } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
+import { toast } from "@/shared/ui/toast";
+import { resetAdminPasswordAction } from "@/features/auth/application/actions";
 
 export function ResetPasswordForm() {
   const router = useRouter();
@@ -12,13 +14,23 @@ export function ResetPasswordForm() {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     const data = new FormData(event.currentTarget);
+    const phoneNumber = String(data.get("phoneNumber") ?? "");
+    const verificationCode = String(data.get("verificationCode") ?? "");
     const password = String(data.get("password") ?? "");
     const confirm = String(data.get("confirm") ?? "");
 
+    if (!phoneNumber.trim()) {
+      setError("Le numéro de téléphone est requis.");
+      return;
+    }
+    if (!/^\d{6}$/.test(verificationCode.trim())) {
+      setError("Le code de vérification comporte 6 chiffres.");
+      return;
+    }
     if (password.length < 8) {
       setError("Le mot de passe doit contenir au moins 8 caractères.");
       return;
@@ -29,14 +41,39 @@ export function ResetPasswordForm() {
     }
 
     setIsPending(true);
-    // No API logic yet
-    setTimeout(() => {
+    const result = await resetAdminPasswordAction(phoneNumber, verificationCode, password);
+    setIsPending(false);
+    if (result.ok) {
+      toast({ kind: "success", title: "Mot de passe réinitialisé", description: result.message });
       router.push("/login");
-    }, 600);
+    } else {
+      setError(result.message);
+    }
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <Input
+        label="Téléphone du compte admin"
+        type="tel"
+        name="phoneNumber"
+        autoComplete="tel"
+        placeholder="+229 01 XX XX XX XX"
+        leftIcon={<Phone className="size-4" />}
+        required
+      />
+
+      <Input
+        label="Code de vérification (SMS)"
+        type="text"
+        name="verificationCode"
+        inputMode="numeric"
+        placeholder="123456"
+        maxLength={6}
+        leftIcon={<Hash className="size-4" />}
+        required
+      />
+
       <Input
         label="Nouveau mot de passe"
         type={showPassword ? "text" : "password"}

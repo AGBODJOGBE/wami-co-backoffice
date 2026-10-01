@@ -33,6 +33,25 @@ export interface SystemConfigEntry {
   updatedBy?: string;
   version?: number;
   updatedAt?: string;
+  /** true si cette clé a une SystemConfigSpec côté backend (verrou de validation actif). */
+  hasSpec?: boolean;
+  /** true si la valeur actuelle a été écrite en dérogation explicite au verrou. */
+  forcedOutOfBounds?: boolean;
+  // Champs suivants : présents uniquement si hasSpec === true.
+  /** Regroupement backend — un seul niveau ('ride', 'contract', 'pricing', 'promo-code'…). */
+  module?: string;
+  /** Libellé admin-friendly fourni par le backend — à préférer à la clé technique. */
+  label?: string;
+  /** Code d'unité fermé (FCFA, MINUTES, PERCENT_0_100…). */
+  unit?: string;
+  /** Valeur affichée dans l'unité humaine (déjà convertie depuis le stockage). */
+  displayValue?: string;
+  min?: number;
+  max?: number;
+  allowedValues?: string[];
+  mustDivide?: number;
+  /** true si la valeur stockée respecte les bornes ACTUELLES de la spec. */
+  withinBounds?: boolean;
 }
 
 export interface WelcomeBonusCampaign {

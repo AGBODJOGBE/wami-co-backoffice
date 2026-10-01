@@ -47,8 +47,10 @@ import {
   fetchDriverCommissionDebtPageAction,
   fetchDriverDailyConnectionTimeAction,
   fetchDriverSessionsAction,
+  updateDriverCategoryAction,
   updateDriverInfoAction,
   updateDriverTypeAction,
+  type DriverCategory,
 } from "../application/actions";
 import {
   ADMIN_DRIVER_STATUS_META,
@@ -196,6 +198,93 @@ function DriverTypeEditor({ driverId, current }: { driverId: string; current: Dr
       >
         {DRIVER_TYPES.map((t) => (
           <option key={t} value={t}>{DRIVER_TYPE_LABELS[t]}</option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={save}
+        disabled={pending}
+        className="rounded bg-[color:var(--primary)] px-2 py-0.5 text-[10px] font-semibold text-white disabled:opacity-50"
+      >
+        {pending ? "…" : "OK"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setEditing(false)}
+        disabled={pending}
+        className="rounded px-1.5 py-0.5 text-[10px] text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)] disabled:opacity-50"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+// ─── Driver pricing/bonus category inline editor ──────────────────────────────
+// Catégorie tarifaire (STANDARD | PREMIUM | VIP) = `User.driverCategory` côté
+// backend, déjà exposée en lecture ici sous `enriched.category`
+// (ListDriversUseCase.ts:35 : `category = user.driverCategory`) mais jusqu'ici
+// affichée en texte statique. PATCH /api/users/:userId/driver-category la
+// modifie — scopée par User id, pas par driver profile id.
+
+const DRIVER_PRICING_CATEGORIES: DriverCategory[] = ["STANDARD", "PREMIUM", "VIP"];
+
+function DriverCategoryEditor({
+  userId,
+  driverId,
+  current,
+}: {
+  userId: string;
+  driverId: string;
+  current: DriverCategory | null;
+}) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState<DriverCategory>(current ?? "STANDARD");
+  const [pending, start] = useTransition();
+
+  function save() {
+    if (selected === current) { setEditing(false); return; }
+    start(async () => {
+      const r = await updateDriverCategoryAction(userId, selected, driverId);
+      if (r.ok) {
+        toast({ kind: "success", title: "Catégorie tarifaire mise à jour", description: r.message });
+        setEditing(false);
+        router.refresh();
+      } else {
+        toast({ kind: "error", title: "Échec", description: r.message });
+      }
+    });
+  }
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-1.5">
+        {current ? <Badge tone="neutral">{current}</Badge> : <span className="text-[color:var(--muted-foreground)]">—</span>}
+        <CanView permission="driver.update_type">
+          <button
+            type="button"
+            onClick={() => { setSelected(current ?? "STANDARD"); setEditing(true); }}
+            className="rounded p-0.5 text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]"
+            title="Modifier la catégorie tarifaire"
+          >
+            <Pencil className="size-3" />
+          </button>
+        </CanView>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <select
+        value={selected}
+        onChange={(e) => setSelected(e.target.value as DriverCategory)}
+        disabled={pending}
+        className="h-7 rounded border border-[color:var(--border)] bg-[color:var(--background)] px-1.5 text-xs text-[color:var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[color:var(--primary)]"
+      >
+        {DRIVER_PRICING_CATEGORIES.map((c) => (
+          <option key={c} value={c}>{c}</option>
         ))}
       </select>
       <button
@@ -1394,8 +1483,12 @@ export function DriverDetailClient({
                   <InfoCell label="Type">
                     <DriverTypeEditor driverId={driverId} current={enriched.driverType as DriverType} />
                   </InfoCell>
-                  <InfoCell label="Catégorie">
-                    <span className="text-sm font-medium">{enriched.category || category || "—"}</span>
+                  <InfoCell label="Catégorie tarifaire">
+                    <DriverCategoryEditor
+                      userId={enriched.userId}
+                      driverId={driverId}
+                      current={((enriched.category || category || null) as DriverCategory | null)}
+                    />
                   </InfoCell>
                   <InfoCell label="Note">
                     <span className="inline-flex items-center gap-1 text-sm">

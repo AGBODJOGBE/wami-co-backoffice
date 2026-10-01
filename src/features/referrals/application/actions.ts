@@ -153,3 +153,28 @@ export async function deleteReferralConfigAction(
     return fail(e, "Suppression impossible.");
   }
 }
+
+/** GET /api/admin/referrals/filleuls/:userId — détail d'un filleul par son userId. */
+export async function fetchFilleulDetailAction(
+  userId: string,
+): Promise<ActionResult<Referral>> {
+  try {
+    const data = await apiFetch<Referral>(API_ROUTES.adminReferrals.filleulDetail(userId));
+    return { ok: true, message: "", data };
+  } catch (e) {
+    return fail(e, "Filleul introuvable.");
+  }
+}
+
+/** GET /api/admin/referrals/parrains/:userId — tous les filleuls d'un parrain,
+ * sans la limite de 200 appliquée à la liste globale /referrals/parrains. */
+export async function fetchParrainDetailAction(
+  userId: string,
+): Promise<ActionResult<Referral[]>> {
+  try {
+    const data = await apiFetch<Referral[]>(API_ROUTES.adminReferrals.parrainDetail(userId));
+    return { ok: true, message: "", data: Array.isArray(data) ? data : [] };
+  } catch (e) {
+    return fail(e, "Parrain introuvable.");
+  }
+}

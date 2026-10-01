@@ -31,6 +31,7 @@ import {
   REFERRAL_TYPE_LABELS,
   type Referral,
 } from "../domain/referral";
+import { FilleulDetailModal } from "./referral-detail-modal";
 
 function notify(result: ActionResult<unknown>, title: string) {
   if (result.ok) toast({ kind: "success", title, description: result.message });
@@ -80,6 +81,7 @@ export function FilleulsListClient({ referrals, total }: FilleulsListClientProps
   const [refreshing, startRefresh] = useTransition();
   const [search,   setSearch]  = useState("");
   const [status,   setStatus]  = useState("ALL");
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let rows = referrals;
@@ -174,7 +176,18 @@ export function FilleulsListClient({ referrals, total }: FilleulsListClientProps
       render: (r) => <span className="text-xs text-[color:var(--muted-foreground)]">{formatDate(r.createdAt)}</span>,
       sortAccessor: (r) => r.createdAt,
     },
-    { key: "actions", header: "", render: (r) => <InlineActions referral={r} /> },
+    {
+      key: "actions",
+      header: "",
+      render: (r) => (
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" variant="ghost" onClick={() => setDetailUserId(r.referredUserId)}>
+            Détail
+          </Button>
+          <InlineActions referral={r} />
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -218,6 +231,8 @@ export function FilleulsListClient({ referrals, total }: FilleulsListClientProps
         />
         <PaginationFooter total={total} shown={filtered.length} />
       </div>
+
+      <FilleulDetailModal userId={detailUserId} onClose={() => setDetailUserId(null)} />
     </div>
   );
 }

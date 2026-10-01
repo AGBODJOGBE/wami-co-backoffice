@@ -43,13 +43,14 @@ export type PricingComponentType =
   | "PERCENTAGE_FEE"
   | "ZONE_MATRIX_PRICE"
   | "COD_FEE"
-  | "INSURANCE_FEE";
+  | "INSURANCE_FEE"
+  | "APPROACH_FEE";
 
 export interface PricingComponent {
   type: PricingComponentType;
   key: string;
   label: string;
-  /** Used by: FLAT_FEE, MINIMUM_FARE, PER_MINUTE, PER_KG (base), PER_UNIT, WAITING_FEE (rate), FIXED_SURCHARGE */
+  /** Used by: FLAT_FEE, MINIMUM_FARE, PER_MINUTE, PER_KG (base), PER_UNIT, WAITING_FEE (rate), FIXED_SURCHARGE, APPROACH_FEE (rate per km) */
   value?: number;
   /** Used by: MULTIPLIER (static coefficient), PERCENTAGE_FEE (rate 0→1), COD_FEE, INSURANCE_FEE */
   rate?: number;
@@ -57,8 +58,10 @@ export interface PricingComponent {
   rateFromContext?: string;
   /** Used by: PER_KG (free weight before charging) */
   threshold?: number;
-  /** Used by: WAITING_FEE (minutes before billing starts) */
+  /** Used by: WAITING_FEE (minutes before billing starts), APPROACH_FEE (free km before billing) */
   freeUnits?: number;
+  /** Used by: APPROACH_FEE — cap on billable units BEYOND freeUnits (e.g. 5 km). Beyond freeUnits + maxBillableUnits, the excess is absorbed, never billed. undefined = no cap. */
+  maxBillableUnits?: number;
   /** Used by: COD_FEE, INSURANCE_FEE — minimum guaranteed fee amount in centimes */
   minimum?: number;
   /** Used by: PER_KM_TIER */
@@ -151,6 +154,7 @@ export const COMPONENT_TYPE_LABELS: Record<PricingComponentType, string> = {
   ZONE_MATRIX_PRICE:"Prix matrice zone",
   COD_FEE:          "Frais remboursement (COD)",
   INSURANCE_FEE:    "Frais assurance colis",
+  APPROACH_FEE:     "Frais d'approche (chauffeur → passager)",
 };
 
 export const SERVICE_KEY_OPTIONS = (

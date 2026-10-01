@@ -10,7 +10,12 @@ import { Combobox } from "@/shared/ui/combobox";
 import { Input } from "@/shared/ui/input";
 import { PageHeader } from "@/shared/ui/page-header";
 import { StatCard } from "@/features/dashboard/presentation/components/stat-card";
-import type { AdminDriver, AdminDriverStatus } from "@/features/drivers/domain/admin-driver";
+import {
+  DRIVER_TYPE_LABELS,
+  type AdminDriver,
+  type AdminDriverStatus,
+  type DriverType,
+} from "@/features/drivers/domain/admin-driver";
 
 const STATUS_META: Record<AdminDriverStatus, { label: string; tone: "success" | "primary" | "warning" | "danger" | "neutral" | "info" }> = {
   ONLINE:    { label: "En ligne",       tone: "success" },
@@ -73,7 +78,7 @@ export function CouriersListPage({ drivers, total }: CouriersListPageProps) {
         eyebrow="Livraison B2C"
         title="Livreurs"
         dataSource="live"
-        dataSourceHint="GET /api/admin/drivers — tous les drivers de la plateforme. Stats livraison spécifiques à venir (GET /api/admin/delivery/couriers)."
+        dataSourceHint="GET /api/admin/drivers, filtré côté serveur sur driverType DELIVERY/BOTH. Stats livraison spécifiques à venir (GET /api/admin/delivery/couriers)."
         description="Flotte de livreurs — statut, note, véhicule. Lien vers la fiche VTC pour le détail complet."
       />
 
@@ -81,7 +86,7 @@ export function CouriersListPage({ drivers, total }: CouriersListPageProps) {
       <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 dark:border-sky-800 dark:bg-sky-950/30">
         <Info className="mt-0.5 size-4 shrink-0 text-sky-600 dark:text-sky-400" />
         <p className="text-xs text-sky-700 dark:text-sky-300">
-          Données issues de <code className="font-mono">GET /api/admin/drivers</code> — commun VTC + livraison.
+          Filtré sur les pilotes de type <strong>Livraison</strong> ou <strong>VTC + Livraison</strong> (issus de <code className="font-mono">GET /api/admin/drivers</code>).
           Les stats propres livraison (nb livraisons, taux succès, revenus) nécessitent <code className="font-mono">GET /api/admin/delivery/couriers</code> (endpoint à créer côté backend).
         </p>
       </div>
@@ -139,7 +144,7 @@ export function CouriersListPage({ drivers, total }: CouriersListPageProps) {
         <Card className="flex flex-col items-center gap-3 py-16 text-center">
           <Bike className="size-10 text-[color:var(--muted-foreground)]" />
           <p className="text-sm text-[color:var(--muted-foreground)]">
-            {drivers.length === 0 ? "Aucun driver chargé." : "Aucun driver ne correspond aux filtres."}
+            {drivers.length === 0 ? "Aucun livreur chargé." : "Aucun livreur ne correspond aux filtres."}
           </p>
         </Card>
       ) : (
@@ -162,12 +167,17 @@ export function CouriersListPage({ drivers, total }: CouriersListPageProps) {
                             {fullName}
                           </span>
                           <span className="text-xs text-[color:var(--muted-foreground)]">
-                            {d.category ?? d.driverType ?? "—"}
+                            {d.category ?? "—"}
                             {d.isOnline === true ? " · 🟢 GPS actif" : ""}
                           </span>
                         </div>
                       </div>
-                      <Badge tone={meta.tone}>{meta.label}</Badge>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge tone={meta.tone}>{meta.label}</Badge>
+                        <Badge tone={d.driverType === "BOTH" ? "primary" : "info"} className="text-[9px]">
+                          {DRIVER_TYPE_LABELS[d.driverType as DriverType] ?? d.driverType}
+                        </Badge>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-3 text-xs text-[color:var(--muted-foreground)]">

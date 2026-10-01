@@ -31,9 +31,11 @@ import { formatDate } from "@/shared/lib/format";
 import { StatCard } from "@/features/dashboard/presentation/components/stat-card";
 import {
   ADMIN_DRIVER_STATUS_META,
+  DRIVER_TYPE_LABELS,
   fullName,
   type AdminDriver,
   type AdminDriverStatus,
+  type DriverType,
 } from "../domain/admin-driver";
 import { CanView } from "@/shared/ui/can-view";
 import {
@@ -57,6 +59,13 @@ const CATEGORY_OPTIONS = [
   { value: "STANDARD", label: "Standard"           },
   { value: "PREMIUM",  label: "Premium"            },
   { value: "VIP",      label: "VIP"               },
+];
+
+const DRIVER_TYPE_OPTIONS = [
+  { value: "ALL",      label: "Type : tous" },
+  { value: "VTC",      label: "VTC" },
+  { value: "DELIVERY", label: "Livraison" },
+  { value: "BOTH",     label: "VTC + Livraison" },
 ];
 
 type SessionEntry = { totalSeconds: number; openSince: string | null };
@@ -86,6 +95,7 @@ export function AdminDriversListClient({
   const [search,  setSearch]  = useState("");
   const [statusF, setStatusF] = useState("ALL");
   const [catF,    setCatF]    = useState("ALL");
+  const [typeF,   setTypeF]   = useState("ALL");
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => { setNow(Date.now()); }, []);
   const [suspendTarget, setSuspendTarget] = useState<DriverTarget | null>(null);
@@ -99,9 +109,10 @@ export function AdminDriversListClient({
       }
       if (statusF !== "ALL" && d.status !== statusF) return false;
       if (catF !== "ALL" && (d.vehicle?.vehicleCategory ?? d.category) !== catF) return false;
+      if (typeF !== "ALL" && d.driverType !== typeF) return false;
       return true;
     });
-  }, [drivers, search, statusF, catF]);
+  }, [drivers, search, statusF, catF, typeF]);
 
   const stats = useMemo(() => {
     const hasOnlineData = drivers.some((d) => d.isOnline !== undefined);
@@ -159,6 +170,16 @@ export function AdminDriversListClient({
         };
         return <Badge tone={m.tone}>{m.label}</Badge>;
       },
+    },
+    {
+      key: "type",
+      header: "Type",
+      sortAccessor: (r) => r.driverType,
+      render: (r) => (
+        <Badge tone={r.driverType === "DELIVERY" ? "info" : r.driverType === "BOTH" ? "primary" : "neutral"}>
+          {DRIVER_TYPE_LABELS[r.driverType as DriverType] ?? r.driverType}
+        </Badge>
+      ),
     },
     {
       key: "vehicle",
@@ -346,6 +367,7 @@ export function AdminDriversListClient({
         />
         <Combobox options={STATUS_OPTIONS} value={statusF} onChange={setStatusF} className="sm:w-44" />
         <Combobox options={CATEGORY_OPTIONS} value={catF} onChange={setCatF} className="sm:w-44" />
+        <Combobox options={DRIVER_TYPE_OPTIONS} value={typeF} onChange={setTypeF} className="sm:w-44" />
         <div className="ml-auto flex items-center gap-2">
           <Button
             variant="outline"
@@ -367,6 +389,7 @@ export function AdminDriversListClient({
                   { key: "nom",      header: "Nom",        value: (r) => fullName(r)                                  },
                   { key: "phone",    header: "Téléphone",  value: (r) => r.phoneNumber                                },
                   { key: "statut",   header: "Statut",     value: (r) => r.status                                     },
+                  { key: "type",     header: "Type",       value: (r) => DRIVER_TYPE_LABELS[r.driverType as DriverType] ?? r.driverType },
                   { key: "categorie",header: "Catégorie",  value: (r) => r.vehicle?.vehicleCategory ?? r.category ?? "" },
                   { key: "note",     header: "Note",       value: (r) => r.rating                                     },
                   { key: "courses",  header: "Courses",    value: (r) => r.totalRides                                 },

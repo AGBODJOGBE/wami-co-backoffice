@@ -65,6 +65,7 @@ export type TransactionType =
   | "CONTRACT_INSTALLMENT_REVENUE"
   | "CONTRACT_INSTALLMENT_MANUAL_PAYMENT"
   | "CONTRACT_REVENUE_RETROACTIVE_REVERSAL"
+  | "CONTRACT_REVENUE_SHARE"
   // Véhicule
   | "VEHICLE_RENTAL"
   | "VEHICLE_RENTAL_REVENUE"
@@ -160,6 +161,7 @@ export const TRANSACTION_TYPE_META: Record<
   CONTRACT_INSTALLMENT_REVENUE:          { label: "Revenu échéance contrat",         tone: "primary",  group: "Contrats"        },
   CONTRACT_INSTALLMENT_MANUAL_PAYMENT:   { label: "Paiement manuel contrat",         tone: "info",     group: "Contrats"        },
   CONTRACT_REVENUE_RETROACTIVE_REVERSAL: { label: "Annulation revenu rétroactif",    tone: "warning",  group: "Contrats"        },
+  CONTRACT_REVENUE_SHARE:                { label: "Prélèvement contrat (revenu)",    tone: "danger",   group: "Contrats"        },
   // Véhicule
   VEHICLE_RENTAL:                        { label: "Location véhicule",               tone: "danger",   group: "Véhicule"        },
   VEHICLE_RENTAL_REVENUE:                { label: "Revenu location véhicule",        tone: "primary",  group: "Véhicule"        },

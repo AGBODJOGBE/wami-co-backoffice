@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, Gauge, MapPin, Navigation, Radio, User } from "lucide-react";
+import { Bike, Building2, Gauge, MapPin, Navigation, Radio, User } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import { Card } from "@/shared/ui/card";
 import { Tabs } from "@/shared/ui/tabs";
@@ -185,6 +185,7 @@ export interface DriversTabsProps {
   sessionsByDriverId: Map<string, SessionInfo>;
   platformVehicleDrivers: AdminDriver[];
   otherApprovedDrivers: AdminDriver[];
+  deliveryDrivers: AdminDriver[];
 }
 
 export function DriversTabs({
@@ -199,6 +200,7 @@ export function DriversTabs({
   sessionsByDriverId,
   platformVehicleDrivers,
   otherApprovedDrivers,
+  deliveryDrivers,
 }: DriversTabsProps) {
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
 
@@ -238,6 +240,34 @@ export function DriversTabs({
           ) : (
             <AdminDriversListClient drivers={all} total={allTotal} sessionMap={sessionsByDriverId} />
           ),
+        },
+        {
+          value: "delivery",
+          label: (
+            <span className="flex items-center gap-1.5">
+              <Bike className="size-3.5 shrink-0" />
+              Livreurs
+            </span>
+          ),
+          badge:
+            deliveryDrivers.length > 0
+              ? { count: deliveryDrivers.length, tone: "primary" as const }
+              : undefined,
+          content:
+            deliveryDrivers.length === 0 ? (
+              <Card className="p-8 text-center">
+                <Bike className="mx-auto mb-2 size-8 text-[color:var(--muted-foreground)]" />
+                <p className="text-sm text-[color:var(--muted-foreground)]">
+                  Aucun pilote approuvé rattaché à la livraison (type Livraison ou VTC + Livraison).
+                </p>
+              </Card>
+            ) : (
+              <AdminDriversListClient
+                drivers={deliveryDrivers}
+                total={deliveryDrivers.length}
+                sessionMap={sessionsByDriverId}
+              />
+            ),
         },
         {
           value: "platform-vehicles",

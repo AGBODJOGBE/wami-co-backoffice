@@ -1,9 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  Ban,
   Banknote,
   Calendar,
   Car as CarIcon,
@@ -16,6 +17,7 @@ import {
   Package,
   Phone,
   RefreshCw,
+  ShieldCheck,
   Star,
   TrendingUp,
   UserCircle,
@@ -25,10 +27,13 @@ import { Avatar } from "@/shared/ui/avatar";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { ConfirmModal } from "@/shared/ui/confirm-modal";
 import { DetailHeader, DetailNotFound } from "@/shared/ui/detail-header";
 import { CopyableId } from "@/shared/ui/copy-button";
 import { Spinner } from "@/shared/ui/spinner";
+import { toast } from "@/shared/ui/toast";
 import { formatDate, formatDateTime, formatXof } from "@/shared/lib/format";
+import { activatePassengerAction, deactivatePassengerAction } from "./application/actions";
 import { PAYMENT_METHOD_LABELS, VEHICLE_TYPE_LABELS } from "@/features/rides/domain/ride";
 import { fullParty, rideStatusMeta, type AdminRide } from "@/features/rides/domain/admin-ride";
 import type { AdminWallet } from "@/features/wallet/domain/wallet";
@@ -298,6 +303,8 @@ export function PassengerDetailPage({
 }: PassengerDetailPageProps) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
+  const [toggling, startToggle] = useTransition();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   if (!passenger) {
     return (
@@ -389,8 +396,67 @@ export function PassengerDetailPage({
               {refreshing ? <Spinner size="sm" /> : <RefreshCw className="size-4" />}
               Rafraîchir
             </Button>
+            {passenger.isSuspended ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={toggling}
+                onClick={() =>
+                  startToggle(async () => {
+                    const r = await activatePassengerAction(passenger.passengerId);
+                    if (r.ok) {
+                      toast({ kind: "success", title: "Compte réactivé", description: r.message });
+                      router.refresh();
+                    } else {
+                      toast({ kind: "error", title: "Échec", description: r.message });
+                    }
+                  })
+                }
+              >
+                {toggling ? <Spinner size="sm" /> : <ShieldCheck className="size-4" />}
+                Réactiver
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={toggling}
+                onClick={() => setConfirmOpen(true)}
+                className="border-[color:var(--danger)]/40 text-[color:var(--danger)] hover:bg-[color:var(--danger)]/10"
+              >
+                {toggling ? <Spinner size="sm" /> : <Ban className="size-4" />}
+                Suspendre
+              </Button>
+            )}
           </>
         }
+      />
+
+      <ConfirmModal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() =>
+          startToggle(async () => {
+            const r = await deactivatePassengerAction(passenger.passengerId);
+            if (r.ok) {
+              toast({ kind: "success", title: "Compte suspendu", description: r.message });
+              setConfirmOpen(false);
+              router.refresh();
+            } else {
+              toast({ kind: "error", title: "Échec", description: r.message });
+            }
+          })
+        }
+        title="Suspendre ce compte ?"
+        description={
+          <p>
+            <strong>{passenger.fullName}</strong> ne pourra plus commander de courses
+            tant que le compte n&apos;est pas réactivé.
+          </p>
+        }
+        confirmLabel="Suspendre"
+        tone="danger"
+        isLoading={toggling}
       />
 
       {/* ── Suspension alert ─────────────────────────────────────────────────── */}

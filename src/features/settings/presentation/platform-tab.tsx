@@ -18,9 +18,10 @@ import type { AppVersionConfig } from "../domain/admin-user";
 import type { SystemConfigEntry, WalletConfig, WelcomeBonusCampaign } from "../application/api";
 import {
   SCHEDULED_SUBGROUPS,
-  SYSTEM_CONFIG_CATALOG,
   SYSTEM_CONFIG_GROUPS,
+  SYSTEM_CONFIG_UNIT_LABELS,
   resolveConfigGroup,
+  resolveScheduledSubgroup,
 } from "../domain/system-config-catalog";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -721,19 +722,31 @@ const CONFIG_TYPE_TONE: Record<string, "primary" | "info" | "warning" | "neutral
 function SystemConfigRow({ entry }: { entry: SystemConfigEntry }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(entry.value);
+  const [forcing, setForcing] = useState(false);
+  // `value`/`displayValue` sont TOUJOURS en unité humaine — c'est ce que
+  // l'admin lit et saisit ; le backend convertit vers le stockage via la
+  // spec de la clé (voir updateSystemConfigAction).
+  const currentDisplay = entry.displayValue ?? entry.value;
+  const [value, setValue] = useState(currentDisplay);
+  const [justification, setJustification] = useState("");
   const [pending, start] = useTransition();
 
-  const meta = SYSTEM_CONFIG_CATALOG[entry.key];
-  const displayLabel = meta?.label ?? entry.key;
-  const displayDescription = meta?.description ?? entry.description;
+  const hasSpec = entry.hasSpec === true;
+  const displayLabel = entry.label ?? entry.key;
+  const unitLabel = entry.unit ? SYSTEM_CONFIG_UNIT_LABELS[entry.unit] : undefined;
 
-  function save() {
+  function save(force = false) {
+    if (force && !justification.trim()) {
+      toast({ kind: "error", title: "Justification requise", description: "Explique pourquoi cette dérogation est nécessaire." });
+      return;
+    }
     start(async () => {
-      const r = await updateSystemConfigAction(entry.key, value);
+      const r = await updateSystemConfigAction(entry.key, value, force ? { force: true, justification: justification.trim() } : undefined);
       if (r.ok) {
         toast({ kind: "success", title: "Paramètre mis à jour", description: r.message });
         setEditing(false);
+        setForcing(false);
+        setJustification("");
         router.refresh();
       } else {
         toast({ kind: "error", title: "Échec", description: r.message });
@@ -742,31 +755,59 @@ function SystemConfigRow({ entry }: { entry: SystemConfigEntry }) {
   }
 
   function openEdit() {
-    setValue(entry.value);
+    setValue(currentDisplay);
     setEditing(true);
+    setForcing(false);
+    setJustification("");
+  }
+
+  function cancelEdit() {
+    setValue(currentDisplay);
+    setEditing(false);
+    setForcing(false);
+    setJustification("");
   }
 
   const isBoolean = entry.type === "BOOLEAN";
   const isNumeric = entry.type === "INTEGER" || entry.type === "FLOAT";
+  const bounds = [
+    entry.min != null ? `min ${entry.min}` : null,
+    entry.max != null ? `max ${entry.max}` : null,
+    entry.mustDivide != null ? `doit diviser ${entry.mustDivide}` : null,
+  ].filter(Boolean).join(" · ");
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/10 p-3">
+    <div
+      className={`flex flex-col gap-2 rounded-lg border p-3 ${
+        entry.forcedOutOfBounds || entry.withinBounds === false
+          ? "border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/20"
+          : "border-[color:var(--border)] bg-[color:var(--muted)]/10"
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex flex-col gap-0.5 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-[color:var(--foreground)]">{displayLabel}</span>
-            <Badge tone={CONFIG_TYPE_TONE[entry.type] ?? "neutral"}>
-              {entry.type}
-            </Badge>
+            <Badge tone={CONFIG_TYPE_TONE[entry.type] ?? "neutral"}>{entry.type}</Badge>
+            {unitLabel ? <Badge tone="neutral">{unitLabel || entry.unit}</Badge> : null}
+            {!hasSpec && <Badge tone="neutral">non validé</Badge>}
           </div>
           <span className="font-mono text-[10px] text-[color:var(--muted-foreground)]">{entry.key}</span>
-          {displayDescription && (
-            <span className="text-[11px] text-[color:var(--muted-foreground)]">{displayDescription}</span>
+          {entry.description && (
+            <span className="text-[11px] text-[color:var(--muted-foreground)]">{entry.description}</span>
           )}
-          {meta?.warning && (
+          {bounds && (
+            <span className="text-[10px] text-[color:var(--muted-foreground)]">Bornes : {bounds}</span>
+          )}
+          {entry.allowedValues && entry.allowedValues.length > 0 && (
+            <span className="text-[10px] text-[color:var(--muted-foreground)]">
+              Valeurs autorisées : {entry.allowedValues.join(", ")}
+            </span>
+          )}
+          {(entry.forcedOutOfBounds || entry.withinBounds === false) && (
             <span className="mt-0.5 flex items-start gap-1 text-[11px] text-amber-600 dark:text-amber-400">
               <AlertTriangle className="mt-0.5 size-3 shrink-0" />
-              {meta.warning}
+              Valeur actuelle hors des bornes déclarées — acceptée en dérogation explicite.
             </span>
           )}
           {entry.updatedAt && (
@@ -781,7 +822,8 @@ function SystemConfigRow({ entry }: { entry: SystemConfigEntry }) {
         {!editing && (
           <div className="flex shrink-0 items-center gap-2">
             <span className="font-mono text-sm font-bold text-[color:var(--foreground)]">
-              {isBoolean ? (entry.value === "true" ? "Oui" : "Non") : entry.value}
+              {isBoolean ? (currentDisplay === "true" ? "Oui" : "Non") : currentDisplay}
+              {unitLabel ? ` ${unitLabel}` : ""}
             </span>
             <CanView permission="app_config.manage">
               <Button variant="outline" size="sm" onClick={openEdit}>
@@ -794,35 +836,60 @@ function SystemConfigRow({ entry }: { entry: SystemConfigEntry }) {
       </div>
 
       {editing && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-[color:var(--border)] pt-2">
-          {isBoolean ? (
-            <label className="flex cursor-pointer items-center gap-2">
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={value === "true"}
-                  onChange={(e) => setValue(e.target.checked ? "true" : "false")}
-                />
-                <div className={`h-5 w-9 rounded-full transition-colors ${value === "true" ? "bg-emerald-500" : "bg-[color:var(--muted)]"}`} />
-                <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${value === "true" ? "translate-x-4" : "translate-x-0.5"}`} />
-              </div>
-              <span className="text-sm">{value === "true" ? "Activé" : "Désactivé"}</span>
-            </label>
-          ) : (
-            <Input
-              type={isNumeric ? "number" : "text"}
-              step={entry.type === "FLOAT" ? "0.01" : undefined}
-              inputMode={isNumeric ? "decimal" : undefined}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              className="w-44"
-            />
+        <div className="flex flex-col gap-2 border-t border-[color:var(--border)] pt-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {isBoolean ? (
+              <label className="flex cursor-pointer items-center gap-2">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={value === "true"}
+                    onChange={(e) => setValue(e.target.checked ? "true" : "false")}
+                  />
+                  <div className={`h-5 w-9 rounded-full transition-colors ${value === "true" ? "bg-emerald-500" : "bg-[color:var(--muted)]"}`} />
+                  <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${value === "true" ? "translate-x-4" : "translate-x-0.5"}`} />
+                </div>
+                <span className="text-sm">{value === "true" ? "Activé" : "Désactivé"}</span>
+              </label>
+            ) : (
+              <Input
+                type={isNumeric ? "number" : "text"}
+                step={entry.type === "FLOAT" ? "0.01" : undefined}
+                inputMode={isNumeric ? "decimal" : undefined}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                className="w-44"
+                hint={unitLabel || undefined}
+              />
+            )}
+            <Button size="sm" onClick={() => save(false)} isLoading={pending && !forcing}>Enregistrer</Button>
+            <Button size="sm" variant="ghost" onClick={cancelEdit} disabled={pending}>Annuler</Button>
+          </div>
+
+          {hasSpec && !forcing && (
+            <button
+              type="button"
+              onClick={() => setForcing(true)}
+              className="self-start text-[11px] text-[color:var(--muted-foreground)] underline decoration-dotted hover:text-[color:var(--foreground)]"
+            >
+              La valeur est refusée par les bornes ? Forcer une dérogation…
+            </button>
           )}
-          <Button size="sm" onClick={save} isLoading={pending}>Enregistrer</Button>
-          <Button size="sm" variant="ghost" onClick={() => { setValue(entry.value); setEditing(false); }} disabled={pending}>
-            Annuler
-          </Button>
+          {hasSpec && forcing && (
+            <div className="flex flex-col gap-1.5 rounded-md border border-amber-300 bg-amber-50 p-2 dark:border-amber-700 dark:bg-amber-950/30">
+              <Textarea
+                label="Justification de la dérogation *"
+                value={justification}
+                onChange={(e) => setJustification(e.target.value)}
+                placeholder="Pourquoi cette valeur hors bornes est nécessaire…"
+                rows={2}
+              />
+              <Button size="sm" variant="outline" className="self-start border-amber-400 text-amber-700 dark:text-amber-400" onClick={() => save(true)} isLoading={pending && forcing}>
+                Forcer malgré les bornes
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -830,7 +897,7 @@ function SystemConfigRow({ entry }: { entry: SystemConfigEntry }) {
 }
 
 /** Ordre d'affichage des groupes — des sujets les plus "temps réel" aux plus "back-office". */
-const GROUP_ORDER = ["presence", "matching", "scheduled", "contracts", "promo", "other"] as const;
+const GROUP_ORDER = ["presence", "matching", "approach", "scheduled", "contracts", "pricing", "promo", "other"] as const;
 const SUBGROUP_ORDER = ["window", "guarantee", "dispatch", "incidents"] as const;
 
 function SystemConfigsCard({ configs }: { configs: SystemConfigEntry[] }) {
@@ -843,8 +910,7 @@ function SystemConfigsCard({ configs }: { configs: SystemConfigEntry[] }) {
     if (!isSearching) return configs;
     const q = search.trim().toLowerCase();
     return configs.filter((c) => {
-      const meta = SYSTEM_CONFIG_CATALOG[c.key];
-      const hay = `${c.key} ${meta?.label ?? ""} ${meta?.description ?? c.description ?? ""}`.toLowerCase();
+      const hay = `${c.key} ${c.label ?? ""} ${c.description ?? ""}`.toLowerCase();
       return hay.includes(q);
     });
   }, [configs, search, isSearching]);
@@ -852,7 +918,7 @@ function SystemConfigsCard({ configs }: { configs: SystemConfigEntry[] }) {
   const grouped = useMemo(() => {
     const byGroup = new Map<string, SystemConfigEntry[]>();
     for (const entry of filtered) {
-      const groupId = resolveConfigGroup(entry.key);
+      const groupId = resolveConfigGroup(entry.key, entry.module);
       if (!byGroup.has(groupId)) byGroup.set(groupId, []);
       byGroup.get(groupId)!.push(entry);
     }
@@ -903,7 +969,7 @@ function SystemConfigsCard({ configs }: { configs: SystemConfigEntry[] }) {
                 id === "scheduled"
                   ? SUBGROUP_ORDER.map((sub) => ({
                       sub,
-                      items: entries.filter((e) => SYSTEM_CONFIG_CATALOG[e.key]?.subgroup === sub),
+                      items: entries.filter((e) => resolveScheduledSubgroup(e.key) === sub),
                     })).filter((g) => g.items.length > 0)
                   : null;
 

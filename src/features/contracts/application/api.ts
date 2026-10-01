@@ -9,6 +9,9 @@ import type {
   ContractInstallment,
   ContractKpis,
   ContractStatus,
+  ModeRemboursement,
+  RevenueShareAlertsResult,
+  RevenueShareWithholdingsResult,
 } from "../domain/contract";
 
 // ─── Field mappings (API → domain) ───────────────────────────────────────────
@@ -101,6 +104,10 @@ function normalizeContract(raw: unknown): Contract {
     breakReason: (c.brokenReason ?? c.breakReason ?? c.motifRupture ?? null) as string | null,
     montantCaution: (c.montantCaution ?? undefined) as number | undefined,
     cautionRestituee: (c.cautionRestituee ?? undefined) as boolean | undefined,
+    modeRemboursement: (c.modeRemboursement ?? "ECHEANCIER") as ModeRemboursement,
+    tauxPrelevementRevenu: (c.tauxPrelevementRevenu ?? null) as number | null,
+    dateBasculePrelevement: (c.dateBasculePrelevement ?? null) as string | null,
+    revenueShareSummary: c.revenueShareSummary as import("../domain/contract").RevenueShareSummary | undefined,
   };
 }
 
@@ -312,4 +319,46 @@ export async function getContractInstallments(
 ): Promise<ContractInstallment[]> {
   const raw = await apiFetch<unknown>(API_ROUTES.adminContracts.installments(id));
   return normalizeInstallments(raw);
+}
+
+// ─── Revenue share (remboursement par prélèvement sur revenus) ───────────────
+
+/** GET /api/admin/contracts/revenue-share/alerts — contrats PAR_REVENU nécessitant une attention admin. */
+export async function getRevenueShareAlerts(
+  params?: { page?: number; limit?: number },
+): Promise<RevenueShareAlertsResult> {
+  const empty: RevenueShareAlertsResult = { items: [], total: 0, page: 1, limit: 20 };
+  const raw = await apiFetch<unknown>(API_ROUTES.adminContracts.revenueShareAlerts(), {
+    query: { page: params?.page ?? 1, limit: params?.limit ?? 20 },
+  });
+  if (!raw || typeof raw !== "object") return empty;
+  const r = raw as Record<string, unknown>;
+  if (!Array.isArray(r.items)) return empty;
+  return {
+    items: r.items as RevenueShareAlertsResult["items"],
+    total: typeof r.total === "number" ? r.total : r.items.length,
+    page: typeof r.page === "number" ? r.page : 1,
+    limit: typeof r.limit === "number" ? r.limit : 20,
+  };
+}
+
+/** GET /api/admin/contracts/:id/revenue-share/withholdings — historique paginé des prélèvements. */
+export async function getContractRevenueShareWithholdings(
+  contractId: string,
+  params?: { page?: number; limit?: number },
+): Promise<RevenueShareWithholdingsResult> {
+  const empty: RevenueShareWithholdingsResult = { items: [], total: 0, page: 1, limit: 20 };
+  const raw = await apiFetch<unknown>(
+    API_ROUTES.adminContracts.revenueShareWithholdings(contractId),
+    { query: { page: params?.page ?? 1, limit: params?.limit ?? 20 } },
+  );
+  if (!raw || typeof raw !== "object") return empty;
+  const r = raw as Record<string, unknown>;
+  if (!Array.isArray(r.items)) return empty;
+  return {
+    items: r.items as RevenueShareWithholdingsResult["items"],
+    total: typeof r.total === "number" ? r.total : r.items.length,
+    page: typeof r.page === "number" ? r.page : 1,
+    limit: typeof r.limit === "number" ? r.limit : 20,
+  };
 }

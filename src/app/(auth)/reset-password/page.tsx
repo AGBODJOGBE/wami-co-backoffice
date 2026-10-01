@@ -6,7 +6,7 @@ export default function ResetPasswordPage() {
   return (
     <AuthCard
       title="Nouveau mot de passe"
-      description="Choisis un mot de passe d'au moins 8 caractères."
+      description="Entre le code reçu par SMS et choisis un mot de passe d'au moins 8 caractères."
       footer={
         <Link
           href="/login"

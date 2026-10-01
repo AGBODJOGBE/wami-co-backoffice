@@ -7,12 +7,19 @@ export const dynamic = "force-dynamic";
 export default async function CouriersRoute() {
   await requirePermission("delivery_b2c.view_all");
 
-  let drivers: Awaited<ReturnType<typeof listAdminDrivers>> = { drivers: [], total: 0 };
+  let allDrivers: Awaited<ReturnType<typeof listAdminDrivers>> = { drivers: [], total: 0 };
   try {
-    drivers = await listAdminDrivers();
+    allDrivers = await listAdminDrivers();
   } catch {
     // Affichage dégradé
   }
 
-  return <CouriersListPage drivers={drivers.drivers} total={drivers.total} />;
+  // Livreurs uniquement — driverType DELIVERY ou BOTH. La liste brute
+  // /api/admin/drivers renvoie TOUS les drivers (VTC inclus) : sans ce filtre,
+  // cette page "Livraison" affichait des pilotes VTC purs, mélangés aux livreurs.
+  const couriers = allDrivers.drivers.filter(
+    (d) => d.driverType === "DELIVERY" || d.driverType === "BOTH",
+  );
+
+  return <CouriersListPage drivers={couriers} total={couriers.length} />;
 }
