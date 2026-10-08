@@ -165,6 +165,12 @@ export interface CreatePromoCodeInput {
    * intégralement) jusqu'à épuisement de `sponsoredBudget`, qui devient
    * alors OBLIGATOIRE. Requiert la permission `promo.manage-budgeted`. */
   budgetedLossCampaign?: boolean;
+  /** Résiduel de marge MINIMUM propre à ce code, en POINTS DE POURCENTAGE
+   * (ex: 2.5 = 2,5 %), décimales permises, borne [1, 100]. `null` = suit le
+   * réglage global PROMO_MARGIN_GUARD_RESIDUAL_PCT. Écrire une valeur non
+   * nulle requiert la permission `promo.manage-budgeted` EN PLUS de
+   * `promo.manage` — y compris pour remettre explicitement `null`. */
+  marginResidualPct?: number | null;
 }
 
 /** Promo code as returned by the list endpoint (best-effort shape, the
@@ -190,6 +196,12 @@ export interface SetPromoCodeAffiliateResult {
   promoCodeId: string;
   affiliateId: string | null;
   affiliateCommissionRate: number | null;
+}
+
+/** Réponse de PATCH /api/admin/promo-codes/{id}/margin-residual. */
+export interface SetPromoCodeMarginResidualResult {
+  promoCodeId: string;
+  marginResidualPct: number | null;
 }
 
 /** Réponse RÉELLE de POST /api/admin/promo-codes — pas un `PromoCode`
@@ -262,6 +274,7 @@ export function defaultPromoCodeInput(): CreatePromoCodeInput {
     affiliateCommissionRate: null,
     commissionBase: "PLATFORM_MARGIN",
     budgetedLossCampaign: false,
+    marginResidualPct: null,
   };
 }
 

@@ -8,7 +8,10 @@ export type RideStatus =
   | "CANCELLED"
   | "NO_DRIVER_FOUND";
 
-export type VehicleType = "MOTO" | "TRICYCLE" | "STANDARD" | "PREMIUM" | "VIP";
+/** Enum backend réel (src/shared/domain/enums/VehicleType.ts) — 7 valeurs.
+ * "PREMIUM" n'existe PAS en sortie : c'est un alias d'ENTRÉE uniquement pour
+ * CONFORT (normalizeRideVehicleTypeInput) — jamais stocké ni renvoyé. */
+export type VehicleType = "MOTO" | "TRICYCLE" | "ECO" | "STANDARD" | "CONFORT" | "VAN" | "VIP";
 
 export type PaymentMethod = "CASH" | "WALLET" | "MOBILE_MONEY" | "CARD";
 
@@ -50,8 +53,10 @@ export const RIDE_STATUS_META: Record<
 export const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
   MOTO: "Moto",
   TRICYCLE: "Tricycle",
+  ECO: "Éco",
   STANDARD: "Standard",
-  PREMIUM: "Premium",
+  CONFORT: "Confort",
+  VAN: "Van",
   VIP: "VIP",
 };
 

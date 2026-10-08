@@ -16,7 +16,8 @@ export type RideStatus =
   | "CANCELLED_DRIVER"
   | "CANCELLED_SYSTEM"
   | "DISPUTED"
-  | "RATED";
+  | "RATED"
+  | "NO_SHOW_PASSENGER";
 
 export interface RidePartyRef {
   passengerId?: string;
@@ -91,7 +92,28 @@ export interface AdminRide {
   cancelledAt?: string | null;
   createdAt: string;
   updatedAt?: string;
+  /** Instant d'affectation du chauffeur courant — réécrit à chaque réaffectation. */
+  driverAssignedAt?: string | null;
+  /** Instant d'entrée en DRIVER_EN_ROUTE (départ auto pour une réservation, pas une acceptation humaine). */
+  acceptedAt?: string | null;
+  driverAssignmentSource?: DriverAssignmentSource | null;
+  /** Instant du passage à NO_DRIVER_FOUND. */
+  noDriverFoundAt?: string | null;
 }
+
+/** src/modules/ride/domain/value-objects/DriverAssignmentSource.ts */
+export type DriverAssignmentSource =
+  | "DRIVER_ACCEPTED"
+  | "THIRD_PARTY_ASSIGNED"
+  | "PICKUP_DECLARED"
+  | "SCHEDULED_PRE_ASSIGNED";
+
+export const DRIVER_ASSIGNMENT_SOURCE_LABELS: Record<DriverAssignmentSource, string> = {
+  DRIVER_ACCEPTED: "Accepté par le chauffeur",
+  THIRD_PARTY_ASSIGNED: "Affecté par un tiers",
+  PICKUP_DECLARED: "Déclaré (pickup)",
+  SCHEDULED_PRE_ASSIGNED: "Pré-affecté (réservation)",
+};
 
 export interface AdminRidesResult {
   rides: AdminRide[];
@@ -108,6 +130,12 @@ export interface RideDetail {
   rideType: string;
   vehicleType: string;
   paymentMethod: string;
+  /** Toujours présent, INSTANT pour les anciennes courses. */
+  scheduleType: "INSTANT" | "SCHEDULED";
+  /** Résumé léger (montant gelé + taux) — absent côté pilote, null si course INSTANT.
+   * ⚠️ `status` est toujours null via cette route (guaranteeStatusReader non câblé côté
+   * admin) : pour le détail réel du règlement, utiliser GET .../guarantee-settlement. */
+  guarantee?: { amount: number; rate: number | null; status: "HELD" | "CAPTURED" | "RELEASED" | "IMPUTED" | null } | null;
 
   passenger: {
     passengerId: string;
@@ -228,6 +256,9 @@ export const RIDE_STATUS_META: Record<
   CANCELLED_DRIVER: { label: "Annulée (driver)", tone: "neutral" },
   CANCELLED_SYSTEM: { label: "Annulée (système)", tone: "danger" },
   NO_DRIVER_FOUND: { label: "Aucun driver trouvé", tone: "warning" },
+  /** Statut terminal lecture seule — jamais settable par l'admin
+   * (Ride.adminOverrideStatus n'autorise que CANCELLED_SYSTEM/COMPLETED/RATED comme cibles). */
+  NO_SHOW_PASSENGER: { label: "No-show passager", tone: "danger" },
 };
 
 export function rideStatusMeta(status: string) {
@@ -277,3 +308,112 @@ export function fullParty(p: RidePartyRef | null | undefined): string {
   const name = `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim();
   return name || "—";
 }
+
+// ─── Résumé de la recherche chauffeur (matching) ───────────────────────────
+// GET /api/admin/rides/:rideId/matching — aucun driverId ni localisation,
+// uniquement des compteurs. Voir ai-docs/data/ride-traceability-fields.md.
+
+export type MatchingTrigger = "INITIAL" | "ESCALATION" | "SURGE_RETRY" | "FALLBACK_VEHICLE";
+export type MatchingOutcome = "SOLICITED" | "NO_CANDIDATE_IN_RADIUS" | "ALL_EXCLUDED_BALANCE" | "EXHAUSTED";
+export type MatchingMilestoneCode =
+  | "SURGE_ACTIVATED"
+  | "FALLBACK_PROPOSED"
+  | "FALLBACK_ACCEPTED"
+  | "FALLBACK_EXPIRED"
+  | "ATTEMPTS_CAP_REACHED"
+  | "RADIUS_STEPS_EXHAUSTED";
+export type MatchingFailureReason =
+  | "NO_CANDIDATE_IN_RADIUS"
+  | "ALL_EXCLUDED_BALANCE"
+  | "ALL_IGNORED_OR_REJECTED"
+  | "FALLBACK_NO_CANDIDATE"
+  | "SURGE_EXPIRED"
+  | "STUCK_SWEEP"
+  | "LEGACY_NO_DRIVER_JOB"
+  | "SCHEDULED_DECLARED";
+
+export const MATCHING_TRIGGER_LABELS: Record<MatchingTrigger, string> = {
+  INITIAL: "Recherche initiale",
+  ESCALATION: "Escalade de rayon",
+  SURGE_RETRY: "Relance (surge)",
+  FALLBACK_VEHICLE: "Repli véhicule",
+};
+
+export const MATCHING_OUTCOME_LABELS: Record<MatchingOutcome, string> = {
+  SOLICITED: "Chauffeurs sollicités",
+  NO_CANDIDATE_IN_RADIUS: "Aucun candidat dans le rayon",
+  ALL_EXCLUDED_BALANCE: "Tous exclus (solde)",
+  EXHAUSTED: "Épuisé",
+};
+
+export const MATCHING_MILESTONE_LABELS: Record<MatchingMilestoneCode, string> = {
+  SURGE_ACTIVATED: "Surge activé",
+  FALLBACK_PROPOSED: "Repli proposé",
+  FALLBACK_ACCEPTED: "Repli accepté",
+  FALLBACK_EXPIRED: "Repli expiré",
+  ATTEMPTS_CAP_REACHED: "Plafond de tentatives atteint",
+  RADIUS_STEPS_EXHAUSTED: "Paliers de rayon épuisés",
+};
+
+export const MATCHING_FAILURE_REASON_LABELS: Record<MatchingFailureReason, string> = {
+  NO_CANDIDATE_IN_RADIUS: "Aucun candidat dans le rayon",
+  ALL_EXCLUDED_BALANCE: "Tous les candidats exclus (solde)",
+  ALL_IGNORED_OR_REJECTED: "Tous ignoré/refusé",
+  FALLBACK_NO_CANDIDATE: "Repli sans candidat",
+  SURGE_EXPIRED: "Expiré en surge",
+  STUCK_SWEEP: "Nettoyage (bloqué)",
+  LEGACY_NO_DRIVER_JOB: "Job legacy sans driver",
+  SCHEDULED_DECLARED: "Réservation déclarée sans dispatch",
+};
+
+export interface MatchingCycleStep {
+  radiusKm: number;
+  /** Plafonné à 20 par le backend (= "≥20"). */
+  found: number;
+  excludedBalance: number;
+  alreadyContacted: number;
+  eligible: number;
+}
+
+export interface MatchingCycle {
+  at: string;
+  trigger: MatchingTrigger;
+  vehicleType: string;
+  steps: MatchingCycleStep[];
+  outcome: MatchingOutcome;
+  presence?: {
+    radiusKm: number;
+    onlineAnyCategoryInRadius: number;
+    onlineFreeAnyCategoryInRadius: number;
+    onlineTotal: number;
+  };
+}
+
+export interface MatchingMilestone {
+  at: string;
+  code: MatchingMilestoneCode;
+  detail?: string;
+}
+
+export interface RideMatchingSummary {
+  version: number;
+  firstSolicitedAt?: string;
+  lastSolicitedAt?: string;
+  solicitedCount: number;
+  /** Agrège timeouts (30s) ET refus explicites — pas de distinction. */
+  ignoredCount: number;
+  /** 1er cycle INITIAL, jamais évincé de la fenêtre glissante. */
+  firstCycle?: MatchingCycle;
+  /** 30 derniers cycles (fenêtre glissante). */
+  cycles: MatchingCycle[];
+  /** 20 derniers jalons. */
+  milestones: MatchingMilestone[];
+  /** Posé UNIQUEMENT sur échec. */
+  finalReason?: MatchingFailureReason;
+  finalAt?: string;
+}
+
+/** available:false = course jamais tracée (200, PAS "0 chauffeur trouvé"). */
+export type RideMatchingResponse =
+  | { rideId: string; rideNumber: string; status: string; available: false; reason: "NOT_TRACED" }
+  | { rideId: string; rideNumber: string; status: string; available: true; summary: RideMatchingSummary };

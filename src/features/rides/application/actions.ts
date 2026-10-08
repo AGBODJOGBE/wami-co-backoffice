@@ -21,7 +21,7 @@ function fail<T>(error: unknown, fallback: string): ActionResult<T> {
   };
 }
 
-import type { AdminRide } from "../domain/admin-ride";
+import type { AdminRide, RideMatchingResponse } from "../domain/admin-ride";
 import type { RideGpsTrackResponse, RideTelemetryResponse } from "../domain/ride-telemetry";
 
 /**
@@ -279,5 +279,19 @@ export async function getGuaranteeSettlementAction(
     return { ok: true, message: "", data };
   } catch (e) {
     return fail(e, "Règlement de la garantie indisponible.");
+  }
+}
+
+/** GET /api/admin/rides/:rideId/matching — résumé recherche chauffeur (compteurs/cycles). */
+export async function getRideMatchingAction(
+  rideId: string,
+): Promise<ActionResult<RideMatchingResponse>> {
+  try {
+    const data = await apiFetch<RideMatchingResponse>(
+      API_ROUTES.adminRides.matching(rideId),
+    );
+    return { ok: true, message: "", data };
+  } catch (e) {
+    return fail(e, "Résumé de recherche indisponible.");
   }
 }

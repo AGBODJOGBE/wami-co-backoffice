@@ -40,6 +40,7 @@ import { rideStatusMeta, type RideDetail } from "../domain/admin-ride";
 import { InterventionDesignModal } from "./intervention-design-modal";
 import { RideTelemetryTab } from "./ride-telemetry-tab";
 import { GuaranteeSettlementTab } from "./guarantee-settlement-tab";
+import { RideMatchingTab } from "./ride-matching-tab";
 import { usePermissions } from "@/features/auth/presentation/use-permissions";
 
 /* ─────────────────────────── helpers ──────────────────────────────────── */
@@ -187,6 +188,20 @@ export function RideDetailClient({ ride }: RideDetailClientProps) {
             <DetailChip label="Catégorie véhicule" value={ride.vehicleType} />
             <DetailChip label="Mode de paiement"  value={ride.paymentMethod} />
             <DetailChip label="Statut"            value={<Badge tone={statusMeta.tone}>{statusMeta.label}</Badge>} />
+            <DetailChip
+              label="Programmation"
+              value={
+                <Badge tone={ride.scheduleType === "SCHEDULED" ? "info" : "neutral"}>
+                  {ride.scheduleType === "SCHEDULED" ? "Programmée" : "Instantanée"}
+                </Badge>
+              }
+            />
+            {ride.guarantee && (
+              <DetailChip
+                label="Garantie réservation"
+                value={`${formatXof(ride.guarantee.amount)}${ride.guarantee.rate != null ? ` (${Math.round(ride.guarantee.rate * 100)}%)` : ""}`}
+              />
+            )}
           </div>
         </CardContent>
       </Card>
@@ -553,6 +568,9 @@ export function RideDetailClient({ ride }: RideDetailClientProps) {
     { value: "evals",     label: "Évaluations",
       badge: hasRatings ? { count: [ride.passengerRating, ride.driverRating].filter(Boolean).length, tone: "success" as const } : undefined,
       content: tabEvals },
+    ...(can("ride.view_all")
+      ? [{ value: "matching", label: "Recherche chauffeur", content: <RideMatchingTab rideId={ride.rideId} /> }]
+      : []),
     // Réservation programmée uniquement (la route rend `guarantee: null` sinon).
     ...(ride.scheduledAt && can("ride.scheduled.settlement.view")
       ? [{ value: "guarantee", label: "Garantie", content: <GuaranteeSettlementTab rideId={ride.rideId} /> }]

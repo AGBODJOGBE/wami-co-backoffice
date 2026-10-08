@@ -59,7 +59,7 @@ const tiersSeed: PricingTier[] = [
     isActive: true,
   },
   {
-    vehicleType: "PREMIUM",
+    vehicleType: "CONFORT",
     basePrice: 1500,
     pricePerKm: 350,
     pricePerMin: 70,

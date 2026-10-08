@@ -145,6 +145,8 @@ export const API_ROUTES = {
     setAffiliate: (id: string) => `/api/admin/promo-codes/${id}/affiliate`,
     /** PATCH — toggle active flag. */
     toggle: (id: string) => `/api/admin/promo-codes/${id}/toggle`,
+    /** PATCH — résiduel de marge minimum propre à ce code (points de %, [1,100] ou null = suit le réglage global). Body: { marginResidualPct: number|null }. Permissions: promo.manage ET promo.manage-budgeted. */
+    setMarginResidual: (id: string) => `/api/admin/promo-codes/${id}/margin-residual`,
     /** POST — validate a promo code before a ride (used by passenger app). */
     validate: () => "/api/admin/promo-codes/validate",
   },
@@ -176,6 +178,8 @@ export const API_ROUTES = {
     guaranteeSettlement: (rideId: string) => `/api/admin/rides/${rideId}/guarantee-settlement`,
     track: (rideId: string, every?: number) =>
       `/api/admin/rides/${rideId}/track${every && every > 1 ? `?every=${every}` : ""}`,
+    /** GET — résumé de la recherche chauffeur (compteurs/cycles, sans driverId ni localisation). Permission: ride.view_all. */
+    matching: (rideId: string) => `/api/admin/rides/${rideId}/matching`,
   },
 
   // ─── Admin: réservations programmées (bascule manuelle) ────────────────────
@@ -234,6 +238,10 @@ export const API_ROUTES = {
     rejectWithdrawal: (id: string) => `/api/admin/withdrawals/${id}/reject`,
     /** GET — list all transactions (admin). Query: type, walletType, direction, page, limit. */
     transactions: () => "/api/admin/transactions",
+    /** PATCH — bloque uniquement les retraits d'un wallet (fraude). Body: { reason } (obligatoire, max 500 car.). Permission: wallet.block_withdrawals. */
+    blockWithdrawals: (walletId: string) => `/api/admin/wallets/${walletId}/withdrawals/block`,
+    /** PATCH — débloque les retraits d'un wallet. Pas de body. Permission: wallet.block_withdrawals. */
+    unblockWithdrawals: (walletId: string) => `/api/admin/wallets/${walletId}/withdrawals/unblock`,
   },
 
   // ─── Admin: wallet grant campaigns (bulk credit, maker-checker) ────────────

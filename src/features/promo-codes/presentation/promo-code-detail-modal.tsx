@@ -9,6 +9,7 @@ import { toast } from "@/shared/ui/toast";
 import { formatDateTime } from "@/shared/lib/format";
 import { togglePromoCodeAction } from "../application/actions";
 import { AffiliateAttachment } from "./promo-code-affiliate-attachment";
+import { MarginResidualEditor } from "./promo-code-margin-residual";
 import {
   CAMPAIGN_TYPE_LABELS,
   CHANNEL_LABELS,
@@ -23,6 +24,7 @@ import {
   discountSummary,
   type PromoCode,
   type SetPromoCodeAffiliateResult,
+  type SetPromoCodeMarginResidualResult,
 } from "../domain/promo-code";
 
 export interface PromoCodeDetailModalProps {
@@ -100,12 +102,18 @@ export function PromoCodeDetailModal({
   // Reflète immédiatement un rattachement/détachement d'affilié sans
   // attendre le prochain rafraîchissement de la liste parente.
   const [affiliateOverride, setAffiliateOverride] = useState<SetPromoCodeAffiliateResult | null>(null);
+  const [marginResidualOverride, setMarginResidualOverride] = useState<SetPromoCodeMarginResidualResult | null>(null);
   if (!promo) return null;
 
-  const effectivePromo: PromoCode =
-    affiliateOverride && affiliateOverride.promoCodeId === promo.id
-      ? { ...promo, affiliateId: affiliateOverride.affiliateId, affiliateCommissionRate: affiliateOverride.affiliateCommissionRate }
-      : promo;
+  const effectivePromo: PromoCode = {
+    ...promo,
+    ...(affiliateOverride && affiliateOverride.promoCodeId === promo.id
+      ? { affiliateId: affiliateOverride.affiliateId, affiliateCommissionRate: affiliateOverride.affiliateCommissionRate }
+      : {}),
+    ...(marginResidualOverride && marginResidualOverride.promoCodeId === promo.id
+      ? { marginResidualPct: marginResidualOverride.marginResidualPct }
+      : {}),
+  };
 
   function toggle() {
     if (!promo) return;
@@ -355,6 +363,13 @@ export function PromoCodeDetailModal({
           <AffiliateAttachment
             promo={effectivePromo}
             onUpdated={(result) => setAffiliateOverride(result)}
+          />
+        </Section>
+
+        <Section title="Résiduel de marge" cols={1}>
+          <MarginResidualEditor
+            promo={effectivePromo}
+            onUpdated={(result) => setMarginResidualOverride(result)}
           />
         </Section>
 

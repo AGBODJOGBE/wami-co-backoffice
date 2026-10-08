@@ -12,7 +12,9 @@ import {
   Clock,
   Download,
   ExternalLink,
+  Lock,
   RefreshCw,
+  Unlock,
   Users,
   Wallet,
   XCircle,
@@ -34,9 +36,11 @@ import { type CsvColumn, downloadCsv, timestampedFilename } from "@/shared/lib/c
 import { formatDate, formatDateTime, formatXof } from "@/shared/lib/format";
 import {
   approveWithdrawalAction,
+  blockWalletWithdrawalsAction,
   creditWalletAction,
   debitWalletAction,
   rejectWithdrawalAction,
+  unblockWalletWithdrawalsAction,
   type WalletBalanceType,
   type WalletCreditType,
   type WalletDebitType,
@@ -218,6 +222,8 @@ const WALLET_CSV_COLUMNS: readonly CsvColumn<AdminWallet>[] = [
   { key: "referral",  header: "Parrainage (FCFA)",   value: (w) => w.referralBalance },
   { key: "total",     header: "Total (FCFA)",        value: (w) => w.totalBalance },
   { key: "status",    header: "Statut",              value: (w) => w.status === "ACTIVE" ? "Actif" : w.status },
+  { key: "withdrawalsBlocked", header: "Retraits bloqués",   value: (w) => w.withdrawalsBlocked ? "Oui" : "Non" },
+  { key: "blockReason", header: "Motif blocage",      value: (w) => w.withdrawalsBlockedReason ?? "" },
 ];
 
 function WalletsTab({ wallets }: { wallets: AdminWallet[] }) {
@@ -327,9 +333,21 @@ function WalletsTab({ wallets }: { wallets: AdminWallet[] }) {
         def: { kind: "select", options: [{ value: "ACTIVE", label: "Actif" }, { value: "FROZEN", label: "Gelé" }] },
       },
       render: (row) => (
-        <Badge tone={row.status === "ACTIVE" ? "success" : "warning"}>
-          {row.status === "ACTIVE" ? "Actif" : row.status}
-        </Badge>
+        <div className="flex flex-col items-start gap-1">
+          <Badge tone={row.status === "ACTIVE" ? "success" : "warning"}>
+            {row.status === "ACTIVE" ? "Actif" : row.status}
+          </Badge>
+          {row.withdrawalsBlocked && <Badge tone="danger">Retraits bloqués</Badge>}
+        </div>
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (row) => (
+        <CanView permission="wallet.block_withdrawals">
+          <WithdrawalLockButton wallet={row} />
+        </CanView>
       ),
     },
   ];
@@ -363,6 +381,92 @@ function WalletsTab({ wallets }: { wallets: AdminWallet[] }) {
         <PaginationFooter total={wallets.length} shown={filtered.length} />
       </Card>
     </div>
+  );
+}
+
+// ─── Blocage des retraits (fraude) ──────────────────────────────────────────
+
+function WithdrawalLockButton({ wallet }: { wallet: AdminWallet }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  function handleUnblock() {
+    startTransition(async () => {
+      const res = await unblockWalletWithdrawalsAction(wallet.walletId);
+      if (res.success) {
+        toast({ kind: "success", title: "Retraits débloqués", description: wallet.ownerName || wallet.walletId });
+        router.refresh();
+      } else {
+        toast({ kind: "error", title: "Déblocage impossible", description: res.error });
+      }
+    });
+  }
+
+  function handleBlockSubmit() {
+    if (!reason.trim()) {
+      toast({ kind: "error", title: "Motif requis", description: "Indiquez le motif du blocage (fraude, enquête…)." });
+      return;
+    }
+    if (reason.trim().length > 500) {
+      toast({ kind: "error", title: "Motif trop long", description: "500 caractères maximum." });
+      return;
+    }
+    startTransition(async () => {
+      const res = await blockWalletWithdrawalsAction(wallet.walletId, reason.trim());
+      if (res.success) {
+        toast({ kind: "success", title: "Retraits bloqués", description: wallet.ownerName || wallet.walletId });
+        setOpen(false);
+        setReason("");
+        router.refresh();
+      } else {
+        toast({ kind: "error", title: "Blocage impossible", description: res.error });
+      }
+    });
+  }
+
+  if (wallet.withdrawalsBlocked) {
+    return (
+      <Button variant="outline" size="sm" onClick={handleUnblock} disabled={pending}>
+        {pending ? <Spinner size="sm" /> : <Unlock className="size-3.5" />}
+        Débloquer
+      </Button>
+    );
+  }
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <Lock className="size-3.5" />
+        Bloquer retraits
+      </Button>
+      <Modal
+        open={open}
+        onClose={() => { setOpen(false); setReason(""); }}
+        size="md"
+        title="Bloquer les retraits de ce wallet"
+        description="Les crédits et autres débits (commission, recouvrement) continuent normalement — seules les demandes de retrait sont bloquées."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => { setOpen(false); setReason(""); }} disabled={pending}>Annuler</Button>
+            <Button variant="danger" onClick={handleBlockSubmit} disabled={pending || !reason.trim()}>
+              {pending && <Spinner size="sm" />}
+              Bloquer les retraits
+            </Button>
+          </>
+        }
+      >
+        <Textarea
+          label="Motif du blocage (obligatoire, 500 car. max)"
+          required
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Ex : suspicion de fraude, enquête en cours…"
+          rows={3}
+        />
+      </Modal>
+    </>
   );
 }
 

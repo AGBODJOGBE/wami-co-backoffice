@@ -568,9 +568,12 @@ function WalletCard({ wallet }: { wallet?: AdminWallet }) {
             {formatXof(wallet.totalBalance)}
           </span>
         </div>
-        <Badge tone={wallet.status === "ACTIVE" ? "success" : "neutral"}>
-          {wallet.status === "ACTIVE" ? "Actif" : wallet.status}
-        </Badge>
+        <div className="flex flex-col items-end gap-1">
+          <Badge tone={wallet.status === "ACTIVE" ? "success" : "neutral"}>
+            {wallet.status === "ACTIVE" ? "Actif" : wallet.status}
+          </Badge>
+          {wallet.withdrawalsBlocked && <Badge tone="danger">Retraits bloqués</Badge>}
+        </div>
       </div>
 
       {total > 0 && (

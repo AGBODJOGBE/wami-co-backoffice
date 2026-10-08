@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { API_ROUTES } from "@/shared/config/api-routes";
 import { apiFetch } from "@/shared/lib/api/server";
 import { listAdminTransactions, type TransactionFilters } from "./api";
-import type { AdminTransaction } from "../domain/wallet";
+import type { AdminTransaction, WalletWithdrawalLockResult } from "../domain/wallet";
 /**
  * Récupère toutes les transactions en paginant jusqu'à épuisement.
  * Utilisé par les exports CSV pour ne pas être limité à la page courante.
@@ -144,5 +144,49 @@ export async function creditWalletAction(
     const message =
       err instanceof Error ? err.message : "Erreur lors du crédit.";
     return { success: false, error: message };
+  }
+}
+
+// ─── Blocage des retraits (fraude) ───────────────────────────────────────────
+
+/**
+ * PATCH /api/admin/wallets/{walletId}/withdrawals/block
+ * Bloque uniquement les retraits de ce wallet — crédits et autres débits
+ * continuent normalement. Motif obligatoire (max 500 car.).
+ * Permission : wallet.block_withdrawals
+ */
+export async function blockWalletWithdrawalsAction(
+  walletId: string,
+  reason: string,
+): Promise<ActionResult<WalletWithdrawalLockResult>> {
+  try {
+    const data = await apiFetch<WalletWithdrawalLockResult>(
+      API_ROUTES.adminWallets.blockWithdrawals(walletId),
+      { method: "PATCH", body: { reason } },
+    );
+    revalidatePath("/wallet");
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Blocage impossible." };
+  }
+}
+
+/**
+ * PATCH /api/admin/wallets/{walletId}/withdrawals/unblock
+ * Débloque les retraits d'un wallet précédemment bloqué.
+ * Permission : wallet.block_withdrawals
+ */
+export async function unblockWalletWithdrawalsAction(
+  walletId: string,
+): Promise<ActionResult<WalletWithdrawalLockResult>> {
+  try {
+    const data = await apiFetch<WalletWithdrawalLockResult>(
+      API_ROUTES.adminWallets.unblockWithdrawals(walletId),
+      { method: "PATCH" },
+    );
+    revalidatePath("/wallet");
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Déblocage impossible." };
   }
 }

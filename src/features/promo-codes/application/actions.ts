@@ -8,6 +8,7 @@ import type {
   CreatePromoCodeInput,
   CreatePromoCodeResult,
   SetPromoCodeAffiliateResult,
+  SetPromoCodeMarginResidualResult,
   ValidatePromoCodeInput,
   ValidatePromoCodeResult,
 } from "../domain/promo-code";
@@ -108,6 +109,31 @@ export async function setPromoCodeAffiliateAction(
     };
   } catch (e) {
     return fail(e, "Rattachement impossible.");
+  }
+}
+
+/** PATCH /api/admin/promo-codes/{id}/margin-residual — body OBLIGATOIRE même
+ * pour remettre `null` (clé absente = 400, jamais interprété comme un retrait
+ * silencieux). Permissions : promo.manage ET promo.manage-budgeted. */
+export async function setPromoCodeMarginResidualAction(
+  promoCodeId: string,
+  marginResidualPct: number | null,
+): Promise<ActionResult<SetPromoCodeMarginResidualResult>> {
+  try {
+    const data = await apiFetch<SetPromoCodeMarginResidualResult>(
+      API_ROUTES.adminPromos.setMarginResidual(promoCodeId),
+      { method: "PATCH", body: { marginResidualPct } },
+    );
+    refresh();
+    return {
+      ok: true,
+      message: marginResidualPct != null
+        ? `Résiduel de marge fixé à ${marginResidualPct}%.`
+        : "Résiduel de marge remis au réglage global.",
+      data,
+    };
+  } catch (e) {
+    return fail(e, "Mise à jour du résiduel impossible.");
   }
 }
 

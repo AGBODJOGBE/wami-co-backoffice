@@ -79,6 +79,7 @@ export const MISSING_PERMISSIONS: MissingPermissionEntry[] = [
   { code: "wallet.credit",                        name: "Créditer un wallet manuellement",                                module: "wallet",       category: "MANAGE"       },
   { code: "wallet.debit",                         name: "Débiter un wallet manuellement",                                 module: "wallet",       category: "MANAGE"       },
   { code: "wallet.withdrawal.manage",             name: "Approuver / rejeter les demandes de retrait",                   module: "wallet",       category: "MANAGE"       },
+  { code: "wallet.block_withdrawals",             name: "Bloquer / débloquer les retraits d'un wallet (fraude)",         module: "wallet",       category: "MANAGE"       },
   { code: "transaction.view_all",                 name: "Voir toutes les transactions",                                   module: "wallet",       category: "VIEW"         },
 
   // ─── PAIEMENTS MOBILE MONEY ──────────────────────────────────────────────────

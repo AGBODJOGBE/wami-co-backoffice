@@ -30,11 +30,13 @@ import { StatCard } from "@/features/dashboard/presentation/components/stat-card
 import { downloadCsv, timestampedFilename } from "@/shared/lib/csv";
 import { formatDateTime, formatXof } from "@/shared/lib/format";
 import {
+  DRIVER_ASSIGNMENT_SOURCE_LABELS,
   fullParty,
   ghostRideLabel,
   isGhostRide,
   rideStatusMeta,
   type AdminRide,
+  type DriverAssignmentSource,
 } from "../domain/admin-ride";
 import { fetchRidesPageAction } from "../application/actions";
 import { InterventionDesignModal } from "./intervention-design-modal";
@@ -522,6 +524,17 @@ export function AdminRidesListClient({
                     { key: "final", header: "Final", value: (r) => r.pricing?.finalPrice ?? "" },
                     { key: "createdAt", header: "Créée", value: (r) => r.createdAt },
                     { key: "completedAt", header: "Terminée", value: (r) => r.completedAt ?? "" },
+                    { key: "driverAssignedAt", header: "Chauffeur affecté le", value: (r) => r.driverAssignedAt ?? "" },
+                    { key: "acceptedAt", header: "Départ chauffeur le", value: (r) => r.acceptedAt ?? "" },
+                    {
+                      key: "assignmentSource",
+                      header: "Source affectation",
+                      value: (r) =>
+                        r.driverAssignmentSource
+                          ? DRIVER_ASSIGNMENT_SOURCE_LABELS[r.driverAssignmentSource as DriverAssignmentSource] ?? r.driverAssignmentSource
+                          : "",
+                    },
+                    { key: "noDriverFoundAt", header: "Aucun driver trouvé le", value: (r) => r.noDriverFoundAt ?? "" },
                   ],
                   filtered,
                 )

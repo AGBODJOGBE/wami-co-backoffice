@@ -23,6 +23,20 @@ export interface AdminWallet {
   ownerName: string;
   ownerPhone: string;
   createdAt: string;
+  /** Verrou ADMIN sur les retraits uniquement — crédits et autres débits continuent normalement. */
+  withdrawalsBlocked: boolean;
+  withdrawalsBlockedReason: string | null;
+  withdrawalsBlockedAt: string | null;
+  withdrawalsBlockedBy: string | null;
+}
+
+/** Réponse identique pour block et unblock. */
+export interface WalletWithdrawalLockResult {
+  walletId: string;
+  withdrawalsBlocked: boolean;
+  withdrawalsBlockedReason: string | null;
+  withdrawalsBlockedAt: string | null;
+  withdrawalsBlockedBy: string | null;
 }
 
 export interface AdminWalletsResult {

@@ -517,6 +517,20 @@ export function PromoCodeCreateModal({
                   </p>
                 </div>
               ) : null}
+
+              <Input
+                label="Résiduel de marge minimum pour ce code (%)"
+                type="number"
+                min={1}
+                max={100}
+                step={0.1}
+                value={form.marginResidualPct ?? ""}
+                onChange={(e) =>
+                  set("marginResidualPct", e.target.value === "" ? null : Number(e.target.value))
+                }
+                placeholder="Suit le réglage global"
+                hint="Laisser vide = suit PROMO_MARGIN_GUARD_RESIDUAL_PCT (réglage global). Décimales permises, entre 1 et 100."
+              />
             </div>
           </CanView>
         </Section>
