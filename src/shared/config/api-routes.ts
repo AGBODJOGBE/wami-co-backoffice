@@ -362,6 +362,12 @@ export const API_ROUTES = {
       `/api/vehicles/admin/${id}/maintenance/complete`,
     /** POST — definitively retire a vehicle. */
     retire: (id: string) => `/api/vehicles/admin/${id}/retire`,
+    /** POST multipart — admin ajoute un véhicule organique (ownership=DRIVER) directement pour un chauffeur, documents compris. requireAdmin() seul. */
+    addForDriver: (driverId: string) => `/api/vehicles/admin/driver/${driverId}/add`,
+    /** POST multipart — véhicule tiers (sans chauffeur, ownership=THIRD_PARTY). requireAdmin() seul. */
+    addThirdParty: () => "/api/vehicles/admin/third-party/add",
+    /** POST multipart — ajoute/complète les documents d'un véhicule existant (insurance et/ou registrationCard, au moins un). 409 si le type de document existe déjà. requireAdmin() seul. */
+    uploadDocuments: (id: string) => `/api/vehicles/admin/${id}/documents`,
   },
 
   // ─── Documents (admin) ─────────────────────────────────────────────────────

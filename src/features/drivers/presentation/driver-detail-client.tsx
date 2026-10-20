@@ -473,9 +473,10 @@ function VehicleCard({
               <div className="ml-11 flex flex-wrap items-center gap-1.5">
                 <Badge tone="neutral">{VEHICLE_TYPE_LABELS[v.type]}</Badge>
                 {v.category && <Badge tone="primary">{VEHICLE_CATEGORY_LABELS[v.category]}</Badge>}
-                <Badge tone={v.ownership === "PLATFORM" ? "info" : "neutral"}>
+                <Badge tone={v.ownership === "PLATFORM" ? "info" : v.ownership === "THIRD_PARTY" ? "warning" : "neutral"}>
                   {VEHICLE_OWNERSHIP_LABELS[v.ownership]}
                 </Badge>
+                {v.isActive && <Badge tone="success">Véhicule actif</Badge>}
               </div>
               <div className="ml-11 flex items-center gap-1 text-[10px] text-[color:var(--primary)]">
                 <ArrowRight className="size-3" />

@@ -511,6 +511,9 @@ interface EditFormState {
   nextMaintenanceDate: string;
   purchasePrice: number | "";
   currentValue: number | "";
+  thirdPartyOwnerName: string;
+  thirdPartyOwnerPhone: string;
+  thirdPartyNote: string;
 }
 
 export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
@@ -533,6 +536,9 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
     nextMaintenanceDate: "",
     purchasePrice: "",
     currentValue: "",
+    thirdPartyOwnerName: "",
+    thirdPartyOwnerPhone: "",
+    thirdPartyNote: "",
   });
   const [pending, start] = useTransition();
 
@@ -562,6 +568,9 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
         : "",
       purchasePrice: vehicle.purchasePrice ?? "",
       currentValue: vehicle.currentValue ?? "",
+      thirdPartyOwnerName: vehicle.thirdPartyOwnerName ?? "",
+      thirdPartyOwnerPhone: vehicle.thirdPartyOwnerPhone ?? "",
+      thirdPartyNote: vehicle.thirdPartyNote ?? "",
     });
   }, [open, vehicle]);
 
@@ -620,6 +629,17 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
       nextMaintenanceDate: form.nextMaintenanceDate || undefined,
       purchasePrice: form.purchasePrice !== "" ? (form.purchasePrice as number) : undefined,
       currentValue: form.currentValue !== "" ? (form.currentValue as number) : undefined,
+      // Le backend rejette ces 3 champs (422) pour un véhicule qui n'est pas
+      // THIRD_PARTY — ne les envoyer que dans ce cas. Chaîne vide → null
+      // (efface explicitement), jamais omis (undefined = inchangé serait
+      // trompeur alors que l'admin vient de vider le champ à l'écran).
+      ...(vehicle.ownership === "THIRD_PARTY"
+        ? {
+            thirdPartyOwnerName: form.thirdPartyOwnerName.trim() || null,
+            thirdPartyOwnerPhone: form.thirdPartyOwnerPhone.trim() || null,
+            thirdPartyNote: form.thirdPartyNote.trim() || null,
+          }
+        : {}),
     };
     start(async () => {
       const r = await updateVehicleAction(vehicle.id, payload);
@@ -753,29 +773,60 @@ export function VehicleEditModal({ open, vehicle, onClose }: EditModalProps) {
               <span className="text-xs font-medium text-[color:var(--foreground)]">
                 Propriété
               </span>
-              <div className="flex gap-2">
-                {OWNERSHIP_CHIPS.map((o) => {
-                  const selected = form.ownership === o.value;
-                  return (
-                    <button
-                      key={o.value}
-                      type="button"
-                      onClick={() => set("ownership", o.value)}
-                      className={cn(
-                        "flex-1 rounded-lg border py-2 text-sm font-medium transition cursor-pointer",
-                        selected
-                          ? "border-[color:var(--primary)] bg-[color:var(--primary-soft)] text-[color:var(--primary)] ring-2 ring-[color:var(--primary)]/30"
-                          : "border-[color:var(--border)] bg-[color:var(--background)] text-[color:var(--foreground)] hover:border-[color:var(--primary)]/50",
-                      )}
-                    >
-                      {o.label}
-                    </button>
-                  );
-                })}
-              </div>
+              {vehicle.ownership === "THIRD_PARTY" ? (
+                <div className="flex items-center gap-2 rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/30 px-3 py-2 text-sm text-[color:var(--muted-foreground)]">
+                  Tiers — non modifiable depuis cet écran
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  {OWNERSHIP_CHIPS.map((o) => {
+                    const selected = form.ownership === o.value;
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        onClick={() => set("ownership", o.value)}
+                        className={cn(
+                          "flex-1 rounded-lg border py-2 text-sm font-medium transition cursor-pointer",
+                          selected
+                            ? "border-[color:var(--primary)] bg-[color:var(--primary-soft)] text-[color:var(--primary)] ring-2 ring-[color:var(--primary)]/30"
+                            : "border-[color:var(--border)] bg-[color:var(--background)] text-[color:var(--foreground)] hover:border-[color:var(--primary)]/50",
+                        )}
+                      >
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </Section>
+
+        {vehicle.ownership === "THIRD_PARTY" && (
+          <Section title="Propriétaire (tiers)" helper="Jamais visible du chauffeur">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                label="Nom"
+                value={form.thirdPartyOwnerName}
+                onChange={(e) => set("thirdPartyOwnerName", e.target.value)}
+                maxLength={100}
+              />
+              <Input
+                label="Téléphone"
+                value={form.thirdPartyOwnerPhone}
+                onChange={(e) => set("thirdPartyOwnerPhone", e.target.value)}
+              />
+            </div>
+            <Textarea
+              label="Note"
+              value={form.thirdPartyNote}
+              onChange={(e) => set("thirdPartyNote", e.target.value)}
+              rows={2}
+              maxLength={500}
+            />
+          </Section>
+        )}
 
         <Section
           title="Documents légaux"

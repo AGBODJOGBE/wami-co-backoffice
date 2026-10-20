@@ -39,7 +39,7 @@ export type VehicleStatus =
   | "REJECTED"
   | "SOLD";
 
-export type VehicleOwnership = "DRIVER" | "PLATFORM";
+export type VehicleOwnership = "DRIVER" | "PLATFORM" | "THIRD_PARTY";
 
 export const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
   MOTO: "Moto",
@@ -71,6 +71,7 @@ export const VEHICLE_STATUS_META: Record<
 export const VEHICLE_OWNERSHIP_LABELS: Record<VehicleOwnership, string> = {
   DRIVER: "Pilote",
   PLATFORM: "Plateforme",
+  THIRD_PARTY: "Tiers",
 };
 
 /** Matches `VehicleSummary` in the OpenAPI spec. */
@@ -117,6 +118,14 @@ export interface VehicleSummary {
   contractCount?: number;
   /** True si un contrat actif est en cours sur ce véhicule. */
   hasActiveContract?: boolean;
+  /** Admin-only, PII — jamais exposés au chauffeur. Uniquement significatifs
+   * si ownership === "THIRD_PARTY" (null/vide sinon). */
+  thirdPartyOwnerName?: string | null;
+  thirdPartyOwnerPhone?: string | null;
+  thirdPartyNote?: string | null;
+  /** GET /admin/driver/:driverId uniquement — true si ce véhicule est
+   * actuellement le véhicule actif du chauffeur (driver.assignedVehicleId). */
+  isActive?: boolean;
 }
 
 export interface VehicleListResult {
@@ -169,6 +178,96 @@ export interface UpdateVehicleInput {
   nextMaintenanceDate?: string;
   purchasePrice?: number;
   currentValue?: number;
+  /** THIRD_PARTY uniquement (422 sinon). null/"" efface le champ, undefined = inchangé. */
+  thirdPartyOwnerName?: string | null;
+  thirdPartyOwnerPhone?: string | null;
+  thirdPartyNote?: string | null;
+}
+
+// ─── Onboarding admin (multipart) ────────────────────────────────────────────
+// 3 routes multipart/form-data, requireAdmin() seul (aucune permission fine).
+// Une assurance qui expire AUJOURD'HUI est valide toute la journée (comparée
+// au début du jour UTC, pas à l'instant présent).
+
+/** POST /api/vehicles/admin/driver/:driverId/add — véhicule organique pour un
+ * chauffeur (ownership=DRIVER), créé ET ses documents en un seul appel. */
+export interface AdminAddDriverVehicleInput {
+  driverId: string;
+  type: VehicleType;
+  make: string;
+  model: string;
+  year: number;
+  color: string;
+  licensePlate: string;
+  seats: number;
+  insuranceExpiryDate?: string;
+  /** Obligatoire côté backend (400 si absent). */
+  insuranceFile: File;
+  registrationCardFile?: File;
+}
+
+export interface AdminAddVehicleResult {
+  vehicleId: string;
+  driverId: string;
+  type: VehicleType;
+  status: "PENDING";
+  isVerified: false;
+  createdAt: string;
+}
+
+/** POST /api/vehicles/admin/third-party/add — véhicule sans chauffeur,
+ * n'appartenant ni à ForYou ni au chauffeur (partenaire, particulier…). */
+export interface AddThirdPartyVehicleInput {
+  type: VehicleType;
+  make: string;
+  model: string;
+  year: number;
+  color: string;
+  licensePlate: string;
+  seats: number;
+  category?: VehicleCategory;
+  insuranceExpiryDate?: string;
+  /** ≤ 100 caractères. */
+  ownerName?: string;
+  /** 8-15 chiffres (+ et espaces tolérés). */
+  ownerPhone?: string;
+  /** ≤ 500 caractères. */
+  ownerNote?: string;
+  insuranceFile?: File;
+  registrationCardFile?: File;
+}
+
+export interface AddThirdPartyVehicleResult {
+  vehicleId: string;
+  ownership: "THIRD_PARTY";
+  type: VehicleType;
+  status: "PENDING";
+  isVerified: false;
+  createdAt: string;
+}
+
+/** POST /api/vehicles/admin/:id/documents — ajoute/complète les documents
+ * d'un véhicule EXISTANT (plateforme, chauffeur ou tiers). Au moins un
+ * fichier requis ; insuranceExpiryDate refusé si envoyé sans insuranceFile.
+ * 409 si un document de ce type existe déjà pour ce véhicule (→ remplacer
+ * via la route documents.adminReplace existante). */
+export interface AdminUploadVehicleDocumentsInput {
+  vehicleId: string;
+  insuranceFile?: File;
+  registrationCardFile?: File;
+  insuranceExpiryDate?: string;
+}
+
+export interface AdminUploadVehicleDocumentsResult {
+  vehicleId: string;
+  insuranceUrl: string | null;
+  registrationCardUrl: string | null;
+  insuranceExpiryDate: string | null;
+  documents: Array<{
+    documentId: string;
+    type: "INSURANCE" | "REGISTRATION_CARD";
+    status: "PENDING";
+  }>;
 }
 
 /** Return value from POST /verify. */

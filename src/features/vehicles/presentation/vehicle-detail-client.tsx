@@ -62,6 +62,7 @@ import {
   VehicleVerifyModal,
   type SimpleConfirmKind,
 } from "./vehicle-modals";
+import { VehicleUploadDocumentsModal } from "./vehicle-onboarding-modals";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -597,6 +598,7 @@ export function VehicleDetailClient({
   const [activeCategoriesOpen, setActiveCategoriesOpen] = useState(false);
   const [maintenanceStartOpen, setMaintenanceStartOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
+  const [uploadDocsOpen, setUploadDocsOpen] = useState(false);
   const [confirm, setConfirm] = useState<SimpleConfirmKind | null>(null);
 
   const status = VEHICLE_STATUS_META[vehicle.status];
@@ -884,11 +886,18 @@ export function VehicleDetailClient({
                     )
                   </CardTitle>
                 </div>
-                {daysLeft !== null && daysLeft >= 0 && (
-                  <span className="text-xs text-[color:var(--muted-foreground)]">
-                    Assurance : {insuranceStatusNode}
-                  </span>
-                )}
+                <div className="flex items-center gap-3">
+                  {daysLeft !== null && daysLeft >= 0 && (
+                    <span className="text-xs text-[color:var(--muted-foreground)]">
+                      Assurance : {insuranceStatusNode}
+                    </span>
+                  )}
+                  <CanView permission="vehicle.manage">
+                    <Button variant="outline" size="sm" onClick={() => setUploadDocsOpen(true)}>
+                      Ajouter des documents
+                    </Button>
+                  </CanView>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -971,6 +980,7 @@ export function VehicleDetailClient({
       <VehicleMaintenanceStartModal open={maintenanceStartOpen} vehicle={vehicle} onClose={() => setMaintenanceStartOpen(false)} />
       <VehicleMaintenanceCompleteModal open={completeOpen} vehicle={vehicle} onClose={() => setCompleteOpen(false)} />
       <VehicleSimpleConfirm kind={confirm} vehicle={confirm ? vehicle : null} onClose={() => setConfirm(null)} />
+      <VehicleUploadDocumentsModal open={uploadDocsOpen} vehicleId={vehicle.id} onClose={() => setUploadDocsOpen(false)} />
     </div>
   );
 

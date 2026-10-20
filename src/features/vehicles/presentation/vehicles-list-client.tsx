@@ -61,6 +61,7 @@ import {
   TVS_TRICYCLE_CONFIG,
   TVS_CAR_CONFIG,
 } from "./vehicle-bulk-create-modal";
+import { VehicleAddForDriverModal, VehicleAddThirdPartyModal } from "./vehicle-onboarding-modals";
 
 const STATUS_OPTIONS = [
   { value: "ALL", label: "Tous statuts" },
@@ -91,6 +92,7 @@ const OWNERSHIP_OPTIONS = [
   { value: "ALL", label: "Toutes propriétés" },
   { value: "PLATFORM", label: "Plateforme" },
   { value: "DRIVER", label: "Pilote" },
+  { value: "THIRD_PARTY", label: "Tiers" },
 ];
 
 const VERIFIED_OPTIONS = [
@@ -138,6 +140,8 @@ export function VehiclesListClient({
   const [verified, setVerified] = useState("ALL");
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [addForDriverOpen, setAddForDriverOpen] = useState(false);
+  const [addThirdPartyOpen, setAddThirdPartyOpen] = useState(false);
   const [bulkTricycleOpen, setBulkTricycleOpen] = useState(false);
   const [bulkCarOpen, setBulkCarOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<VehicleSummary | null>(null);
@@ -234,7 +238,7 @@ export function VehiclesListClient({
       header: "Propriété",
       sortAccessor: (row) => row.ownership,
       render: (row) => (
-        <Badge tone={row.ownership === "PLATFORM" ? "info" : "neutral"}>
+        <Badge tone={row.ownership === "PLATFORM" ? "info" : row.ownership === "THIRD_PARTY" ? "warning" : "neutral"}>
           {VEHICLE_OWNERSHIP_LABELS[row.ownership]}
         </Badge>
       ),
@@ -424,11 +428,24 @@ export function VehiclesListClient({
               <Download className="size-4" />
               Export CSV
             </Button>
-<CanView permission="vehicle.manage">
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" />
-              Nouveau véhicule
-            </Button>
+            <CanView permission="vehicle.manage">
+              <DropdownMenu
+                trigger={
+                  <Button size="sm">
+                    <Plus className="size-4" />
+                    Nouveau véhicule
+                  </Button>
+                }
+                groups={[
+                  {
+                    items: [
+                      { label: "Véhicule plateforme", onSelect: () => setCreateOpen(true) },
+                      { label: "Pour un chauffeur", onSelect: () => setAddForDriverOpen(true) },
+                      { label: "Véhicule tiers", onSelect: () => setAddThirdPartyOpen(true) },
+                    ],
+                  },
+                ]}
+              />
             </CanView>
           </>
         }
@@ -522,6 +539,15 @@ export function VehiclesListClient({
       <VehicleCreateModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
+      />
+      <VehicleAddForDriverModal
+        open={addForDriverOpen}
+        drivers={drivers}
+        onClose={() => setAddForDriverOpen(false)}
+      />
+      <VehicleAddThirdPartyModal
+        open={addThirdPartyOpen}
+        onClose={() => setAddThirdPartyOpen(false)}
       />
       <VehicleBulkCreateModal
         open={bulkTricycleOpen}

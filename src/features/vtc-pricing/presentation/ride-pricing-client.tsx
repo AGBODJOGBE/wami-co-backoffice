@@ -316,6 +316,30 @@ export function RidePricingClient({
               hint="Avant re-calcul du prix"
             />
             <Input
+              label="Tolérance déviation — route réelle (×)"
+              type="number"
+              step="0.1"
+              min={1}
+              value={form.actualRouteDeviationThreshold ?? ""}
+              onChange={(e) =>
+                set("actualRouteDeviationThreshold", e.target.value === "" ? undefined : Number(e.target.value))
+              }
+              placeholder="2.0 (défaut serveur)"
+              hint="Comparé à la route OSRM réellement parcourue, quand fiable (>100m). Vide = garde la valeur active."
+            />
+            <Input
+              label="Excès min. route réelle (m)"
+              type="number"
+              step="1"
+              min={0}
+              value={form.actualRouteDeviationMinExcessMeters ?? ""}
+              onChange={(e) =>
+                set("actualRouteDeviationMinExcessMeters", e.target.value === "" ? undefined : Number(e.target.value))
+              }
+              placeholder="3000 (défaut serveur)"
+              hint="Déviation jugée significative au-delà de ce nombre de mètres."
+            />
+            <Input
               label="Attente offerte (min)"
               type="number"
               min={0}

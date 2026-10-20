@@ -47,6 +47,15 @@ export interface RidePricingInput {
   minimumFare: number;
   driverShareRate: number;
   routeDeviationThreshold: number;
+  /** Seuil de déviation appliqué quand une route OSRM réelle fiable (>100m)
+   * existe — comparaison contre le trajet réellement parcouru plutôt que
+   * l'estimation initiale. Optionnel : absent/undefined = conserve la valeur
+   * de la config active, ou le défaut serveur (2.0) si aucune config n'existe
+   * encore. >= 1.0. */
+  actualRouteDeviationThreshold?: number;
+  /** Excès minimum en mètres (entier >= 0) avant de considérer une déviation
+   * significative sur la route réelle. Défaut serveur : 3000. */
+  actualRouteDeviationMinExcessMeters?: number;
   freeWaitingMinutes: number;
   waitingFeePerMinute: number;
   /** Minutes after which a passenger no-show is declared. */
